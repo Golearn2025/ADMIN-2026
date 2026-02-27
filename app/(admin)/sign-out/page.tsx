@@ -1,5 +1,25 @@
-import { redirect } from "next/navigation";
+"use client";
+
+import { createClient } from "@/lib/supabase/client";
+import { useRouter } from "next/navigation";
+import { useEffect } from "react";
 
 export default function SignOutPage() {
-  redirect("/");
+  const router = useRouter();
+  const supabase = createClient();
+
+  useEffect(() => {
+    const signOut = async () => {
+      await supabase.auth.signOut();
+      router.push("/login");
+      router.refresh();
+    };
+    signOut();
+  }, [router, supabase]);
+
+  return (
+    <div className="flex min-h-screen items-center justify-center">
+      <p className="text-muted-foreground">Signing out...</p>
+    </div>
+  );
 }

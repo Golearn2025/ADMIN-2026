@@ -1,12 +1,20 @@
 import { AppShell, Sidebar, Topbar } from "@/components/layout";
+import { getUserRole } from "@/lib/auth/roles";
+import { redirect } from "next/navigation";
 
-export default function AdminLayout({
+export default async function AdminLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const { hasAccess } = await getUserRole();
+
+  if (!hasAccess) {
+    redirect("/access-denied");
+  }
+
   return (
-    <AppShell topbar={<Topbar />} sidebar={<Sidebar />}>
+    <AppShell sidebar={<Sidebar />} topbar={<Topbar />}>
       {children}
     </AppShell>
   );
