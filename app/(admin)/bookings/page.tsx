@@ -11,6 +11,7 @@ interface Booking {
   id: string;
   reference: string;
   status: string;
+  trip_status: string;
   booking_type: string;
   scheduled_at: string;
   created_at: string;
@@ -41,6 +42,19 @@ const getStatusBadgeVariant = (status: string) => {
     failed: "error",
   };
   return statusMap[status.toLowerCase()] || "neutral";
+};
+
+const getTripStatusBadgeVariant = (tripStatus: string) => {
+  const statusMap: Record<string, "success" | "warning" | "error" | "neutral" | "info" | "primary"> = {
+    pending: "neutral",
+    assigned: "info",
+    en_route: "warning",
+    arrived_at_pickup: "warning",
+    passenger_onboard: "info",
+    completed: "success",
+    cancelled: "error",
+  };
+  return statusMap[tripStatus.toLowerCase()] || "neutral";
 };
 
 const getPaymentBadgeVariant = (status?: string) => {
@@ -215,15 +229,15 @@ const columns: DataTableColumn<Booking>[] = [
   },
   {
     key: "status",
-    header: "Status",
+    header: "Trip Status",
     cell: (row) => (
       <div className="flex justify-center">
-        <Badge variant={getStatusBadgeVariant(row.status)} className="text-xs">
-          {formatText(row.status)}
+        <Badge variant={getTripStatusBadgeVariant(row.trip_status)} className="text-xs">
+          {formatText(row.trip_status)}
         </Badge>
       </div>
     ),
-    width: "110px",
+    width: "130px",
   },
   {
     key: "payment",
