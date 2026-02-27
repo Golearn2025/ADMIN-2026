@@ -1,8 +1,8 @@
-import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
+import { cva, type VariantProps } from "class-variance-authority";
 
 const badgeVariants = cva(
-  "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium transition-colors",
+  "inline-flex items-center rounded-md px-2.5 py-0.5 text-xs font-medium transition-colors",
   {
     variants: {
       variant: {
@@ -18,6 +18,10 @@ const badgeVariants = cva(
           "bg-blue-500/10 text-blue-500 border border-blue-500/20",
         primary:
           "bg-primary/10 text-primary border border-primary/20",
+        purple:
+          "bg-purple-500/10 text-purple-500 border border-purple-500/20",
+        dark:
+          "bg-slate-900/10 text-slate-900 border border-slate-900/20 dark:bg-slate-100/10 dark:text-slate-100 dark:border-slate-100/20",
       },
     },
     defaultVariants: {

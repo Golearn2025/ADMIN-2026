@@ -141,24 +141,30 @@ export const navConfig: NavGroup[] = [
       },
     ],
   },
+  {
+    title: "Tools",
+    icon: Calculator,
+    items: [
+      {
+        title: "Notifications",
+        href: "/notifications",
+        icon: Bell,
+      },
+      {
+        title: "Support",
+        href: "/support",
+        icon: Headphones,
+      },
+      {
+        title: "Pricing Calculator",
+        href: "/pricing-calculator",
+        icon: Calculator,
+      },
+    ],
+  },
 ];
 
 export const bottomNavItems: NavItem[] = [
-  {
-    title: "Notifications",
-    href: "/notifications",
-    icon: Bell,
-  },
-  {
-    title: "Support",
-    href: "/support",
-    icon: Headphones,
-  },
-  {
-    title: "Pricing Calculator",
-    href: "/pricing-calculator",
-    icon: Calculator,
-  },
   {
     title: "Settings",
     href: "/settings",
