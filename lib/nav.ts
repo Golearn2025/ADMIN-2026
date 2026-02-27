@@ -1,11 +1,14 @@
 import {
+    Bell,
     Briefcase,
     Building2,
+    Calculator,
     Calendar,
     Car,
     CreditCard,
     DollarSign,
     FileText,
+    Headphones,
     LayoutDashboard,
     LogOut,
     Map,
@@ -15,7 +18,7 @@ import {
     Truck,
     UserCircle,
     Users,
-    type LucideIcon,
+    type LucideIcon
 } from "lucide-react";
 
 export interface NavItem {
@@ -141,6 +144,21 @@ export const navConfig: NavGroup[] = [
 ];
 
 export const bottomNavItems: NavItem[] = [
+  {
+    title: "Notifications",
+    href: "/notifications",
+    icon: Bell,
+  },
+  {
+    title: "Support",
+    href: "/support",
+    icon: Headphones,
+  },
+  {
+    title: "Pricing Calculator",
+    href: "/pricing-calculator",
+    icon: Calculator,
+  },
   {
     title: "Settings",
     href: "/settings",
