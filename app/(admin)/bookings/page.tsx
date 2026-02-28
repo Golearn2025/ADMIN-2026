@@ -74,7 +74,7 @@ export default function BookingsPage() {
           emptyIcon={Calendar}
           emptyTitle="No bookings found"
           emptyDescription="No bookings match your search criteria."
-          getRowCanExpand={(row) => row.booking_type === "return" || row.booking_type === "fleet"}
+          getRowCanExpand={() => true}
           renderExpandedRow={(row) => <BookingExpandedRow booking={row} />}
         />
       </div>

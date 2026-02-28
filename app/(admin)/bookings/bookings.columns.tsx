@@ -106,14 +106,14 @@ export const columns: DataTableColumn<Booking>[] = [
           <Badge variant={getVehicleCategoryVariant(row.requested_vehicle_category_label)} className="text-xs">
             {row.requested_vehicle_category_label || "N/A"}
           </Badge>
-          {row.requested_vehicle_model_label && (
+          {row.requested_vehicle_display && (
             <div className="text-muted-foreground">
-              {row.requested_vehicle_model_label}
+              {row.requested_vehicle_display}
             </div>
           )}
-          {isFleet && (
+          {isFleet && row.fleet_size > 0 && (
             <div className="text-blue-500 font-semibold">
-              {row.fleet_size > 0 ? `${row.fleet_size} vehicles` : 'Fleet booking'}
+              {row.fleet_size} vehicles
             </div>
           )}
         </div>

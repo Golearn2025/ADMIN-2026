@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
 
     // Build query
     let query = supabase
-      .from("admin_booking_list")
+      .from("admin_booking_list_v2")
       .select("*", { count: "exact" })
       .eq("organization_id", orgId)
       .order("created_at", { ascending: false });
