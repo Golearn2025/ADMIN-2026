@@ -100,7 +100,6 @@ export const columns: DataTableColumn<Booking>[] = [
     key: "vehicle",
     header: "Vehicle",
     cell: (row) => {
-      const isFleet = row.booking_type === "fleet";
       return (
         <div className="space-y-1 text-xs">
           <Badge variant={getVehicleCategoryVariant(row.requested_vehicle_category_label)} className="text-xs">
@@ -111,7 +110,7 @@ export const columns: DataTableColumn<Booking>[] = [
               {row.requested_vehicle_display}
             </div>
           )}
-          {isFleet && row.fleet_size > 0 && (
+          {row.booking_type === "fleet" && row.fleet_size > 0 && (
             <div className="text-blue-500 font-semibold">
               {row.fleet_size} vehicles
             </div>

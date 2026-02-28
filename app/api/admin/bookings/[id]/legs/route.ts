@@ -4,7 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const supabase = await createClient();
@@ -17,7 +17,7 @@ export async function GET(
       );
     }
 
-    const bookingId = params.id;
+    const { id: bookingId } = await params;
 
     // Fetch legs from admin_booking_legs_list
     const { data, error } = await supabase

@@ -1,8 +1,14 @@
-import { Badge } from "@/components/common/badge";
+import { AdditionalStopsSection } from "@/components/bookings/expanded-details/additional-stops-section";
+import { FlightInfoSection } from "@/components/bookings/expanded-details/flight-info-section";
+import { NotesSection } from "@/components/bookings/expanded-details/notes-section";
+import { PaymentsHistorySection } from "@/components/bookings/expanded-details/payments-history-section";
+import { IncludedServicesSection, PaidUpgradesSection, PremiumFeaturesSection } from "@/components/bookings/expanded-details/services-section";
+import { TripPreferencesSection } from "@/components/bookings/expanded-details/trip-preferences-section";
 import { LoadingSkeleton } from "@/components/common/loading-skeleton";
-import { Car, CheckCircle, CreditCard, DollarSign, Mail, Phone, XCircle } from "lucide-react";
 import { useEffect, useState } from "react";
-import { formatDate, getVehicleCategoryVariant } from "./bookings.utils";
+import { BookingDetailsBar } from "./booking-details-bar";
+import { FleetSlotsTable } from "./fleet-slots-table";
+import { ReturnLegsTable } from "./return-legs-table";
 import type { Booking } from "./types";
 
 interface BookingExpandedRowProps {
@@ -36,25 +42,46 @@ interface FleetSlot {
   vehicle_make_model: string | null;
 }
 
-const getPaymentStatusVariant = (status?: string): "success" | "warning" | "error" | "neutral" => {
-  if (!status) return "neutral";
-  const statusLower = status.toLowerCase();
-  if (statusLower === "succeeded" || statusLower === "paid") return "success";
-  if (statusLower === "pending" || statusLower === "processing") return "warning";
-  if (statusLower === "failed" || statusLower === "canceled") return "error";
-  if (statusLower === "refunded") return "neutral";
-  return "neutral";
-};
+interface BookingExtras {
+  included_services_json: string[];
+  paid_upgrades_json: Record<string, unknown>;
+  premium_features_json: Record<string, unknown>;
+  trip_preferences_json: {
+    music?: string;
+    temperature?: string;
+    communication?: string;
+  } | null;
+  additional_stops_json: Array<{ address: string; order?: number }> | null;
+  flight_number_pickup?: string | null;
+  flight_number_return?: string | null;
+  custom_requirements_text?: string | null;
+  notes_internal?: string | null;
+}
+
+interface Payment {
+  attempt_no: number;
+  status: "pending" | "succeeded" | "failed";
+  amount_pence: number;
+  currency: string;
+  stripe_payment_intent_id?: string;
+  paid_at?: string;
+  created_at: string;
+}
 
 export function BookingExpandedRow({ booking }: BookingExpandedRowProps) {
   const [legs, setLegs] = useState<BookingLeg[]>([]);
   const [slots, setSlots] = useState<FleetSlot[]>([]);
+  const [extras, setExtras] = useState<BookingExtras | null>(null);
+  const [payments, setPayments] = useState<Payment[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [isLoadingDetails, setIsLoadingDetails] = useState(false);
 
   const isReturn = booking.booking_type === "return";
   const isFleet = booking.booking_type === "fleet";
 
   useEffect(() => {
+    const controller = new AbortController();
+
     const fetchData = async () => {
       if (!isReturn && !isFleet) {
         return;
@@ -63,131 +90,73 @@ export function BookingExpandedRow({ booking }: BookingExpandedRowProps) {
       setIsLoading(true);
       try {
         if (isReturn) {
-          const response = await fetch(`/api/admin/bookings/${booking.id}/legs`);
+          const response = await fetch(`/api/admin/bookings/${booking.id}/legs`, {
+            signal: controller.signal,
+          });
           const result = await response.json();
           if (response.ok) {
             setLegs(result.data || []);
           }
         } else if (isFleet) {
-          const response = await fetch(`/api/admin/bookings/${booking.id}/fleet-slots`);
+          const response = await fetch(`/api/admin/bookings/${booking.id}/fleet-slots`, {
+            signal: controller.signal,
+          });
           const result = await response.json();
           if (response.ok) {
             setSlots(result.data || []);
           }
         }
       } catch (error) {
-        console.error("Error fetching expanded data:", error);
+        if (error instanceof Error && error.name !== "AbortError") {
+          console.error("Error fetching expanded data:", error);
+        }
       } finally {
         setIsLoading(false);
       }
     };
 
     fetchData();
+
+    return () => controller.abort();
   }, [booking.id, isReturn, isFleet]);
 
-  const renderAdditionalDetails = () => (
-    <div className="flex flex-wrap items-center gap-4 text-xs bg-muted/30 rounded-lg p-4">
-      {/* Customer Email */}
-      {booking.customer_email && (
-        <div className="flex items-center gap-2">
-          <Mail className="w-4 h-4 text-blue-500" />
-          <span className="text-muted-foreground">{booking.customer_email}</span>
-        </div>
-      )}
+  useEffect(() => {
+    const controller = new AbortController();
 
-      {/* Divider */}
-      {booking.customer_email && <span className="text-border">•</span>}
+    const fetchDetails = async () => {
+      setIsLoadingDetails(true);
+      try {
+        const [extrasRes, paymentsRes] = await Promise.all([
+          fetch(`/api/admin/bookings/${booking.id}/extras`, {
+            signal: controller.signal,
+          }),
+          fetch(`/api/admin/bookings/${booking.id}/payments`, {
+            signal: controller.signal,
+          }),
+        ]);
 
-      {/* Driver Phone */}
-      {booking.driver_phone && (
-        <div className="flex items-center gap-2">
-          <Phone className="w-4 h-4 text-green-500" />
-          <span className="font-medium">{booking.driver_phone}</span>
-        </div>
-      )}
+        if (extrasRes.ok) {
+          const extrasData = await extrasRes.json();
+          setExtras(extrasData);
+        }
 
-      {/* Divider */}
-      {booking.driver_phone && <span className="text-border">•</span>}
+        if (paymentsRes.ok) {
+          const paymentsData = await paymentsRes.json();
+          setPayments(paymentsData || []);
+        }
+      } catch (error) {
+        if (error instanceof Error && error.name !== "AbortError") {
+          console.error("Error fetching booking details:", error);
+        }
+      } finally {
+        setIsLoadingDetails(false);
+      }
+    };
 
-      {/* Vehicle - Requested + Assigned */}
-      <div className="flex items-center gap-2">
-        <Car className="w-4 h-4 text-purple-500" />
-        <span className="text-muted-foreground text-xs">Requested:</span>
-        <Badge variant={getVehicleCategoryVariant(booking.requested_vehicle_category_label)} className="text-xs">
-          {booking.requested_vehicle_category_label || "N/A"}
-        </Badge>
-        {booking.requested_vehicle_display && (
-          <span className="font-medium">{booking.requested_vehicle_display}</span>
-        )}
-        {(booking.vehicle_make_model || booking.vehicle_plate) && (
-          <>
-            <span className="text-muted-foreground mx-1">→</span>
-            <span className="text-muted-foreground text-xs">Assigned:</span>
-            <span className="font-medium text-green-600">
-              {booking.vehicle_make_model || "Vehicle"}
-              {booking.vehicle_plate && (
-                <span className="font-mono ml-1.5">({booking.vehicle_plate})</span>
-              )}
-            </span>
-            {booking.vehicle_status && (
-              <Badge variant="neutral" className="text-xs ml-1">
-                {booking.vehicle_status}
-              </Badge>
-            )}
-          </>
-        )}
-      </div>
+    fetchDetails();
 
-      {/* Divider */}
-      <span className="text-border">•</span>
-
-      {/* Payment Details */}
-      {booking.latest_payment_status && (
-        <div className="flex items-center gap-2">
-          <CreditCard className="w-4 h-4 text-amber-500" />
-          <Badge variant={getPaymentStatusVariant(booking.latest_payment_status)} className="text-xs">
-            {booking.latest_payment_status}
-          </Badge>
-          {booking.latest_payment_created_at && (
-            <span className="text-muted-foreground">on {formatDate(booking.latest_payment_created_at)}</span>
-          )}
-        </div>
-      )}
-
-      {/* Divider */}
-      {booking.latest_payment_status && booking.pricing_source && <span className="text-border">•</span>}
-
-      {/* Pricing Source */}
-      {booking.pricing_source && (
-        <div className="flex items-center gap-2">
-          <DollarSign className="w-4 h-4 text-emerald-500" />
-          <span className="text-muted-foreground">Pricing:</span>
-          <span className="font-medium">{booking.pricing_source}</span>
-        </div>
-      )}
-
-      {/* Divider */}
-      {booking.pricing_source && booking.has_financial_snapshot !== undefined && <span className="text-border">•</span>}
-
-      {/* Financial Snapshot */}
-      {booking.has_financial_snapshot !== undefined && (
-        <div className="flex items-center gap-2">
-          {booking.has_financial_snapshot ? (
-            <CheckCircle className="w-4 h-4 text-green-500" />
-          ) : (
-            <XCircle className="w-4 h-4 text-gray-400" />
-          )}
-          <span className="text-muted-foreground">Financial:</span>
-          <Badge variant={booking.has_financial_snapshot ? "success" : "neutral"} className="text-xs">
-            {booking.has_financial_snapshot ? "Snapshot" : "No snapshot"}
-          </Badge>
-          {booking.financial_status && (
-            <span className="text-muted-foreground text-xs">({booking.financial_status})</span>
-          )}
-        </div>
-      )}
-    </div>
-  );
+    return () => controller.abort();
+  }, [booking.id]);
 
   if (isLoading) {
     return (
@@ -202,75 +171,10 @@ export function BookingExpandedRow({ booking }: BookingExpandedRowProps) {
       {/* Return: Legs Table + Detalii */}
       {isReturn && legs.length > 0 && (
         <>
-          <div className="space-y-4">
-            <h3 className="text-sm font-semibold text-foreground">Return Trip Legs</h3>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-border">
-                    <th className="px-4 py-2 text-left text-xs font-medium text-muted-foreground">Leg</th>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-muted-foreground">Scheduled</th>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-muted-foreground">Route</th>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-muted-foreground">Driver</th>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-muted-foreground">Vehicle</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border">
-                  {legs.map((leg) => (
-                    <tr key={leg.leg_number}>
-                      <td className="px-4 py-3">
-                        <Badge variant={leg.leg_role === "outbound" ? "info" : "warning"} className="text-xs">
-                          {leg.leg_role === "outbound" ? "Outbound" : "Inbound"}
-                        </Badge>
-                      </td>
-                      <td className="px-4 py-3 text-xs text-muted-foreground">
-                        {formatDate(leg.scheduled_at)}
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="space-y-1 text-xs">
-                          <div className="flex items-center gap-1.5">
-                            <span className="inline-block w-2 h-2 rounded-full bg-green-500 flex-shrink-0" />
-                            <span className="text-muted-foreground">{leg.pickup_address}</span>
-                          </div>
-                          <div className="flex items-center gap-1.5">
-                            <span className="inline-block w-2 h-2 rounded-full bg-red-500 flex-shrink-0" />
-                            <span className="text-muted-foreground">{leg.dropoff_address}</span>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3">
-                        {leg.driver_name ? (
-                          <div className="space-y-1 text-xs">
-                            <div className="font-medium">{leg.driver_name}</div>
-                            {leg.driver_phone && (
-                              <div className="text-muted-foreground">{leg.driver_phone}</div>
-                            )}
-                          </div>
-                        ) : (
-                          <span className="text-xs text-muted-foreground">Unassigned</span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3">
-                        {leg.vehicle_plate ? (
-                          <div className="space-y-1 text-xs">
-                            <div className="font-mono font-medium">{leg.vehicle_plate}</div>
-                            {leg.vehicle_make_model && (
-                              <div className="text-muted-foreground">{leg.vehicle_make_model}</div>
-                            )}
-                          </div>
-                        ) : (
-                          <span className="text-xs text-muted-foreground">Unassigned</span>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
+          <ReturnLegsTable legs={legs} />
           {/* Detalii suplimentare SUB tabel */}
           <div className="border-t border-border pt-6">
-            {renderAdditionalDetails()}
+            <BookingDetailsBar booking={booking} />
           </div>
         </>
       )}
@@ -278,82 +182,67 @@ export function BookingExpandedRow({ booking }: BookingExpandedRowProps) {
       {/* Fleet: Slots Table + Detalii */}
       {isFleet && slots.length > 0 && (
         <>
-          <div className="space-y-4">
-            <h3 className="text-sm font-semibold text-foreground">Fleet Vehicles ({slots.length} slots)</h3>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-border">
-                    <th className="px-4 py-2 text-left text-xs font-medium text-muted-foreground">Slot</th>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-muted-foreground">Status</th>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-muted-foreground">Requested Vehicle</th>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-muted-foreground">Driver</th>
-                    <th className="px-4 py-2 text-left text-xs font-medium text-muted-foreground">Assigned Vehicle</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border">
-                  {slots.map((slot) => (
-                    <tr key={slot.slot_number}>
-                      <td className="px-4 py-3">
-                        <Badge variant="neutral" className="text-xs">
-                          Slot {slot.slot_number}
-                        </Badge>
-                      </td>
-                      <td className="px-4 py-3">
-                        <Badge
-                          variant={slot.slot_status === "ASSIGNED" ? "success" : "warning"}
-                          className="text-xs"
-                        >
-                          {slot.slot_status}
-                        </Badge>
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="space-y-1 text-xs">
-                          <div className="font-medium">{slot.requested_vehicle_category_label}</div>
-                          {slot.requested_vehicle_model_label && (
-                            <div className="text-muted-foreground">{slot.requested_vehicle_model_label}</div>
-                          )}
-                        </div>
-                      </td>
-                      <td className="px-4 py-3">
-                        {slot.driver_name ? (
-                          <div className="space-y-1 text-xs">
-                            <div className="font-medium">{slot.driver_name}</div>
-                            {slot.driver_phone && (
-                              <div className="text-muted-foreground">{slot.driver_phone}</div>
-                            )}
-                          </div>
-                        ) : (
-                          <span className="text-xs text-muted-foreground">Unassigned</span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3">
-                        {slot.vehicle_plate ? (
-                          <div className="space-y-1 text-xs">
-                            <div className="font-mono font-medium">{slot.vehicle_plate}</div>
-                            {slot.vehicle_make_model && (
-                              <div className="text-muted-foreground">{slot.vehicle_make_model}</div>
-                            )}
-                          </div>
-                        ) : (
-                          <span className="text-xs text-muted-foreground">Unassigned</span>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
+          <FleetSlotsTable slots={slots} />
           {/* Detalii suplimentare SUB tabel */}
           <div className="border-t border-border pt-6">
-            {renderAdditionalDetails()}
+            <BookingDetailsBar booking={booking} />
           </div>
         </>
       )}
 
       {/* Pentru alte booking types (oneway, hourly, daily, bespoke): Doar detalii */}
-      {!isReturn && !isFleet && renderAdditionalDetails()}
+      {!isReturn && !isFleet && <BookingDetailsBar booking={booking} />}
+
+      {/* Secțiuni suplimentare (extras + payments) pentru toate booking types */}
+      <div className="border-t border-border pt-4">
+        {isLoadingDetails ? (
+          <div className="h-20 bg-muted/20 animate-pulse rounded" />
+        ) : extras ? (
+          <div className="grid grid-cols-1 md:grid-cols-6 gap-3">
+            {/* Row 1: Services breakdown - 3 carduri */}
+            <div className="bg-card border border-border/50 rounded-lg p-3 shadow-sm">
+              <IncludedServicesSection services={extras.included_services_json || []} />
+            </div>
+            <div className="bg-card border border-border/50 rounded-lg p-3 shadow-sm">
+              <PaidUpgradesSection upgrades={extras.paid_upgrades_json || {}} />
+            </div>
+            <div className="bg-card border border-border/50 rounded-lg p-3 shadow-sm">
+              <PremiumFeaturesSection features={extras.premium_features_json || {}} />
+            </div>
+
+            {/* Row 1: Preferences + Stops + Flights */}
+            <div className="bg-card border border-border/50 rounded-lg p-3 shadow-sm">
+              <TripPreferencesSection preferences={extras.trip_preferences_json} />
+            </div>
+            <div className="bg-card border border-border/50 rounded-lg p-3 shadow-sm">
+              <AdditionalStopsSection stops={extras.additional_stops_json} />
+            </div>
+            <div className="bg-card border border-border/50 rounded-lg p-3 shadow-sm">
+              <FlightInfoSection
+                pickupFlightNumber={extras.flight_number_pickup}
+                returnFlightNumber={extras.flight_number_return}
+              />
+            </div>
+
+            {/* Row 2: Payments full width */}
+            <div className="md:col-span-6 bg-card border border-border/50 rounded-lg p-3 shadow-sm">
+              <PaymentsHistorySection payments={payments} />
+            </div>
+
+            {/* Row 3: Notes full width */}
+            <div className="md:col-span-6 bg-card border border-border/50 rounded-lg p-3 shadow-sm">
+              <NotesSection
+                internalNotes={extras.notes_internal}
+                customRequirements={extras.custom_requirements_text}
+              />
+            </div>
+          </div>
+        ) : (
+          <p className="text-xs text-muted-foreground text-center py-2">
+            Unable to load booking details
+          </p>
+        )}
+      </div>
     </div>
   );
 }
