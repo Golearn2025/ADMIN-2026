@@ -67,9 +67,11 @@ export const getBookingTypeColor = (type: string) => {
   const colorMap: Record<string, string> = {
     oneway: "text-blue-500",
     return: "text-green-500",
-    fleet: "text-gray-500",
-    book_by_day: "text-amber-500",
-    book_by_hour: "text-orange-500",
+    fleet: "text-purple-500",
+    hourly: "text-cyan-500",
+    daily: "text-yellow-500",
+    book_by_day: "text-yellow-500",
+    book_by_hour: "text-cyan-500",
     bespoke: "text-red-500",
   };
   return colorMap[type.toLowerCase()] || "text-gray-500";

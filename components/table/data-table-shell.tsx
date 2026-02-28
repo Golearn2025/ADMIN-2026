@@ -1,8 +1,8 @@
-import { ReactNode, useState } from "react";
 import { LucideIcon } from "lucide-react";
+import { ReactNode } from "react";
 import { DataTable, DataTableColumn } from "./data-table";
-import { TableToolbar } from "./table-toolbar";
 import { Pagination } from "./pagination";
+import { TableToolbar } from "./table-toolbar";
 
 interface DataTableShellProps<T> {
   // Data
@@ -33,6 +33,10 @@ interface DataTableShellProps<T> {
   emptyTitle?: string;
   emptyDescription?: string;
   emptyAction?: ReactNode;
+
+  // Expandable rows
+  getRowCanExpand?: (row: T) => boolean;
+  renderExpandedRow?: (row: T) => ReactNode;
 }
 
 export function DataTableShell<T>({
@@ -53,6 +57,8 @@ export function DataTableShell<T>({
   emptyTitle,
   emptyDescription,
   emptyAction,
+  getRowCanExpand,
+  renderExpandedRow,
 }: DataTableShellProps<T>) {
   return (
     <div className="flex flex-col rounded-lg border border-border bg-card">
@@ -74,6 +80,8 @@ export function DataTableShell<T>({
         emptyTitle={emptyTitle}
         emptyDescription={emptyDescription}
         emptyAction={emptyAction}
+        getRowCanExpand={getRowCanExpand}
+        renderExpandedRow={renderExpandedRow}
       />
 
       {/* Pagination */}

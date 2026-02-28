@@ -1,17 +1,17 @@
 import { Badge } from "@/components/common/badge";
 import { DataTableColumn } from "@/components/table";
-import type { Booking } from "./types";
 import {
-  formatDate,
-  formatPrice,
-  formatDuration,
-  getBookingTypeColor,
-  formatBookingType,
-  formatText,
-  getVehicleCategoryVariant,
-  getTripStatusBadgeVariant,
-  getPaymentBadgeVariant,
+    formatBookingType,
+    formatDate,
+    formatDuration,
+    formatPrice,
+    formatText,
+    getBookingTypeColor,
+    getPaymentBadgeVariant,
+    getTripStatusBadgeVariant,
+    getVehicleCategoryVariant,
 } from "./bookings.utils";
+import type { Booking } from "./types";
 
 export const columns: DataTableColumn<Booking>[] = [
   {

@@ -5,6 +5,7 @@ import { DataTableShell } from "@/components/table";
 import { Button } from "@/components/ui/button";
 import { Calendar, Plus } from "lucide-react";
 import { useEffect, useState } from "react";
+import { BookingExpandedRow } from "./booking-expanded-row";
 import { columns } from "./bookings.columns";
 import type { Booking } from "./types";
 
@@ -73,6 +74,8 @@ export default function BookingsPage() {
           emptyIcon={Calendar}
           emptyTitle="No bookings found"
           emptyDescription="No bookings match your search criteria."
+          getRowCanExpand={(row) => row.booking_type === "return" || row.booking_type === "fleet"}
+          renderExpandedRow={(row) => <BookingExpandedRow booking={row} />}
         />
       </div>
     </div>

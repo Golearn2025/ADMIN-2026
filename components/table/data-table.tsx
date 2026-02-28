@@ -1,6 +1,7 @@
-import { LucideIcon } from "lucide-react";
-import { LoadingSkeleton } from "@/components/common/loading-skeleton";
 import { EmptyState } from "@/components/common/empty-state";
+import { LoadingSkeleton } from "@/components/common/loading-skeleton";
+import { ChevronDown, ChevronRight, LucideIcon } from "lucide-react";
+import { Fragment, useState } from "react";
 
 export interface DataTableColumn<T> {
   key: string;
@@ -17,6 +18,9 @@ interface DataTableProps<T> {
   emptyTitle?: string;
   emptyDescription?: string;
   emptyAction?: React.ReactNode;
+  // Expandable rows support
+  getRowCanExpand?: (row: T) => boolean;
+  renderExpandedRow?: (row: T) => React.ReactNode;
 }
 
 export function DataTable<T>({
@@ -27,7 +31,23 @@ export function DataTable<T>({
   emptyTitle = "No data",
   emptyDescription = "No records found.",
   emptyAction,
+  getRowCanExpand,
+  renderExpandedRow,
 }: DataTableProps<T>) {
+  const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
+
+  const toggleRow = (rowIndex: number) => {
+    setExpandedRows((prev) => {
+      const next = new Set(prev);
+      if (next.has(rowIndex)) {
+        next.delete(rowIndex);
+      } else {
+        next.add(rowIndex);
+      }
+      return next;
+    });
+  };
+
   if (isLoading) {
     return (
       <div className="p-6">
@@ -47,11 +67,16 @@ export function DataTable<T>({
     );
   }
 
+  const hasExpandableRows = getRowCanExpand && renderExpandedRow;
+
   return (
     <div className="overflow-x-auto">
       <table className="w-full">
         <thead>
           <tr className="border-b border-border bg-muted/50">
+            {hasExpandableRows && (
+              <th className="px-3 py-3 w-10"></th>
+            )}
             {columns.map((column) => (
               <th
                 key={column.key}
@@ -64,21 +89,50 @@ export function DataTable<T>({
           </tr>
         </thead>
         <tbody className="divide-y divide-border bg-card">
-          {rows.map((row, rowIndex) => (
-            <tr
-              key={rowIndex}
-              className="transition-colors hover:bg-muted/50"
-            >
-              {columns.map((column) => (
-                <td
-                  key={column.key}
-                  className="px-6 py-4 text-sm text-foreground"
+          {rows.map((row, rowIndex) => {
+            const canExpand = hasExpandableRows && getRowCanExpand(row);
+            const isExpanded = expandedRows.has(rowIndex);
+
+            return (
+              <Fragment key={rowIndex}>
+                <tr
+                  className="transition-colors hover:bg-muted/50"
                 >
-                  {column.cell(row)}
-                </td>
-              ))}
-            </tr>
-          ))}
+                  {hasExpandableRows && (
+                    <td className="px-3 py-4 w-10">
+                      {canExpand && (
+                        <button
+                          onClick={() => toggleRow(rowIndex)}
+                          className="text-muted-foreground hover:text-foreground transition-colors"
+                        >
+                          {isExpanded ? (
+                            <ChevronDown className="h-4 w-4" />
+                          ) : (
+                            <ChevronRight className="h-4 w-4" />
+                          )}
+                        </button>
+                      )}
+                    </td>
+                  )}
+                  {columns.map((column) => (
+                    <td
+                      key={column.key}
+                      className="px-6 py-4 text-sm text-foreground"
+                    >
+                      {column.cell(row)}
+                    </td>
+                  ))}
+                </tr>
+                {canExpand && isExpanded && (
+                  <tr key={`${rowIndex}-expanded`}>
+                    <td colSpan={columns.length + 1} className="px-6 py-4 bg-muted/30">
+                      {renderExpandedRow(row)}
+                    </td>
+                  </tr>
+                )}
+              </Fragment>
+            );
+          })}
         </tbody>
       </table>
     </div>
