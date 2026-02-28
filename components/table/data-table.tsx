@@ -70,16 +70,17 @@ export function DataTable<T>({
   const hasExpandableRows = getRowCanExpand && renderExpandedRow;
 
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full">
+    <div className="overflow-x-auto" role="region" aria-label="Data table">
+      <table className="w-full" role="table">
         <thead>
-          <tr className="border-b border-border bg-muted/50">
+          <tr className="border-b border-border bg-muted/50" role="row">
             {hasExpandableRows && (
-              <th className="px-3 py-3 w-10"></th>
+              <th className="px-3 py-3 w-10" scope="col" aria-label="Expand row"></th>
             )}
             {columns.map((column) => (
               <th
                 key={column.key}
+                scope="col"
                 className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground"
                 style={{ width: column.width }}
               >
@@ -97,18 +98,21 @@ export function DataTable<T>({
               <Fragment key={rowIndex}>
                 <tr
                   className="transition-colors hover:bg-muted/50"
+                  role="row"
                 >
                   {hasExpandableRows && (
-                    <td className="px-3 py-4 w-10">
+                    <td className="px-3 py-4 w-10" role="cell">
                       {canExpand && (
                         <button
                           onClick={() => toggleRow(rowIndex)}
                           className="text-muted-foreground hover:text-foreground transition-colors"
+                          aria-label={isExpanded ? "Collapse row" : "Expand row"}
+                          aria-expanded={isExpanded}
                         >
                           {isExpanded ? (
-                            <ChevronDown className="h-4 w-4" />
+                            <ChevronDown className="h-4 w-4" aria-hidden="true" />
                           ) : (
-                            <ChevronRight className="h-4 w-4" />
+                            <ChevronRight className="h-4 w-4" aria-hidden="true" />
                           )}
                         </button>
                       )}
@@ -118,6 +122,7 @@ export function DataTable<T>({
                     <td
                       key={column.key}
                       className="px-6 py-4 text-sm text-foreground"
+                      role="cell"
                     >
                       {column.cell(row)}
                     </td>
