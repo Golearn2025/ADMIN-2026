@@ -1,6 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
 import { getUserRole } from "@/lib/auth/roles";
+import { createClient } from "@/lib/supabase/server";
+import { NextRequest, NextResponse } from "next/server";
 
 export async function GET(request: NextRequest) {
   try {
@@ -31,7 +31,7 @@ export async function GET(request: NextRequest) {
     // Add search filter
     if (search) {
       query = query.or(
-        `reference.ilike.%${search}%,customer_first_name.ilike.%${search}%,customer_last_name.ilike.%${search}%,customer_phone.ilike.%${search}%`
+        `reference.ilike.%${search}%,customer_first_name.ilike.%${search}%,customer_last_name.ilike.%${search}%,customer_phone.ilike.%${search}%,requested_vehicle_category_label.ilike.%${search}%,requested_vehicle_model_label.ilike.%${search}%,pickup_address.ilike.%${search}%,dropoff_address.ilike.%${search}%,driver_name.ilike.%${search}%,vehicle_plate.ilike.%${search}%`
       );
     }
 
@@ -41,9 +41,10 @@ export async function GET(request: NextRequest) {
     const { data, error, count } = await query;
 
     if (error) {
-      console.error("Supabase error:", error);
+      console.error("Supabase error:", JSON.stringify(error, null, 2));
+      console.error("Search term:", search);
       return NextResponse.json(
-        { error: "Failed to fetch bookings", details: error.message },
+        { error: "Failed to fetch bookings", details: error.message, code: error.code },
         { status: 500 }
       );
     }

@@ -30,6 +30,10 @@ interface Booking {
   display_price_pence: number;
   latest_payment_currency: string;
   latest_payment_status?: string;
+  booked_hours: number;
+  booked_days: number;
+  return_scheduled_at: string | null;
+  fleet_size: number;
 }
 
 const getStatusBadgeVariant = (status: string) => {
@@ -178,40 +182,68 @@ const columns: DataTableColumn<Booking>[] = [
   {
     key: "route",
     header: "Route",
-    cell: (row) => (
-      <div className="max-w-xs space-y-1 text-xs">
-        <div className="flex items-start gap-1 truncate">
-          <span className="inline-block h-2 w-2 rounded-full bg-green-500 mt-1 flex-shrink-0" />
-          <span className="truncate">{row.pickup_address}</span>
-        </div>
-        <div className="flex items-start gap-1 truncate">
-          <span className="inline-block h-2 w-2 rounded-full bg-red-500 mt-1 flex-shrink-0" />
-          <span className="truncate">{row.dropoff_address}</span>
-        </div>
-        <div className="flex gap-2 text-xs font-medium">
-          <span className="text-blue-500">{row.distance_miles} mi</span>
-          {row.duration_min && (
-            <span className="text-amber-500">{formatDuration(row.duration_min)}</span>
+    cell: (row) => {
+      const isHourly = row.booking_type === "hourly";
+      const isDaily = row.booking_type === "daily";
+      const isFleet = row.booking_type === "fleet";
+
+      return (
+        <div className="space-y-2 text-xs">
+          {!isHourly && !isDaily && (
+            <>
+              <div className="flex items-start gap-1.5">
+                <span className="inline-block w-2 h-2 rounded-full bg-green-500 mt-0.5 flex-shrink-0" />
+                <span className="text-muted-foreground">{row.pickup_address}</span>
+              </div>
+              <div className="flex items-start gap-1.5">
+                <span className="inline-block w-2 h-2 rounded-full bg-red-500 mt-0.5 flex-shrink-0" />
+                <span className="text-muted-foreground">{row.dropoff_address}</span>
+              </div>
+              <div className="flex gap-2 text-xs pt-1">
+                <span className="text-blue-500">{row.distance_miles} mi</span>
+                {row.duration_min && (
+                  <span className="text-amber-500">{formatDuration(row.duration_min)}</span>
+                )}
+              </div>
+            </>
+          )}
+          {isHourly && (
+            <div className="flex flex-col gap-1">
+              <span className="text-xs font-semibold text-blue-500">{row.booked_hours}h booking</span>
+            </div>
+          )}
+          {isDaily && (
+            <div className="flex flex-col gap-1">
+              <span className="text-xs font-semibold text-amber-500">{row.booked_days} {row.booked_days === 1 ? 'day' : 'days'} booking</span>
+            </div>
           )}
         </div>
-      </div>
-    ),
+      );
+    },
   },
   {
     key: "vehicle",
     header: "Vehicle",
-    cell: (row) => (
-      <div className="space-y-1 text-xs">
-        <Badge variant={getVehicleCategoryVariant(row.requested_vehicle_category_label)} className="text-xs">
-          {row.requested_vehicle_category_label || "N/A"}
-        </Badge>
-        {row.requested_vehicle_model_label && (
-          <div className="text-muted-foreground">
-            {row.requested_vehicle_model_label}
-          </div>
-        )}
-      </div>
-    ),
+    cell: (row) => {
+      const isFleet = row.booking_type === "fleet";
+      return (
+        <div className="space-y-1 text-xs">
+          <Badge variant={getVehicleCategoryVariant(row.requested_vehicle_category_label)} className="text-xs">
+            {row.requested_vehicle_category_label || "N/A"}
+          </Badge>
+          {row.requested_vehicle_model_label && (
+            <div className="text-muted-foreground">
+              {row.requested_vehicle_model_label}
+            </div>
+          )}
+          {isFleet && (
+            <div className="text-blue-500 font-semibold">
+              {row.fleet_size > 0 ? `${row.fleet_size} vehicles` : 'Fleet booking'}
+            </div>
+          )}
+        </div>
+      );
+    },
   },
   {
     key: "driver",
