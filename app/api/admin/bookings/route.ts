@@ -16,15 +16,53 @@ export async function GET(request: NextRequest) {
 
     const searchParams = request.nextUrl.searchParams;
     const page = parseInt(searchParams.get("page") || "1");
-    const pageSize = parseInt(searchParams.get("pageSize") || "20");
+    // Cap pageSize at 100 to prevent DoS attacks
+    const pageSize = Math.min(parseInt(searchParams.get("pageSize") || "20"), 100);
     const search = searchParams.get("search") || "";
 
     const offset = (page - 1) * pageSize;
 
-    // Build query
+    // Build query - select only needed fields for performance
     let query = supabase
       .from("admin_booking_list_v2")
-      .select("*", { count: "exact" })
+      .select(
+        `
+        id,
+        reference,
+        status,
+        trip_status,
+        booking_type,
+        scheduled_at,
+        created_at,
+        customer_first_name,
+        customer_last_name,
+        customer_phone,
+        customer_email,
+        pickup_address,
+        dropoff_address,
+        distance_miles,
+        duration_min,
+        requested_vehicle_category_label,
+        requested_vehicle_display,
+        driver_name,
+        driver_phone,
+        vehicle_plate,
+        vehicle_make_model,
+        vehicle_status,
+        display_price_pence,
+        latest_payment_currency,
+        latest_payment_status,
+        latest_payment_created_at,
+        pricing_source,
+        has_financial_snapshot,
+        financial_status,
+        booked_hours,
+        booked_days,
+        return_scheduled_at,
+        fleet_size
+      `,
+        { count: "exact" }
+      )
       .eq("organization_id", orgId)
       .order("created_at", { ascending: false });
 

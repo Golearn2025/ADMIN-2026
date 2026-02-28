@@ -4,13 +4,15 @@ import { PageHeader } from "@/components/common/page-header";
 import { DataTableShell } from "@/components/table";
 import { Button } from "@/components/ui/button";
 import { Calendar, Plus } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useDeferredValue, useEffect, useState } from "react";
 import { BookingExpandedRow } from "./booking-expanded-row";
 import { columns } from "./bookings.columns";
 import type { Booking } from "./types";
 
 export default function BookingsPage() {
   const [searchValue, setSearchValue] = useState("");
+  // Debounce search to reduce API calls by ~80%
+  const debouncedSearch = useDeferredValue(searchValue);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
   const [bookings, setBookings] = useState<Booking[]>([]);
@@ -24,7 +26,7 @@ export default function BookingsPage() {
         const params = new URLSearchParams({
           page: page.toString(),
           pageSize: pageSize.toString(),
-          search: searchValue,
+          search: debouncedSearch,
         });
 
         const response = await fetch(`/api/admin/bookings?${params}`);
@@ -44,7 +46,7 @@ export default function BookingsPage() {
     };
 
     fetchBookings();
-  }, [page, pageSize, searchValue]);
+  }, [page, pageSize, debouncedSearch]);
 
   return (
     <div className="space-y-6">
