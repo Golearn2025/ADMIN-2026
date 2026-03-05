@@ -10,7 +10,7 @@ export async function GET() {
     const thirtyDaysAgoISO = thirtyDaysAgo.toISOString();
 
     const { data: bookings, error } = await supabase
-      .from("admin_booking_list_v2")
+      .from("admin_booking_list")
       .select("*")
       .gte("created_at", thirtyDaysAgoISO)
       .order("created_at", { ascending: true });

@@ -31,7 +31,7 @@ export function VehicleCategoriesChart({ data }: VehicleCategoriesChartProps) {
             axisLine={false}
           />
           <Tooltip
-            formatter={(value: number) => `${value} bookings`}
+            formatter={(value: number | undefined) => `${value ?? 0} bookings`}
             contentStyle={{
               backgroundColor: '#ffffff',
               border: '1px solid #d1d5db',

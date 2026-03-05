@@ -1,3 +1,4 @@
+import { BookingActionsDropdown } from "@/components/bookings/booking-actions-dropdown";
 import { Badge } from "@/components/common/badge";
 import { DataTableColumn } from "@/components/table";
 import {
@@ -161,5 +162,11 @@ export const columns: DataTableColumn<Booking>[] = [
       </div>
     ),
     width: "120px",
+  },
+  {
+    key: "actions",
+    header: "",
+    cell: (row) => <BookingActionsDropdown booking={row} />,
+    width: "48px",
   },
 ];

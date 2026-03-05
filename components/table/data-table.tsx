@@ -21,6 +21,8 @@ interface DataTableProps<T> {
   // Expandable rows support
   getRowCanExpand?: (row: T) => boolean;
   renderExpandedRow?: (row: T) => React.ReactNode;
+  // Custom key extractor for row uniqueness
+  getRowKey?: (row: T, index: number) => string | number;
 }
 
 export function DataTable<T>({
@@ -33,8 +35,9 @@ export function DataTable<T>({
   emptyAction,
   getRowCanExpand,
   renderExpandedRow,
+  getRowKey = (_, index) => index,
 }: DataTableProps<T>) {
-  const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
+  const [expandedRows, setExpandedRows] = useState<Set<string | number>>(new Set());
 
   const toggleRow = (rowIndex: number) => {
     setExpandedRows((prev) => {

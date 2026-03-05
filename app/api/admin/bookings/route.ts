@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
 
     // Build query - select only needed fields for performance
     let query = supabase
-      .from("admin_booking_list_v2")
+      .from("admin_booking_list")
       .select(
         `
         id,

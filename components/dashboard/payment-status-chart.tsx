@@ -1,6 +1,6 @@
 "use client";
 
-import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from "recharts";
+import { Cell, Legend, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 
 interface PaymentStatusChartProps {
   data: Array<{ name: string; value: number }>;
@@ -35,15 +35,15 @@ export function PaymentStatusChart({ data }: PaymentStatusChartProps) {
             fill="#8884d8"
             paddingAngle={5}
             dataKey="value"
-            label={({ name, percent }: { name: string; percent: number }) => 
-              `${name} ${(percent * 100).toFixed(0)}%`
+            label={({ name, percent }: { name?: string; percent?: number }) =>
+              name && percent !== undefined ? `${name} ${(percent * 100).toFixed(0)}%` : ''
             }
           >
             {data.map((entry, index) => (
               <Cell key={`cell-${index}`} fill={getColor(entry.name)} />
             ))}
           </Pie>
-          <Tooltip formatter={(value: number) => [`${value} payments`, "Count"]} />
+          <Tooltip formatter={(value: number | undefined) => [`${value ?? 0} payments`, "Count"]} />
           <Legend />
         </PieChart>
       </ResponsiveContainer>

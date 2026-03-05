@@ -102,8 +102,15 @@ export function BookingExpandedRow({ booking }: BookingExpandedRowProps) {
             signal: controller.signal,
           });
           const result = await response.json();
+          console.log('🚗 Fleet slots API response:', {
+            bookingId: booking.id,
+            response: result,
+            dataLength: result?.data?.length || 0
+          });
           if (response.ok) {
             setSlots(result.data || []);
+          } else {
+            console.error('❌ Fleet slots API error:', result);
           }
         }
       } catch (error) {

@@ -29,7 +29,7 @@ export function BookingTypesChart({ data }: BookingTypesChartProps) {
             ))}
           </Pie>
           <Tooltip
-            formatter={(value: number) => `${value} bookings`}
+            formatter={(value: number | undefined) => `${value ?? 0} bookings`}
             contentStyle={{
               backgroundColor: 'rgba(255, 255, 255, 0.98)',
               border: '1px solid #e5e7eb',

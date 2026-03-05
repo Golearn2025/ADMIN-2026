@@ -41,8 +41,9 @@ export function RevenueChart({ data }: RevenueChartProps) {
             tickFormatter={(value: number) => `£${value}`}
           />
           <Tooltip
-            formatter={(value: number) => [`£${value.toFixed(2)}`, "Revenue"]}
-            labelFormatter={(label: string) => {
+            formatter={(value: number | undefined) => [`£${(value ?? 0).toFixed(2)}`, "Revenue"]}
+            labelFormatter={(label: any) => {
+              if (!label || typeof label !== 'string') return '';
               const date = new Date(label);
               return date.toLocaleDateString("en-GB", {
                 weekday: 'short',

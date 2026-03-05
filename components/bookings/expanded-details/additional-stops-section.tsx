@@ -25,7 +25,13 @@ export function AdditionalStopsSection({ stops }: AdditionalStopsSectionProps) {
               <span className="flex-shrink-0 w-4 h-4 rounded-full bg-muted flex items-center justify-center text-[10px] font-medium">
                 {stop.order || index + 1}
               </span>
-              <span className="flex-1">{stop.address}</span>
+              <span className="flex-1">
+                {stop.address && stop.address.trim() ? (
+                  stop.address
+                ) : (
+                  <span className="text-muted-foreground italic">Address not provided</span>
+                )}
+              </span>
             </div>
           ))}
         </div>

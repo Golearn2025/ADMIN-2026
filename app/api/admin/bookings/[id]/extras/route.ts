@@ -1,17 +1,17 @@
-import { createClient } from "@/lib/supabase/server";
 import { getUserRole } from "@/lib/auth/roles";
+import { createClient } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const bookingId = params.id;
+    const { id: bookingId } = await params;
     const supabase = await createClient();
-    
+
     const { orgId, hasAccess } = await getUserRole();
-    
+
     if (!hasAccess || !orgId) {
       return NextResponse.json(
         { error: "Unauthorized" },
@@ -20,7 +20,7 @@ export async function GET(
     }
 
     const { data, error } = await supabase
-      .from("admin_booking_extras_v1")
+      .from("admin_booking_extras")
       .select("*")
       .eq("booking_id", bookingId)
       .eq("organization_id", orgId)
