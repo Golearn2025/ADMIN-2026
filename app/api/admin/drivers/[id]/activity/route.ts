@@ -1,11 +1,13 @@
 import { getUserRole } from "@/lib/auth/roles";
+import { createClient } from "@/lib/supabase/server";
 import { getDriverActivityLogs } from "@/lib/features/drivers/drivers.api";
 import { NextRequest, NextResponse } from "next/server";
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   try {
     const { hasAccess } = await getUserRole();
 
@@ -23,7 +25,8 @@ export async function GET(
       );
     }
 
-    const logs = await getDriverActivityLogs(organizationId, params.id);
+    const supabase = await createClient();
+    const logs = await getDriverActivityLogs(supabase, organizationId, id);
 
     return NextResponse.json({ logs });
   } catch (error) {

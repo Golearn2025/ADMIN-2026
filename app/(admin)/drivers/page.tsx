@@ -1,7 +1,6 @@
 "use client";
 
 import { useDriversPage } from "@/lib/features/drivers/hooks/useDriversPage";
-import { getUserRole } from "@/lib/auth/roles";
 import { DriversSidebarList } from "./components/DriversSidebarList";
 import { DriverWorkspace } from "./components/DriverWorkspace";
 import { useEffect, useState } from "react";
@@ -11,8 +10,15 @@ export default function DriversPage() {
 
   useEffect(() => {
     async function fetchOrgId() {
-      const { orgId: userOrgId } = await getUserRole();
-      setOrgId(userOrgId);
+      try {
+        const response = await fetch("/api/admin/organization");
+        if (response.ok) {
+          const data = await response.json();
+          setOrgId(data.organizationId);
+        }
+      } catch (error) {
+        console.error("Failed to fetch organization ID:", error);
+      }
     }
     fetchOrgId();
   }, []);

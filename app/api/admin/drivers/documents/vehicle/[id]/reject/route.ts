@@ -1,10 +1,11 @@
 import { getUserRole } from "@/lib/auth/roles";
+import { createClient } from "@/lib/supabase/server";
 import { rejectVehicleDocument } from "@/lib/features/drivers/drivers.api";
 import { NextRequest, NextResponse } from "next/server";
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { hasAccess } = await getUserRole();
@@ -23,7 +24,9 @@ export async function POST(
       );
     }
 
-    const document = await rejectVehicleDocument(params.id, reviewed_by, reason);
+    const { id } = await params;
+    const supabase = await createClient();
+    const document = await rejectVehicleDocument(supabase, id, reviewed_by, reason);
 
     return NextResponse.json({ document });
   } catch (error) {

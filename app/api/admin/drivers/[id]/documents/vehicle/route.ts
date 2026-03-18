@@ -1,10 +1,11 @@
 import { getUserRole } from "@/lib/auth/roles";
+import { createClient } from "@/lib/supabase/server";
 import { getVehicleDocuments } from "@/lib/features/drivers/drivers.api";
 import { NextRequest, NextResponse } from "next/server";
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { hasAccess } = await getUserRole();
@@ -13,7 +14,9 @@ export async function GET(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const documents = await getVehicleDocuments(params.id);
+    const { id } = await params;
+    const supabase = await createClient();
+    const documents = await getVehicleDocuments(supabase, id);
 
     return NextResponse.json({ documents });
   } catch (error) {

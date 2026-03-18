@@ -1,9 +1,7 @@
 import { getUserRole } from "@/lib/auth/roles";
-import { createClient } from "@/lib/supabase/server";
-import { getDrivers } from "@/lib/features/drivers/drivers.api";
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
     const { orgId, hasAccess } = await getUserRole();
 
@@ -14,10 +12,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const supabase = await createClient();
-    const drivers = await getDrivers(supabase, orgId);
-
-    return NextResponse.json({ drivers });
+    return NextResponse.json({ organizationId: orgId });
   } catch (error) {
     console.error("API error:", error);
     return NextResponse.json(

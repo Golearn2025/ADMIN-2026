@@ -1,9 +1,10 @@
 // ============================================================================
-// DRIVERS API LAYER - STRICT SUPABASE INTEGRATION
+// DRIVERS API LAYER - SERVER-SIDE ONLY
 // ============================================================================
 // NO business logic here - pure data access only
+// IMPORTANT: This file is for SERVER-SIDE API routes ONLY
+// Do NOT import this in client components
 
-import { createClient } from "@/lib/supabase/server";
 import type {
   Driver,
   DriverDocument,
@@ -16,8 +17,7 @@ import type {
 // DRIVERS LIST
 // ============================================================================
 
-export async function getDrivers(organizationId: string) {
-  const supabase = await createClient();
+export async function getDrivers(supabase: any, organizationId: string) {
 
   const { data, error } = await supabase
     .from("admin_drivers_list_v3")
@@ -37,8 +37,7 @@ export async function getDrivers(organizationId: string) {
 // DRIVER DETAIL
 // ============================================================================
 
-export async function getDriverById(driverId: string) {
-  const supabase = await createClient();
+export async function getDriverById(supabase: any, driverId: string) {
 
   const { data, error } = await supabase
     .from("drivers")
@@ -58,8 +57,7 @@ export async function getDriverById(driverId: string) {
 // DRIVER DOCUMENTS
 // ============================================================================
 
-export async function getDriverDocuments(driverId: string) {
-  const supabase = await createClient();
+export async function getDriverDocuments(supabase: any, driverId: string) {
 
   const { data, error } = await supabase
     .from("driver_documents")
@@ -79,8 +77,7 @@ export async function getDriverDocuments(driverId: string) {
 // VEHICLE DOCUMENTS
 // ============================================================================
 
-export async function getVehicleDocuments(driverId: string) {
-  const supabase = await createClient();
+export async function getVehicleDocuments(supabase: any, driverId: string) {
 
   const { data, error } = await supabase
     .from("vehicle_documents")
@@ -99,7 +96,7 @@ export async function getVehicleDocuments(driverId: string) {
   }
 
   // Remove nested vehicles object
-  const cleanedData = data?.map(({ vehicles, ...rest }) => rest) || [];
+  const cleanedData = data?.map(({ vehicles, ...rest }: { vehicles: any; [key: string]: any }) => rest) || [];
   return cleanedData as VehicleDocument[];
 }
 
@@ -108,10 +105,10 @@ export async function getVehicleDocuments(driverId: string) {
 // ============================================================================
 
 export async function approveDriverDocument(
+  supabase: any,
   documentId: string,
   reviewedBy: string
 ) {
-  const supabase = await createClient();
 
   const { data, error } = await supabase
     .from("driver_documents")
@@ -134,11 +131,11 @@ export async function approveDriverDocument(
 }
 
 export async function rejectDriverDocument(
+  supabase: any,
   documentId: string,
   reviewedBy: string,
   reason: string
 ) {
-  const supabase = await createClient();
 
   const { data, error } = await supabase
     .from("driver_documents")
@@ -161,10 +158,10 @@ export async function rejectDriverDocument(
 }
 
 export async function approveVehicleDocument(
+  supabase: any,
   documentId: string,
   reviewedBy: string
 ) {
-  const supabase = await createClient();
 
   const { data, error } = await supabase
     .from("vehicle_documents")
@@ -187,11 +184,11 @@ export async function approveVehicleDocument(
 }
 
 export async function rejectVehicleDocument(
+  supabase: any,
   documentId: string,
   reviewedBy: string,
   reason: string
 ) {
-  const supabase = await createClient();
 
   const { data, error } = await supabase
     .from("vehicle_documents")
@@ -218,10 +215,10 @@ export async function rejectVehicleDocument(
 // ============================================================================
 
 export async function getDocumentLogs(
+  supabase: any,
   organizationId: string,
   documentIds: string[]
 ) {
-  const supabase = await createClient();
 
   const { data, error } = await supabase
     .from("document_status_logs")
@@ -239,15 +236,14 @@ export async function getDocumentLogs(
 }
 
 export async function getDriverActivityLogs(
+  supabase: any,
   organizationId: string,
   driverId: string
 ) {
-  const supabase = await createClient();
-
   // Get all document IDs for this driver
   const [driverDocs, vehicleDocs] = await Promise.all([
-    getDriverDocuments(driverId),
-    getVehicleDocuments(driverId),
+    getDriverDocuments(supabase, driverId),
+    getVehicleDocuments(supabase, driverId),
   ]);
 
   const documentIds = [
@@ -259,5 +255,5 @@ export async function getDriverActivityLogs(
     return [];
   }
 
-  return getDocumentLogs(organizationId, documentIds);
+  return getDocumentLogs(supabase, organizationId, documentIds);
 }
