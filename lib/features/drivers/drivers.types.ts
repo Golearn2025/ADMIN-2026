@@ -11,11 +11,14 @@ export type Driver = {
   email: string | null;
   phone: string;
   organization_id: string;
+  organization_name?: string;
+  driver_type?: string;
 
   is_active: boolean;
   is_approved: boolean;
 
   onboarding_status: "draft" | "review" | "complete";
+  profile_photo_url: string | null;
 
   total_vehicles: number;
 
@@ -38,6 +41,15 @@ export type Driver = {
     | "expired";
 
   can_receive_jobs: boolean;
+  
+  // Rating fields
+  rating_average?: number;
+  rating_count?: number;
+  
+  // Optional arrays from API response (admin_driver_full_v3)
+  driver_documents?: any[];
+  vehicles?: any[];
+  vehicle_documents?: any[];
 };
 
 export type DriverDocument = {
@@ -47,9 +59,12 @@ export type DriverDocument = {
   document_category: "driver" | "vehicle";
   status: "pending" | "approved" | "rejected" | "expired";
   expiry_date: string | null;
-  upload_date: string;
+  uploaded_at: string;
   reviewed_at: string | null;
   reviewed_by: string | null;
+  reviewed_by_name?: string | null;
+  reviewed_by_email?: string | null;
+  reviewed_by_role?: string | null;
   rejection_reason: string | null;
   file_url: string | null;
   file_name: string | null;
@@ -61,9 +76,12 @@ export type VehicleDocument = {
   document_type: string;
   status: "pending" | "approved" | "rejected" | "expired";
   expiry_date: string | null;
-  upload_date: string;
+  uploaded_at: string;
   reviewed_at: string | null;
   reviewed_by: string | null;
+  reviewed_by_name?: string | null;
+  reviewed_by_email?: string | null;
+  reviewed_by_role?: string | null;
   rejection_reason: string | null;
   file_url: string | null;
   file_name: string | null;

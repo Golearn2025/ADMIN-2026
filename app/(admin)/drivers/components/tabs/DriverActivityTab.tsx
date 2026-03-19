@@ -81,20 +81,28 @@ function ActivityLogItem({ log }: { log: DocumentStatusLog }) {
   const getStatusBadgeVariant = (status: string) => {
     switch (status) {
       case "approved":
-        return "default";
+        return "success";
       case "pending":
-        return "secondary";
+        return "warning";
       case "rejected":
         return "destructive";
       default:
-        return "outline";
+        return "secondary";
     }
   };
 
   return (
-    <div className="flex gap-4 border-l-2 border-border pl-4">
-      <div className="flex-1">
-        <div className="flex items-center gap-2">
+    <div className="relative flex items-start gap-4 pb-4 last:pb-0">
+      {/* Timeline line */}
+      <div className="absolute left-[11px] top-6 h-full w-0.5 bg-border last:hidden" />
+      
+      {/* Timeline dot */}
+      <div className="relative z-10 mt-1.5 h-6 w-6 shrink-0 rounded-full border-2 border-border bg-card flex items-center justify-center">
+        <div className="h-2 w-2 rounded-full bg-primary" />
+      </div>
+
+      <div className="flex-1 pt-0.5">
+        <div className="flex items-center gap-2 flex-wrap">
           <Badge variant={getStatusBadgeVariant(log.old_status)}>
             {log.old_status}
           </Badge>
@@ -103,15 +111,22 @@ function ActivityLogItem({ log }: { log: DocumentStatusLog }) {
             {log.new_status}
           </Badge>
         </div>
-        <p className="mt-1 text-sm text-muted-foreground">
-          {log.entity_type.replace(/_/g, " ")}
-        </p>
+        
+        <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
+          <span>{new Date(log.created_at).toLocaleString()}</span>
+          {log.changed_by && (
+            <>
+              <span>•</span>
+              <span>by {log.changed_by}</span>
+            </>
+          )}
+        </div>
+
         {log.reason && (
-          <p className="mt-1 text-sm">Reason: {log.reason}</p>
+          <p className="mt-2 rounded-md bg-muted/50 p-2 text-sm">
+            <span className="font-medium">Reason:</span> {log.reason}
+          </p>
         )}
-        <p className="mt-1 text-xs text-muted-foreground">
-          {new Date(log.created_at).toLocaleString()}
-        </p>
       </div>
     </div>
   );

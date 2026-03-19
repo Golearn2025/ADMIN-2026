@@ -10,23 +10,6 @@ interface DriverOverviewTabProps {
 export function DriverOverviewTab({ driver }: DriverOverviewTabProps) {
   return (
     <div className="space-y-6">
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        <StatCard
-          label="Total Vehicles"
-          value={driver.total_vehicles}
-        />
-        <StatCard
-          label="Driver Documents"
-          value={driver.total_driver_docs}
-          subtitle={`${driver.pending_driver_docs} pending, ${driver.expired_driver_docs} expired`}
-        />
-        <StatCard
-          label="Vehicle Documents"
-          value={driver.total_vehicle_docs}
-          subtitle={`${driver.pending_vehicle_docs} pending, ${driver.expired_vehicle_docs} expired`}
-        />
-      </div>
-
       <div className="rounded-lg border border-border bg-card p-6">
         <h3 className="mb-4 text-lg font-semibold">Driver Information</h3>
         <dl className="grid gap-4 sm:grid-cols-2">

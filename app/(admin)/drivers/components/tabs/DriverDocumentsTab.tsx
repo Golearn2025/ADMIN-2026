@@ -1,124 +1,167 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useDriverDocuments } from "@/lib/features/drivers/hooks/useDriverDocuments";
 import { useDriverActions } from "@/lib/features/drivers/hooks/useDriverActions";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Check, X, FileText, AlertCircle } from "lucide-react";
+import { useDocumentBulkActions } from "../../hooks/useDocumentBulkActions";
+import { AlertCircle, User as UserIcon, Car as CarIcon } from "lucide-react";
+import { BulkActionsBar } from "../BulkActionsBar";
+import { InlineRejectPanel } from "../InlineRejectPanel";
+import { DocumentTable } from "../DocumentTable";
 import type { DriverDocument, VehicleDocument } from "@/lib/features/drivers/drivers.types";
 
 interface DriverDocumentsTabProps {
   driverId: string;
+  driverDocuments: DriverDocument[];
+  vehicleDocuments: VehicleDocument[];
+  onRefresh: () => void;
 }
 
-export function DriverDocumentsTab({ driverId }: DriverDocumentsTabProps) {
+export function DriverDocumentsTab({ 
+  driverId, 
+  driverDocuments, 
+  vehicleDocuments,
+  onRefresh 
+}: DriverDocumentsTabProps) {
   const [userId, setUserId] = useState<string>("");
-  const documentsState = useDriverDocuments({ driverId });
-  const actions = useDriverActions({
-    onSuccess: () => {
-      documentsState.refetch();
-    },
+  
+  const actions = useDriverActions({ onSuccess: onRefresh });
+  
+  const bulkActions = useDocumentBulkActions({
+    driverDocuments,
+    vehicleDocuments,
+    onRefresh,
   });
+
+  // Debug: Check if reviewed_by_name is present
+  useEffect(() => {
+    if (driverDocuments.length > 0) {
+      console.log("📄 DRIVER DOCUMENT SAMPLE:", driverDocuments[0]);
+      console.log("   reviewed_by:", driverDocuments[0].reviewed_by);
+      console.log("   reviewed_by_name:", driverDocuments[0].reviewed_by_name);
+    }
+    if (vehicleDocuments.length > 0) {
+      console.log("🚗 VEHICLE DOCUMENT SAMPLE:", vehicleDocuments[0]);
+      console.log("   reviewed_by:", vehicleDocuments[0].reviewed_by);
+      console.log("   reviewed_by_name:", vehicleDocuments[0].reviewed_by_name);
+    }
+  }, [driverDocuments, vehicleDocuments]);
 
   useEffect(() => {
     setUserId("current-user-id");
   }, []);
 
-  const handleApproveDriverDoc = async (docId: string) => {
+  const handleApprove = async (docId: string) => {
+    const isDriverDoc = driverDocuments.some(d => d.id === docId);
     try {
-      await actions.approveDriverDocument(docId, userId);
+      if (isDriverDoc) {
+        await actions.approveDriverDocument(docId, userId);
+      } else {
+        await actions.approveVehicleDocument(docId, userId);
+      }
     } catch (error) {
-      console.error("Failed to approve document:", error);
+      console.error("Failed to approve:", error);
     }
   };
 
-  const handleRejectDriverDoc = async (docId: string) => {
+  const handleReject = async (docId: string) => {
     const reason = prompt("Rejection reason:");
     if (!reason) return;
-
+    
+    const isDriverDoc = driverDocuments.some(d => d.id === docId);
     try {
-      await actions.rejectDriverDocument(docId, userId, reason);
+      if (isDriverDoc) {
+        await actions.rejectDriverDocument(docId, userId, reason);
+      } else {
+        await actions.rejectVehicleDocument(docId, userId, reason);
+      }
     } catch (error) {
-      console.error("Failed to reject document:", error);
+      console.error("Failed to reject:", error);
     }
   };
 
-  const handleApproveVehicleDoc = async (docId: string) => {
-    try {
-      await actions.approveVehicleDocument(docId, userId);
-    } catch (error) {
-      console.error("Failed to approve document:", error);
-    }
+  const handleDocumentAction = (action: string, docId: string) => {
+    console.log(`Document action: ${action}`, docId);
   };
-
-  const handleRejectVehicleDoc = async (docId: string) => {
-    const reason = prompt("Rejection reason:");
-    if (!reason) return;
-
-    try {
-      await actions.rejectVehicleDocument(docId, userId, reason);
-    } catch (error) {
-      console.error("Failed to reject document:", error);
-    }
-  };
-
-  if (documentsState.isLoading) {
-    return (
-      <div className="flex items-center justify-center p-8">
-        <p className="text-muted-foreground">Loading documents...</p>
-      </div>
-    );
-  }
 
   return (
-    <div className="space-y-6">
-      {/* Driver Documents */}
-      <div className="rounded-lg border border-border bg-card p-6">
-        <h3 className="mb-4 flex items-center gap-2 text-lg font-semibold">
-          <FileText className="h-5 w-5" />
-          Driver Documents
-        </h3>
-
-        {documentsState.driverDocuments.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No driver documents found</p>
-        ) : (
-          <div className="space-y-3">
-            {documentsState.driverDocuments.map((doc) => (
-              <DocumentRow
-                key={doc.id}
-                document={doc}
-                onApprove={() => handleApproveDriverDoc(doc.id)}
-                onReject={() => handleRejectDriverDoc(doc.id)}
-                isProcessing={actions.isProcessing}
+    <div className="space-y-8">
+      {/* Unified Bulk Actions - Sticky at top */}
+      {bulkActions.selectedDocuments.length > 0 && (
+        <div className="sticky top-0 z-50 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b border-border pb-4 mb-4">
+          <div className="relative">
+            <BulkActionsBar
+              selectedCount={bulkActions.selectedDocuments.length}
+              onApprove={bulkActions.handleBulkApprove}
+              onReject={() => bulkActions.setShowRejectPanel(!bulkActions.showRejectPanel)}
+              onClear={bulkActions.clearSelection}
+              isProcessing={bulkActions.isBulkProcessing}
+              isRejectPanelOpen={bulkActions.showRejectPanel}
+            />
+            {bulkActions.showRejectPanel && (
+              <InlineRejectPanel
+                onSubmit={bulkActions.handleBulkReject}
+                onCancel={() => bulkActions.setShowRejectPanel(false)}
+                isProcessing={bulkActions.isBulkProcessing}
               />
-            ))}
+            )}
           </div>
-        )}
+        </div>
+      )}
+
+      {/* SECTION 1: Driver Documents */}
+      <div className="space-y-4">
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-500/10">
+            <UserIcon className="h-5 w-5 text-blue-500" />
+          </div>
+          <div>
+            <h2 className="text-xl font-bold">Driver Documents</h2>
+            <p className="text-sm text-muted-foreground">
+              Personal identification and licensing documents
+            </p>
+          </div>
+        </div>
+
+        <div className="rounded-lg border border-border bg-card">
+          <DocumentTable
+            documents={driverDocuments}
+            selectedIds={bulkActions.selectedDocuments}
+            onToggleSelect={bulkActions.toggleDocument}
+            onToggleSelectAll={() => bulkActions.toggleSectionDocs(driverDocuments)}
+            onApprove={handleApprove}
+            onReject={handleReject}
+            onDocumentAction={handleDocumentAction}
+            isProcessing={actions.isProcessing}
+          />
+        </div>
       </div>
 
-      {/* Vehicle Documents */}
-      <div className="rounded-lg border border-border bg-card p-6">
-        <h3 className="mb-4 flex items-center gap-2 text-lg font-semibold">
-          <FileText className="h-5 w-5" />
-          Vehicle Documents
-        </h3>
-
-        {documentsState.vehicleDocuments.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No vehicle documents found</p>
-        ) : (
-          <div className="space-y-3">
-            {documentsState.vehicleDocuments.map((doc) => (
-              <DocumentRow
-                key={doc.id}
-                document={doc}
-                onApprove={() => handleApproveVehicleDoc(doc.id)}
-                onReject={() => handleRejectVehicleDoc(doc.id)}
-                isProcessing={actions.isProcessing}
-              />
-            ))}
+      {/* SECTION 2: Vehicle Documents */}
+      <div className="space-y-4">
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-purple-500/10">
+            <CarIcon className="h-5 w-5 text-purple-500" />
           </div>
-        )}
+          <div>
+            <h2 className="text-xl font-bold">Vehicle Documents</h2>
+            <p className="text-sm text-muted-foreground">
+              Vehicle registration, insurance, and inspection documents
+            </p>
+          </div>
+        </div>
+
+        <div className="rounded-lg border border-border bg-card">
+          <DocumentTable
+            documents={vehicleDocuments}
+            selectedIds={bulkActions.selectedDocuments}
+            onToggleSelect={bulkActions.toggleDocument}
+            onToggleSelectAll={() => bulkActions.toggleSectionDocs(vehicleDocuments)}
+            onApprove={handleApprove}
+            onReject={handleReject}
+            onDocumentAction={handleDocumentAction}
+            isProcessing={actions.isProcessing}
+          />
+        </div>
       </div>
 
       {actions.error && (
@@ -131,78 +174,3 @@ export function DriverDocumentsTab({ driverId }: DriverDocumentsTabProps) {
   );
 }
 
-function DocumentRow({
-  document,
-  onApprove,
-  onReject,
-  isProcessing,
-}: {
-  document: DriverDocument | VehicleDocument;
-  onApprove: () => void;
-  onReject: () => void;
-  isProcessing: boolean;
-}) {
-  const getStatusBadgeVariant = (status: string) => {
-    switch (status) {
-      case "approved":
-        return "default";
-      case "pending":
-        return "secondary";
-      case "rejected":
-        return "destructive";
-      case "expired":
-        return "destructive";
-      default:
-        return "outline";
-    }
-  };
-
-  return (
-    <div className="flex items-center justify-between rounded-lg border border-border p-4">
-      <div className="flex-1">
-        <div className="flex items-center gap-3">
-          <p className="font-medium capitalize">
-            {document.document_type.replace(/_/g, " ")}
-          </p>
-          <Badge variant={getStatusBadgeVariant(document.status)}>
-            {document.status}
-          </Badge>
-        </div>
-        <div className="mt-1 flex gap-4 text-xs text-muted-foreground">
-          {document.expiry_date && (
-            <span>Expires: {new Date(document.expiry_date).toLocaleDateString()}</span>
-          )}
-          <span>Uploaded: {new Date(document.upload_date).toLocaleDateString()}</span>
-        </div>
-        {document.rejection_reason && (
-          <p className="mt-2 text-sm text-destructive">
-            Reason: {document.rejection_reason}
-          </p>
-        )}
-      </div>
-
-      {document.status === "pending" && (
-        <div className="flex gap-2">
-          <Button
-            size="sm"
-            variant="default"
-            onClick={onApprove}
-            disabled={isProcessing}
-          >
-            <Check className="h-4 w-4" />
-            Approve
-          </Button>
-          <Button
-            size="sm"
-            variant="destructive"
-            onClick={onReject}
-            disabled={isProcessing}
-          >
-            <X className="h-4 w-4" />
-            Reject
-          </Button>
-        </div>
-      )}
-    </div>
-  );
-}

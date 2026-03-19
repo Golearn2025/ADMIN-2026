@@ -2,8 +2,12 @@
 
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Search, User } from "lucide-react";
+import { Avatar } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
+import { Search, User, ChevronDown, SlidersHorizontal, X } from "lucide-react";
 import type { Driver } from "@/lib/features/drivers/drivers.types";
+import { useState, useEffect } from "react";
+import { createClient } from "@/lib/supabase/client";
 
 interface DriversSidebarListProps {
   drivers: Driver[];
@@ -12,6 +16,13 @@ interface DriversSidebarListProps {
   isLoading: boolean;
   searchQuery: string;
   setSearchQuery: (query: string) => void;
+  onFiltersChange?: (filters: AdvancedFilters) => void;
+}
+
+interface AdvancedFilters {
+  category: string[];
+  make: string[];
+  color: string[];
 }
 
 export function DriversSidebarList({
@@ -21,43 +32,231 @@ export function DriversSidebarList({
   isLoading,
   searchQuery,
   setSearchQuery,
+  onFiltersChange,
 }: DriversSidebarListProps) {
-  const getComplianceBadgeVariant = (status: string) => {
-    switch (status) {
-      case "ok":
-        return "default";
-      case "pending":
-        return "secondary";
-      case "missing_driver_docs":
-      case "missing_vehicle_docs":
-      case "expired":
-        return "destructive";
-      default:
-        return "outline";
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+  const [filters, setFilters] = useState<AdvancedFilters>({
+    category: [],
+    make: [],
+    color: [],
+  });
+  const [filterOptions, setFilterOptions] = useState<{
+    categories: string[];
+    makes: string[];
+    colors: string[];
+  }>({ categories: [], makes: [], colors: [] });
+
+  // Load filter options from DB
+  useEffect(() => {
+    async function loadFilterOptions() {
+      const supabase = createClient();
+      const { data } = await supabase
+        .from("admin_driver_vehicle_filter_v1")
+        .select("category, make, color");
+
+      if (data) {
+        const categories = [...new Set(data.map(d => d.category).filter(Boolean))] as string[];
+        const makes = [...new Set(data.map(d => d.make).filter(Boolean))] as string[];
+        const colors = [...new Set(data.map(d => d.color).filter(Boolean))] as string[];
+        
+        setFilterOptions({
+          categories: categories.sort(),
+          makes: makes.sort(),
+          colors: colors.sort(),
+        });
+      }
     }
+    loadFilterOptions();
+  }, []);
+
+  // Apply filters when they change
+  useEffect(() => {
+    if (onFiltersChange) {
+      const timer = setTimeout(() => {
+        onFiltersChange(filters);
+      }, 300); // Debounce 300ms
+      return () => clearTimeout(timer);
+    }
+  }, [filters, onFiltersChange]);
+
+  const toggleFilter = (type: keyof AdvancedFilters, value: string) => {
+    setFilters(prev => ({
+      ...prev,
+      [type]: prev[type].includes(value)
+        ? prev[type].filter(v => v !== value)
+        : [...prev[type], value]
+    }));
   };
 
-  return (
-    <div className="flex h-full flex-col">
-      {/* Header */}
-      <div className="border-b border-border p-4">
-        <h2 className="text-lg font-semibold">Drivers</h2>
-        <p className="text-sm text-muted-foreground">
-          {drivers.length} total
-        </p>
-      </div>
+  const clearAllFilters = () => {
+    setFilters({ category: [], make: [], color: [] });
+  };
 
+  const removeFilter = (type: keyof AdvancedFilters, value: string) => {
+    setFilters(prev => ({
+      ...prev,
+      [type]: prev[type].filter(v => v !== value)
+    }));
+  };
+
+  const activeFiltersCount = filters.category.length + filters.make.length + filters.color.length;
+  const getStatusBadge = (driver: Driver) => {
+    if (driver.onboarding_status === 'review') {
+      return { label: 'Pending Review', variant: 'secondary' as const, className: 'bg-yellow-500/10 text-yellow-600 border-yellow-500/20' };
+    }
+    if (driver.is_approved) {
+      return { label: 'Approved', variant: 'default' as const, className: 'bg-green-500/10 text-green-600 border-green-500/20' };
+    }
+    if (driver.compliance_status === 'expired') {
+      return { label: 'Expiring Soon', variant: 'destructive' as const, className: 'bg-orange-500/10 text-orange-600 border-orange-500/20' };
+    }
+    return { label: 'Draft', variant: 'outline' as const, className: '' };
+  };
+
+
+  return (
+    <div className="flex h-full flex-col bg-background">
       {/* Search */}
-      <div className="border-b border-border p-4">
+      <div className="border-b border-border p-3">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             placeholder="Search drivers..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-9"
+            className="pl-9 bg-muted/50 border-0"
           />
         </div>
+      </div>
+
+      {/* Advanced Filters */}
+      <div className="border-b border-border">
+        <div className="px-3 py-2">
+          <button
+            onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+            className="flex w-full items-center justify-between rounded-lg px-3 py-2 text-sm text-muted-foreground hover:bg-muted/50 transition-colors"
+          >
+            <div className="flex items-center gap-2">
+              <SlidersHorizontal className="h-4 w-4" />
+              <span>Advanced Filters</span>
+              {activeFiltersCount > 0 && (
+                <Badge variant="secondary" className="ml-1 h-5 min-w-5 px-1.5 text-xs">
+                  {activeFiltersCount}
+                </Badge>
+              )}
+            </div>
+            <ChevronDown className={`h-4 w-4 transition-transform ${showAdvancedFilters ? 'rotate-180' : ''}`} />
+          </button>
+        </div>
+
+        {/* Filter Panel */}
+        {showAdvancedFilters && (
+          <div className="px-3 pb-4 space-y-4 bg-muted/30 border-t border-border">
+            {/* Active Filters Chips */}
+            {activeFiltersCount > 0 && (
+              <div className="pt-3 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-medium text-muted-foreground">Active Filters</span>
+                  <Button variant="ghost" size="sm" onClick={clearAllFilters} className="h-6 px-2 text-xs hover:bg-destructive/10 hover:text-destructive">
+                    Clear all
+                  </Button>
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {filters.category.map(cat => (
+                    <Badge key={cat} variant="secondary" className="gap-1.5 pr-1 bg-primary/10 text-primary border-primary/20 hover:bg-primary/20">
+                      <span className="text-xs">{cat}</span>
+                      <button onClick={() => removeFilter('category', cat)} className="hover:bg-primary/30 rounded-sm p-0.5 transition-colors">
+                        <X className="h-3 w-3" />
+                      </button>
+                    </Badge>
+                  ))}
+                  {filters.make.map(make => (
+                    <Badge key={make} variant="secondary" className="gap-1.5 pr-1 bg-primary/10 text-primary border-primary/20 hover:bg-primary/20">
+                      <span className="text-xs">{make}</span>
+                      <button onClick={() => removeFilter('make', make)} className="hover:bg-primary/30 rounded-sm p-0.5 transition-colors">
+                        <X className="h-3 w-3" />
+                      </button>
+                    </Badge>
+                  ))}
+                  {filters.color.map(color => (
+                    <Badge key={color} variant="secondary" className="gap-1.5 pr-1 bg-primary/10 text-primary border-primary/20 hover:bg-primary/20">
+                      <span className="text-xs">{color}</span>
+                      <button onClick={() => removeFilter('color', color)} className="hover:bg-primary/30 rounded-sm p-0.5 transition-colors">
+                        <X className="h-3 w-3" />
+                      </button>
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Category Filter */}
+            <div className="space-y-2">
+              <label className="text-xs font-semibold text-foreground uppercase tracking-wide">Category</label>
+              <div className="space-y-0.5 bg-background/50 rounded-lg p-2">
+                {filterOptions.categories.map(cat => (
+                  <label key={cat} className="flex items-center gap-2.5 text-sm cursor-pointer hover:bg-primary/5 rounded-md px-2.5 py-1.5 transition-colors group">
+                    <input
+                      type="checkbox"
+                      checked={filters.category.includes(cat)}
+                      onChange={() => toggleFilter('category', cat)}
+                      className="rounded border-border text-primary focus:ring-primary focus:ring-offset-0 w-4 h-4"
+                    />
+                    <span className="group-hover:text-foreground text-muted-foreground transition-colors">{cat}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            {/* Make Filter */}
+            <div className="space-y-2">
+              <label className="text-xs font-semibold text-foreground uppercase tracking-wide">Make</label>
+              <div className="space-y-0.5 bg-background/50 rounded-lg p-2 max-h-40 overflow-y-auto custom-scrollbar">
+                {filterOptions.makes.map(make => (
+                  <label key={make} className="flex items-center gap-2.5 text-sm cursor-pointer hover:bg-primary/5 rounded-md px-2.5 py-1.5 transition-colors group">
+                    <input
+                      type="checkbox"
+                      checked={filters.make.includes(make)}
+                      onChange={() => toggleFilter('make', make)}
+                      className="rounded border-border text-primary focus:ring-primary focus:ring-offset-0 w-4 h-4"
+                    />
+                    <span className="group-hover:text-foreground text-muted-foreground transition-colors">{make}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            {/* Color Filter */}
+            <div className="space-y-2">
+              <label className="text-xs font-semibold text-foreground uppercase tracking-wide">Color</label>
+              <div className="space-y-0.5 bg-background/50 rounded-lg p-2">
+                {filterOptions.colors.map(color => (
+                  <label key={color} className="flex items-center gap-2.5 text-sm cursor-pointer hover:bg-primary/5 rounded-md px-2.5 py-1.5 transition-colors group">
+                    <input
+                      type="checkbox"
+                      checked={filters.color.includes(color)}
+                      onChange={() => toggleFilter('color', color)}
+                      className="rounded border-border text-primary focus:ring-primary focus:ring-offset-0 w-4 h-4"
+                    />
+                    <span className="group-hover:text-foreground text-muted-foreground transition-colors">{color}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            {/* Result Count */}
+            <div className="flex items-center justify-between pt-3 border-t border-border">
+              <span className="text-xs font-medium text-muted-foreground">
+                {drivers.length} driver{drivers.length !== 1 ? 's' : ''} found
+              </span>
+              {activeFiltersCount > 0 && (
+                <Badge variant="outline" className="text-xs">
+                  {activeFiltersCount} filter{activeFiltersCount !== 1 ? 's' : ''}
+                </Badge>
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Drivers List */}
@@ -75,51 +274,49 @@ export function DriversSidebarList({
             </p>
           </div>
         ) : (
-          <div className="divide-y divide-border">
-            {drivers.map((driver) => (
-              <button
-                key={driver.id}
-                onClick={() => setSelectedDriverId(driver.id)}
-                className={`w-full p-4 text-left transition-colors hover:bg-accent ${
-                  selectedDriverId === driver.id ? "bg-accent" : ""
-                }`}
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium truncate">
-                      {driver.first_name} {driver.last_name}
-                    </p>
-                    <p className="text-xs text-muted-foreground truncate">
-                      {driver.email || driver.phone}
-                    </p>
-                  </div>
-                  <Badge
-                    variant={getComplianceBadgeVariant(driver.compliance_status)}
-                    className="text-xs shrink-0"
-                  >
-                    {driver.compliance_status}
-                  </Badge>
-                </div>
+          <div className="space-y-2 p-3">
+            {drivers.map((driver) => {
+              const statusBadge = getStatusBadge(driver);
+              return (
+                <button
+                  key={driver.id}
+                  onClick={() => setSelectedDriverId(driver.id)}
+                  className={`w-full rounded-lg p-3 text-left transition-all ${
+                    selectedDriverId === driver.id
+                      ? 'bg-primary/10 border border-primary/20 shadow-sm'
+                      : 'bg-card border border-border hover:border-primary/30 hover:shadow-sm'
+                  }`}
+                >
+                  <div className="flex items-start gap-3">
+                    {/* Square Avatar */}
+                    <Avatar
+                      src={driver.profile_photo_url}
+                      fallback={`${driver.first_name} ${driver.last_name}`}
+                      className="h-12 w-12 rounded-lg text-sm shrink-0"
+                    />
 
-                <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
-                  <span>
-                    {driver.total_driver_docs} docs
-                  </span>
-                  <span>•</span>
-                  <span>
-                    {driver.total_vehicles} vehicle{driver.total_vehicles !== 1 ? "s" : ""}
-                  </span>
-                  {driver.pending_driver_docs > 0 && (
-                    <>
-                      <span>•</span>
-                      <span className="text-yellow-600">
-                        {driver.pending_driver_docs} pending
-                      </span>
-                    </>
-                  )}
-                </div>
-              </button>
-            ))}
+                    {/* Info */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-start justify-between gap-2 mb-1">
+                        <p className="font-semibold text-sm truncate">
+                          {driver.first_name} {driver.last_name}
+                        </p>
+                        <Badge
+                          variant={statusBadge.variant}
+                          className={`text-xs shrink-0 border ${statusBadge.className}`}
+                        >
+                          {statusBadge.label}
+                        </Badge>
+                      </div>
+
+                      <p className="text-xs text-muted-foreground truncate">
+                        {driver.email || driver.phone}
+                      </p>
+                    </div>
+                  </div>
+                </button>
+              );
+            })}
           </div>
         )}
       </div>

@@ -6,12 +6,15 @@
 
 import { useState, useEffect } from "react";
 import type { Driver } from "../drivers.types";
+import { createClient } from "@/lib/supabase/client";
 
-interface UseDriversPageProps {
-  organizationId: string;
+interface AdvancedFilters {
+  category: string[];
+  make: string[];
+  color: string[];
 }
 
-export function useDriversPage({ organizationId }: UseDriversPageProps) {
+export function useDriversPage() {
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [selectedDriverId, setSelectedDriverId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -21,19 +24,31 @@ export function useDriversPage({ organizationId }: UseDriversPageProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [complianceFilter, setComplianceFilter] = useState<string[]>([]);
   const [onboardingFilter, setOnboardingFilter] = useState<string[]>([]);
+  const [advancedFilters, setAdvancedFilters] = useState<AdvancedFilters>({
+    category: [],
+    make: [],
+    color: [],
+  });
 
   useEffect(() => {
     fetchDrivers();
-  }, [organizationId]);
+  }, []);
+
+  // Refetch when advanced filters change
+  useEffect(() => {
+    if (advancedFilters.category.length > 0 || advancedFilters.make.length > 0 || advancedFilters.color.length > 0) {
+      fetchDriversWithFilters();
+    } else {
+      fetchDrivers();
+    }
+  }, [advancedFilters]);
 
   const fetchDrivers = async () => {
     setIsLoading(true);
     setError(null);
 
     try {
-      const response = await fetch(
-        `/api/admin/drivers?organizationId=${organizationId}`
-      );
+      const response = await fetch("/api/admin/drivers");
 
       if (!response.ok) {
         throw new Error("Failed to fetch drivers");
@@ -44,6 +59,37 @@ export function useDriversPage({ organizationId }: UseDriversPageProps) {
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unknown error");
       console.error("Error fetching drivers:", err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const fetchDriversWithFilters = async () => {
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      // Get organization ID from API (same as fetchDrivers)
+      const response = await fetch("/api/admin/drivers/filtered", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          category: advancedFilters.category.length > 0 ? advancedFilters.category : null,
+          make: advancedFilters.make.length > 0 ? advancedFilters.make : null,
+          color: advancedFilters.color.length > 0 ? advancedFilters.color : null,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to fetch filtered drivers");
+      }
+
+      const data = await response.json();
+      console.log("📊 RPC returned drivers:", data.drivers?.length || 0);
+      setDrivers(data.drivers || []);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unknown error");
+      console.error("Error fetching filtered drivers:", err);
     } finally {
       setIsLoading(false);
     }
@@ -80,6 +126,14 @@ export function useDriversPage({ organizationId }: UseDriversPageProps) {
     return true;
   });
 
+  console.log("🔢 Drivers count:", {
+    fromRPC: drivers.length,
+    afterClientFilter: filteredDrivers.length,
+    searchQuery,
+    complianceFilter,
+    onboardingFilter
+  });
+
   const selectedDriver = selectedDriverId
     ? drivers.find((d) => d.id === selectedDriverId) || null
     : null;
@@ -97,6 +151,8 @@ export function useDriversPage({ organizationId }: UseDriversPageProps) {
     setComplianceFilter,
     onboardingFilter,
     setOnboardingFilter,
+    advancedFilters,
+    setAdvancedFilters,
     refetch: fetchDrivers,
   };
 }

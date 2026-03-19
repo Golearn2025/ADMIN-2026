@@ -17,10 +17,69 @@ import type {
 // DRIVERS LIST
 // ============================================================================
 
-export async function getDrivers(supabase: any, organizationId: string) {
+export async function getDrivers(
+  supabase: any, 
+  organizationId: string,
+  filters?: {
+    category?: string[];
+    make?: string[];
+    color?: string[];
+    year?: number[];
+  }
+) {
+  // If filters are provided, get driver IDs from filter view first
+  if (filters && Object.keys(filters).length > 0) {
+    let filterQuery = supabase
+      .from("admin_driver_vehicle_filter_v1")
+      .select("driver_id");
 
+    // Apply filters
+    if (filters.category?.length) {
+      filterQuery = filterQuery.in("category", filters.category);
+    }
+    if (filters.make?.length) {
+      filterQuery = filterQuery.in("make", filters.make);
+    }
+    if (filters.color?.length) {
+      filterQuery = filterQuery.in("color", filters.color);
+    }
+    if (filters.year?.length) {
+      filterQuery = filterQuery.in("year", filters.year);
+    }
+
+    const { data: filterData, error: filterError } = await filterQuery;
+
+    if (filterError) {
+      console.error("Error fetching filtered drivers:", filterError);
+      throw new Error(filterError.message);
+    }
+
+    // Deduplicate driver IDs
+    const driverIds = [...new Set(filterData?.map((d: any) => d.driver_id) || [])];
+
+    if (driverIds.length === 0) {
+      return [];
+    }
+
+    // Fetch drivers from main view using filtered IDs
+    const { data, error } = await supabase
+      .from("admin_drivers_list_v1")
+      .select("*")
+      .eq("organization_id", organizationId)
+      .in("id", driverIds)
+      .order("first_name", { ascending: true });
+
+    if (error) {
+      console.error("Error fetching drivers:", error);
+      throw new Error(error.message);
+    }
+
+    return data as Driver[];
+  }
+
+  // No filters - fetch directly from main view
   const { data, error } = await supabase
-    .from("admin_drivers_list_v3")
+    .from("admin_drivers_list_v1")
     .select("*")
     .eq("organization_id", organizationId)
     .order("first_name", { ascending: true });
@@ -60,7 +119,7 @@ export async function getDriverById(supabase: any, driverId: string) {
 export async function getDriverDocuments(supabase: any, driverId: string) {
 
   const { data, error } = await supabase
-    .from("driver_documents")
+    .from("admin_driver_documents_with_reviewer_v3")
     .select("*")
     .eq("driver_id", driverId)
     .order("document_type", { ascending: true });
@@ -80,7 +139,7 @@ export async function getDriverDocuments(supabase: any, driverId: string) {
 export async function getVehicleDocuments(supabase: any, driverId: string) {
 
   const { data, error } = await supabase
-    .from("vehicle_documents")
+    .from("admin_vehicle_documents_with_reviewer_v3")
     .select(
       `
       *,
