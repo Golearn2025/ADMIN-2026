@@ -6,7 +6,7 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  console.log("🔥 API DRIVER DETAILS - admin_driver_full_v3");
+  console.log("🔥 API DRIVER DETAILS - V4 MODULAR");
   
   try {
     const { hasAccess } = await getUserRole();
@@ -20,24 +20,36 @@ export async function GET(
 
     console.log("Fetching driver:", id);
 
-    // Single query to admin_driver_full_v3 view
-    const { data, error } = await supabase
-      .from("admin_driver_full_v3")
-      .select("*")
-      .eq("id", id)
-      .single();
+    // Parallel queries - USE admin_driver_overview_v2 as SINGLE SOURCE OF TRUTH
+    const [
+      profileResult,
+      vehiclesResult,
+      driverDocsResult,
+      vehicleDocsResult
+    ] = await Promise.all([
+      supabase.from("admin_driver_overview_v2").select("*").eq("id", id).single(),
+      supabase.from("admin_driver_vehicles_v4").select("*").eq("driver_id", id),
+      supabase.from("admin_driver_documents_with_reviewer_v4_fix").select("*").eq("driver_id", id).eq("entity_type", "driver"),
+      supabase.from("admin_driver_documents_with_reviewer_v4_fix").select("*").eq("driver_id", id).eq("entity_type", "vehicle")
+    ]);
 
-    if (error) {
-      console.error("Driver not found:", error);
+    if (profileResult.error) {
+      console.error("Driver not found:", profileResult.error);
       return NextResponse.json({ error: "Driver not found" }, { status: 404 });
     }
 
-    console.log("✅ Driver loaded from admin_driver_full_v3");
-    console.log("   vehicles:", data.vehicles?.length || 0);
-    console.log("   driver_documents:", data.driver_documents?.length || 0);
-    console.log("   vehicle_documents:", data.vehicle_documents?.length || 0);
+    console.log("✅ Driver loaded from V4 modular views");
+    console.log("   vehicles:", vehiclesResult.data?.length || 0);
+    console.log("   driver_documents:", driverDocsResult.data?.length || 0);
+    console.log("   vehicle_documents:", vehicleDocsResult.data?.length || 0);
 
-    return NextResponse.json(data);
+    // Return modular structure - profile from admin_driver_overview_v2 (has all fields)
+    return NextResponse.json({
+      ...profileResult.data,
+      vehicles: vehiclesResult.data || [],
+      driver_documents: driverDocsResult.data || [],
+      vehicle_documents: vehicleDocsResult.data || []
+    });
   } catch (error) {
     console.error("API error:", error);
     return NextResponse.json(

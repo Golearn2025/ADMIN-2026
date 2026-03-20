@@ -7,12 +7,12 @@
 import { useState, useEffect } from "react";
 import type { Driver, DriverDocument, VehicleDocument } from "../drivers.types";
 
-// Response from admin_driver_full_v3 view
+// Response from V4 modular API (combines multiple V4 views)
 interface DriverFullDetails extends Driver {
-  // Arrays from view (already included in Driver type)
   vehicles: any[];
   driver_documents: DriverDocument[];
   vehicle_documents: any[];
+  compliance: any;
 }
 
 export function useDriverDetails(driverId: string | null) {
@@ -44,10 +44,11 @@ export function useDriverDetails(driverId: string | null) {
 
       const result = await response.json();
       
-      console.log("✅ Driver details from admin_driver_full_v3");
+      console.log("✅ Driver details from V4 modular views");
       console.log("   vehicles:", result.vehicles?.length || 0);
       console.log("   driver_documents:", result.driver_documents?.length || 0);
       console.log("   vehicle_documents:", result.vehicle_documents?.length || 0);
+      console.log("   compliance:", result.compliance);
       console.log("📄 DRIVER DOCUMENTS DATA:", result.driver_documents);
       console.log("🚗 VEHICLE DOCUMENTS DATA:", result.vehicle_documents);
       

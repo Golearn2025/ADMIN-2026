@@ -7,7 +7,6 @@ import { Button } from "@/components/ui/button";
 import { Search, User, ChevronDown, SlidersHorizontal, X } from "lucide-react";
 import type { Driver } from "@/lib/features/drivers/drivers.types";
 import { useState, useEffect } from "react";
-import { createClient } from "@/lib/supabase/client";
 
 interface DriversSidebarListProps {
   drivers: Driver[];
@@ -46,24 +45,17 @@ export function DriversSidebarList({
     colors: string[];
   }>({ categories: [], makes: [], colors: [] });
 
-  // Load filter options from DB
+  // Load filter options from API
   useEffect(() => {
     async function loadFilterOptions() {
-      const supabase = createClient();
-      const { data } = await supabase
-        .from("admin_driver_vehicle_filter_v1")
-        .select("category, make, color");
-
-      if (data) {
-        const categories = [...new Set(data.map(d => d.category).filter(Boolean))] as string[];
-        const makes = [...new Set(data.map(d => d.make).filter(Boolean))] as string[];
-        const colors = [...new Set(data.map(d => d.color).filter(Boolean))] as string[];
-        
-        setFilterOptions({
-          categories: categories.sort(),
-          makes: makes.sort(),
-          colors: colors.sort(),
-        });
+      try {
+        const response = await fetch("/api/admin/drivers/filter-options");
+        if (response.ok) {
+          const data = await response.json();
+          setFilterOptions(data);
+        }
+      } catch (error) {
+        console.error("Failed to load filter options:", error);
       }
     }
     loadFilterOptions();
@@ -291,7 +283,7 @@ export function DriversSidebarList({
                     {/* Square Avatar */}
                     <Avatar
                       src={driver.profile_photo_url}
-                      fallback={`${driver.first_name} ${driver.last_name}`}
+                      fallback={driver.full_name}
                       className="h-12 w-12 rounded-lg text-sm shrink-0"
                     />
 
@@ -299,7 +291,7 @@ export function DriversSidebarList({
                     <div className="flex-1 min-w-0">
                       <div className="flex items-start justify-between gap-2 mb-1">
                         <p className="font-semibold text-sm truncate">
-                          {driver.first_name} {driver.last_name}
+                          {driver.full_name}
                         </p>
                         <Badge
                           variant={statusBadge.variant}

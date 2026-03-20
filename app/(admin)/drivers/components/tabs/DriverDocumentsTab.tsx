@@ -58,6 +58,8 @@ export function DriverDocumentsTab({
       } else {
         await actions.approveVehicleDocument(docId, userId);
       }
+      // Refresh documents after approval
+      onRefresh();
     } catch (error) {
       console.error("Failed to approve:", error);
     }
@@ -74,6 +76,8 @@ export function DriverDocumentsTab({
       } else {
         await actions.rejectVehicleDocument(docId, userId, reason);
       }
+      // Refresh documents after rejection
+      onRefresh();
     } catch (error) {
       console.error("Failed to reject:", error);
     }

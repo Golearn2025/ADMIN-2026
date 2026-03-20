@@ -16,7 +16,7 @@ export function DriverOverviewTab({ driver }: DriverOverviewTabProps) {
           <div>
             <dt className="text-sm font-medium text-muted-foreground">Name</dt>
             <dd className="mt-1 text-sm">
-              {driver.first_name} {driver.last_name}
+              {driver.full_name}
             </dd>
           </div>
           <div>
@@ -60,24 +60,24 @@ export function DriverOverviewTab({ driver }: DriverOverviewTabProps) {
         <h3 className="mb-4 text-lg font-semibold">Compliance Status</h3>
         <div className="space-y-3">
           <ComplianceItem
-            label="Missing Driver Documents"
-            value={driver.missing_driver_docs}
-            isIssue={driver.missing_driver_docs > 0}
+            label="Documents Required"
+            value={driver.documents_required}
+            isIssue={false}
           />
           <ComplianceItem
-            label="Missing Vehicle Documents"
-            value={driver.missing_vehicle_docs}
-            isIssue={driver.missing_vehicle_docs > 0}
+            label="Documents Valid"
+            value={driver.documents_completed - driver.documents_expired}
+            isIssue={false}
           />
           <ComplianceItem
-            label="Expired Driver Documents"
-            value={driver.expired_driver_docs}
-            isIssue={driver.expired_driver_docs > 0}
+            label="Documents Expired"
+            value={driver.documents_expired}
+            isIssue={driver.documents_expired > 0}
           />
           <ComplianceItem
-            label="Expired Vehicle Documents"
-            value={driver.expired_vehicle_docs}
-            isIssue={driver.expired_vehicle_docs > 0}
+            label="Compliance Status"
+            value={driver.compliance_status}
+            isIssue={driver.compliance_status !== 'ok'}
           />
         </div>
       </div>
@@ -111,7 +111,7 @@ function ComplianceItem({
   isIssue,
 }: {
   label: string;
-  value: number;
+  value: number | string;
   isIssue: boolean;
 }) {
   return (

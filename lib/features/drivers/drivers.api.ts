@@ -19,70 +19,14 @@ import type {
 
 export async function getDrivers(
   supabase: any, 
-  organizationId: string,
-  filters?: {
-    category?: string[];
-    make?: string[];
-    color?: string[];
-    year?: number[];
-  }
+  organizationId: string
 ) {
-  // If filters are provided, get driver IDs from filter view first
-  if (filters && Object.keys(filters).length > 0) {
-    let filterQuery = supabase
-      .from("admin_driver_vehicle_filter_v1")
-      .select("driver_id");
-
-    // Apply filters
-    if (filters.category?.length) {
-      filterQuery = filterQuery.in("category", filters.category);
-    }
-    if (filters.make?.length) {
-      filterQuery = filterQuery.in("make", filters.make);
-    }
-    if (filters.color?.length) {
-      filterQuery = filterQuery.in("color", filters.color);
-    }
-    if (filters.year?.length) {
-      filterQuery = filterQuery.in("year", filters.year);
-    }
-
-    const { data: filterData, error: filterError } = await filterQuery;
-
-    if (filterError) {
-      console.error("Error fetching filtered drivers:", filterError);
-      throw new Error(filterError.message);
-    }
-
-    // Deduplicate driver IDs
-    const driverIds = [...new Set(filterData?.map((d: any) => d.driver_id) || [])];
-
-    if (driverIds.length === 0) {
-      return [];
-    }
-
-    // Fetch drivers from main view using filtered IDs
-    const { data, error } = await supabase
-      .from("admin_drivers_list_v1")
-      .select("*")
-      .eq("organization_id", organizationId)
-      .in("id", driverIds)
-      .order("first_name", { ascending: true });
-
-    if (error) {
-      console.error("Error fetching drivers:", error);
-      throw new Error(error.message);
-    }
-
-    return data as Driver[];
-  }
-
-  // No filters - fetch directly from main view
+  // Single query to enterprise view - NO filters, NO calculations
   const { data, error } = await supabase
-    .from("admin_drivers_list_v1")
+    .from("admin_driver_overview_v2")
     .select("*")
     .eq("organization_id", organizationId)
-    .order("first_name", { ascending: true });
+    .order("full_name", { ascending: true });
 
   if (error) {
     console.error("Error fetching drivers:", error);
@@ -119,9 +63,10 @@ export async function getDriverById(supabase: any, driverId: string) {
 export async function getDriverDocuments(supabase: any, driverId: string) {
 
   const { data, error } = await supabase
-    .from("admin_driver_documents_with_reviewer_v3")
+    .from("admin_driver_documents_with_reviewer_v4_fix")
     .select("*")
     .eq("driver_id", driverId)
+    .eq("entity_type", "driver")
     .order("document_type", { ascending: true });
 
   if (error) {
@@ -139,14 +84,10 @@ export async function getDriverDocuments(supabase: any, driverId: string) {
 export async function getVehicleDocuments(supabase: any, driverId: string) {
 
   const { data, error } = await supabase
-    .from("admin_vehicle_documents_with_reviewer_v3")
-    .select(
-      `
-      *,
-      vehicles!inner(driver_id)
-    `
-    )
-    .eq("vehicles.driver_id", driverId)
+    .from("admin_driver_documents_with_reviewer_v4_fix")
+    .select("*")
+    .eq("driver_id", driverId)
+    .eq("entity_type", "vehicle")
     .order("document_type", { ascending: true });
 
   if (error) {
@@ -154,9 +95,7 @@ export async function getVehicleDocuments(supabase: any, driverId: string) {
     throw new Error(error.message);
   }
 
-  // Remove nested vehicles object
-  const cleanedData = data?.map(({ vehicles, ...rest }: { vehicles: any; [key: string]: any }) => rest) || [];
-  return cleanedData as VehicleDocument[];
+  return data as VehicleDocument[];
 }
 
 // ============================================================================
@@ -165,24 +104,27 @@ export async function getVehicleDocuments(supabase: any, driverId: string) {
 
 export async function approveDriverDocument(
   supabase: any,
-  documentId: string,
-  reviewedBy: string
+  documentId: string
 ) {
+  // Call RPC function (handles status update + audit logging)
+  const { error: rpcError } = await supabase.rpc("approve_driver_document", {
+    p_document_id: documentId,
+  });
 
+  if (rpcError) {
+    console.error("Error approving driver document:", rpcError);
+    throw new Error(rpcError.message);
+  }
+
+  // Fetch updated document
   const { data, error } = await supabase
     .from("driver_documents")
-    .update({
-      status: "approved",
-      reviewed_at: new Date().toISOString(),
-      reviewed_by: reviewedBy,
-      rejection_reason: null,
-    })
-    .eq("id", documentId)
     .select()
+    .eq("id", documentId)
     .single();
 
   if (error) {
-    console.error("Error approving driver document:", error);
+    console.error("Error fetching updated driver document:", error);
     throw new Error(error.message);
   }
 
@@ -192,24 +134,28 @@ export async function approveDriverDocument(
 export async function rejectDriverDocument(
   supabase: any,
   documentId: string,
-  reviewedBy: string,
   reason: string
 ) {
+  // Call RPC function (handles status update + audit logging)
+  const { error: rpcError } = await supabase.rpc("reject_driver_document", {
+    p_document_id: documentId,
+    p_rejection_reason: reason,
+  });
 
+  if (rpcError) {
+    console.error("Error rejecting driver document:", rpcError);
+    throw new Error(rpcError.message);
+  }
+
+  // Fetch updated document
   const { data, error } = await supabase
     .from("driver_documents")
-    .update({
-      status: "rejected",
-      reviewed_at: new Date().toISOString(),
-      reviewed_by: reviewedBy,
-      rejection_reason: reason,
-    })
-    .eq("id", documentId)
     .select()
+    .eq("id", documentId)
     .single();
 
   if (error) {
-    console.error("Error rejecting driver document:", error);
+    console.error("Error fetching updated driver document:", error);
     throw new Error(error.message);
   }
 
@@ -218,24 +164,27 @@ export async function rejectDriverDocument(
 
 export async function approveVehicleDocument(
   supabase: any,
-  documentId: string,
-  reviewedBy: string
+  documentId: string
 ) {
+  // Call RPC function (handles status update + audit logging)
+  const { error: rpcError } = await supabase.rpc("approve_vehicle_document", {
+    p_document_id: documentId,
+  });
 
+  if (rpcError) {
+    console.error("Error approving vehicle document:", rpcError);
+    throw new Error(rpcError.message);
+  }
+
+  // Fetch updated document
   const { data, error } = await supabase
     .from("vehicle_documents")
-    .update({
-      status: "approved",
-      reviewed_at: new Date().toISOString(),
-      reviewed_by: reviewedBy,
-      rejection_reason: null,
-    })
-    .eq("id", documentId)
     .select()
+    .eq("id", documentId)
     .single();
 
   if (error) {
-    console.error("Error approving vehicle document:", error);
+    console.error("Error fetching updated vehicle document:", error);
     throw new Error(error.message);
   }
 
@@ -245,24 +194,28 @@ export async function approveVehicleDocument(
 export async function rejectVehicleDocument(
   supabase: any,
   documentId: string,
-  reviewedBy: string,
   reason: string
 ) {
+  // Call RPC function (handles status update + audit logging)
+  const { error: rpcError } = await supabase.rpc("reject_vehicle_document", {
+    p_document_id: documentId,
+    p_rejection_reason: reason,
+  });
 
+  if (rpcError) {
+    console.error("Error rejecting vehicle document:", rpcError);
+    throw new Error(rpcError.message);
+  }
+
+  // Fetch updated document
   const { data, error } = await supabase
     .from("vehicle_documents")
-    .update({
-      status: "rejected",
-      reviewed_at: new Date().toISOString(),
-      reviewed_by: reviewedBy,
-      rejection_reason: reason,
-    })
-    .eq("id", documentId)
     .select()
+    .eq("id", documentId)
     .single();
 
   if (error) {
-    console.error("Error rejecting vehicle document:", error);
+    console.error("Error fetching updated vehicle document:", error);
     throw new Error(error.message);
   }
 

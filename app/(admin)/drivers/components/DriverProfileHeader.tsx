@@ -14,12 +14,10 @@ export function DriverProfileHeader({ driver }: DriverProfileHeaderProps) {
     switch (driver.compliance_status) {
       case "ok":
         return <Badge variant="success">Compliant</Badge>;
-      case "pending":
-        return <Badge variant="warning">Pending Review</Badge>;
-      case "missing_driver_docs":
-        return <Badge variant="destructive">Missing Driver Docs</Badge>;
-      case "missing_vehicle_docs":
-        return <Badge variant="destructive">Missing Vehicle Docs</Badge>;
+      case "missing":
+        return <Badge variant="destructive">Missing Documents</Badge>;
+      case "no_vehicle":
+        return <Badge variant="warning">No Vehicle</Badge>;
       case "expired":
         return <Badge variant="destructive">Expired Documents</Badge>;
       default:
@@ -46,7 +44,7 @@ export function DriverProfileHeader({ driver }: DriverProfileHeaderProps) {
         {/* Avatar */}
         <Avatar
           src={driver.profile_photo_url}
-          fallback={`${driver.first_name} ${driver.last_name}`}
+          fallback={driver.full_name}
           className="h-20 w-20 text-2xl"
         />
 
@@ -56,7 +54,7 @@ export function DriverProfileHeader({ driver }: DriverProfileHeaderProps) {
             <div className="space-y-3">
               <div>
                 <h2 className="text-2xl font-bold">
-                  {driver.first_name} {driver.last_name}
+                  {driver.full_name}
                 </h2>
                 <div className="mt-2 flex items-center gap-4 text-sm text-muted-foreground">
                   {driver.email && (

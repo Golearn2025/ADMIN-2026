@@ -1,55 +1,38 @@
 // ============================================================================
 // DRIVERS TYPES - STRICT CONTRACT WITH BACKEND
 // ============================================================================
-// Based on: admin_drivers_list_v3, driver_documents, vehicle_documents, document_status_logs
-// DO NOT modify without updating corresponding views
+// Based on: admin_driver_overview_v2 (SINGLE SOURCE OF TRUTH)
+// DO NOT modify without updating corresponding view
 
 export type Driver = {
+  // Identity
   id: string;
-  first_name: string;
-  last_name: string;
-  email: string | null;
-  phone: string;
   organization_id: string;
-  organization_name?: string;
-  driver_type?: string;
+  full_name: string;
+  email: string | null;
+  phone: string | null;
+  profile_photo_url: string | null;
+  member_since: string;
 
+  // Status
+  status: string; // pending, approved, suspended, inactive
+  online_status: string;
   is_active: boolean;
   is_approved: boolean;
+  onboarding_status: string;
+  driver_status: string;
 
-  onboarding_status: "draft" | "review" | "complete";
-  profile_photo_url: string | null;
-
+  // Vehicles
   total_vehicles: number;
 
-  total_driver_docs: number;
-  expired_driver_docs: number;
-  pending_driver_docs: number;
+  // Documents (from view - NO calculations)
+  documents_required: number;
+  documents_completed: number;
+  documents_expired: number;
 
-  total_vehicle_docs: number;
-  expired_vehicle_docs: number;
-  pending_vehicle_docs: number;
-
-  missing_driver_docs: number;
-  missing_vehicle_docs: number;
-
-  compliance_status:
-    | "ok"
-    | "pending"
-    | "missing_driver_docs"
-    | "missing_vehicle_docs"
-    | "expired";
-
+  // Compliance (from view - NO derivation)
+  compliance_status: "ok" | "missing" | "no_vehicle" | "expired";
   can_receive_jobs: boolean;
-  
-  // Rating fields
-  rating_average?: number;
-  rating_count?: number;
-  
-  // Optional arrays from API response (admin_driver_full_v3)
-  driver_documents?: any[];
-  vehicles?: any[];
-  vehicle_documents?: any[];
 };
 
 export type DriverDocument = {
@@ -59,7 +42,8 @@ export type DriverDocument = {
   document_category: "driver" | "vehicle";
   status: "pending" | "approved" | "rejected" | "expired";
   expiry_date: string | null;
-  uploaded_at: string;
+  created_at: string;
+  uploaded_at?: string;
   reviewed_at: string | null;
   reviewed_by: string | null;
   reviewed_by_name?: string | null;
@@ -76,7 +60,8 @@ export type VehicleDocument = {
   document_type: string;
   status: "pending" | "approved" | "rejected" | "expired";
   expiry_date: string | null;
-  uploaded_at: string;
+  created_at: string;
+  uploaded_at?: string;
   reviewed_at: string | null;
   reviewed_by: string | null;
   reviewed_by_name?: string | null;

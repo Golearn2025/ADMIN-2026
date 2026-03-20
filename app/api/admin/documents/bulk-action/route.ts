@@ -58,75 +58,98 @@ export async function PATCH(request: NextRequest) {
     console.log("Table Name:", tableName);
 
     if (action === "approve") {
-      // Bulk approve documents
-      console.log("🟢 EXECUTING APPROVE UPDATE");
-      console.log("Updating table:", tableName);
-      console.log("Setting status to: approved");
+      // Bulk approve documents - loop to ensure audit logging per document
+      console.log("🟢 EXECUTING BULK APPROVE VIA RPC");
+      console.log("Document type:", document_type);
       console.log("For document IDs:", document_ids);
       
-      const { data, error } = await supabase
-        .from(tableName)
-        .update({
-          status: "approved",
-          reviewed_at: now,
-          reviewed_by: adminId,
-          rejection_reason: null,
-        })
-        .in("id", document_ids)
-        .select();
+      const rpcFunctionName = document_type === "vehicle" 
+        ? "approve_vehicle_document" 
+        : "approve_driver_document";
+      
+      const errors = [];
+      let successCount = 0;
 
-      console.log("Approve Update result - Data:", data);
-      console.log("Approve Update result - Error:", error);
+      // Loop through each document and call RPC
+      for (const docId of document_ids) {
+        const { error: rpcError } = await supabase.rpc(rpcFunctionName, {
+          p_document_id: docId,
+          p_actor_id: user.id,
+        });
 
-      if (error) {
-        console.error("❌ Bulk approve error:", error);
+        if (rpcError) {
+          console.error(`❌ Error approving document ${docId}:`, rpcError);
+          errors.push({ docId, error: rpcError.message });
+        } else {
+          successCount++;
+        }
+      }
+
+      console.log(`✅ APPROVE SUCCESS - ${successCount}/${document_ids.length} documents approved`);
+      
+      if (errors.length > 0) {
+        console.error("❌ Some documents failed:", errors);
         return NextResponse.json(
-          { error: "Failed to approve documents", details: error },
-          { status: 500 }
+          { 
+            success: false,
+            message: `${successCount}/${document_ids.length} documents approved`,
+            errors 
+          },
+          { status: 207 } // Multi-Status
         );
       }
 
-      console.log("✅ APPROVE SUCCESS - Updated", data?.length || 0, "documents");
       return NextResponse.json({
         success: true,
-        message: `${document_ids.length} document(s) approved`,
-        updated: data,
+        message: `${successCount} document(s) approved`,
       });
     } else if (action === "reject") {
-      // Bulk reject documents
-      console.log("🔴 EXECUTING REJECT UPDATE");
-      console.log("Updating table:", tableName);
-      console.log("Setting status to: rejected");
-      console.log("Setting rejection_reason to:", reason);
+      // Bulk reject documents - loop to ensure audit logging per document
+      console.log("🔴 EXECUTING BULK REJECT VIA RPC");
+      console.log("Document type:", document_type);
+      console.log("Rejection reason:", reason);
       console.log("For document IDs:", document_ids);
       
-      const { data, error } = await supabase
-        .from(tableName)
-        .update({
-          status: "rejected",
-          rejection_reason: reason,
-          reviewed_at: now,
-          reviewed_by: adminId,
-        })
-        .in("id", document_ids)
-        .select();
+      const rpcFunctionName = document_type === "vehicle" 
+        ? "reject_vehicle_document" 
+        : "reject_driver_document";
+      
+      const errors = [];
+      let successCount = 0;
 
-      console.log("Update result - Data:", data);
-      console.log("Update result - Error:", error);
+      // Loop through each document and call RPC
+      for (const docId of document_ids) {
+        const { error: rpcError } = await supabase.rpc(rpcFunctionName, {
+          p_document_id: docId,
+          p_rejection_reason: reason,
+          p_actor_id: user.id,
+        });
 
-      if (error) {
-        console.error("❌ Bulk reject error:", error);
+        if (rpcError) {
+          console.error(`❌ Error rejecting document ${docId}:`, rpcError);
+          errors.push({ docId, error: rpcError.message });
+        } else {
+          successCount++;
+        }
+      }
+
+      console.log(`✅ REJECT SUCCESS - ${successCount}/${document_ids.length} documents rejected`);
+      
+      if (errors.length > 0) {
+        console.error("❌ Some documents failed:", errors);
         return NextResponse.json(
-          { error: "Failed to reject documents", details: error },
-          { status: 500 }
+          { 
+            success: false,
+            message: `${successCount}/${document_ids.length} documents rejected`,
+            errors 
+          },
+          { status: 207 } // Multi-Status
         );
       }
 
-      console.log("✅ REJECT SUCCESS - Updated", data?.length || 0, "documents");
       return NextResponse.json({
         success: true,
-        message: `${document_ids.length} document(s) rejected`,
-        updated: data,
+        message: `${successCount} document(s) rejected`,
       });
     } else {
       return NextResponse.json(

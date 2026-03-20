@@ -10,10 +10,9 @@ import { CheckCircle, XCircle, Clock, AlertTriangle, Mail, Phone, Building2 } fr
 interface DriverDetailHeaderProps {
   driver: {
     id: string;
-    first_name: string;
-    last_name: string;
+    full_name: string;
     email: string | null;
-    phone: string;
+    phone: string | null;
     profile_photo_url: string | null;
     organization_id: string;
     organization_name?: string;
@@ -35,7 +34,10 @@ interface DriverDetailHeaderProps {
 
 export function DriverDetailHeader({ driver }: DriverDetailHeaderProps) {
   const getInitials = () => {
-    return `${driver.first_name[0]}${driver.last_name[0]}`.toUpperCase();
+    const names = driver.full_name.split(' ');
+    return names.length > 1 
+      ? `${names[0][0]}${names[names.length-1][0]}`.toUpperCase()
+      : driver.full_name.substring(0, 2).toUpperCase();
   };
 
   const getStatusBadge = (status: string) => {
@@ -45,8 +47,8 @@ export function DriverDetailHeader({ driver }: DriverDetailHeaderProps) {
       review: { variant: "secondary", icon: Clock, label: "Pending Review" },
       draft: { variant: "outline", icon: AlertTriangle, label: "Draft" },
       ok: { variant: "default", icon: CheckCircle, label: "Compliant" },
-      missing_driver_docs: { variant: "destructive", icon: XCircle, label: "Missing Documents" },
-      missing_vehicle_docs: { variant: "destructive", icon: XCircle, label: "Missing Documents" },
+      missing: { variant: "destructive", icon: XCircle, label: "Missing Documents" },
+      no_vehicle: { variant: "warning", icon: AlertTriangle, label: "No Vehicle" },
       expired: { variant: "destructive", icon: AlertTriangle, label: "Expired Documents" },
     };
 
@@ -72,8 +74,8 @@ export function DriverDetailHeader({ driver }: DriverDetailHeaderProps) {
           <div className="flex items-start gap-6">
             <DriverAvatar
               src={driver.profile_photo_url}
-              alt={`${driver.first_name} ${driver.last_name}`}
-              fallback={`${driver.first_name} ${driver.last_name}`}
+              alt={driver.full_name}
+              fallback={driver.full_name}
               onlineStatus={driver.online_status}
             />
             
@@ -81,7 +83,7 @@ export function DriverDetailHeader({ driver }: DriverDetailHeaderProps) {
               {/* Name */}
               <div>
                 <h1 className="text-4xl font-bold text-white mb-1">
-                  {driver.first_name} {driver.last_name}
+                  {driver.full_name}
                 </h1>
                 <p className="text-sm text-gray-400">
                   {driver.driver_type || 'Driver'} • Member since {driver.created_at ? new Date(driver.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : 'N/A'}

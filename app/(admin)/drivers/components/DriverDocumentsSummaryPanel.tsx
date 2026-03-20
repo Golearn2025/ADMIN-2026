@@ -8,11 +8,10 @@ interface DriverDocumentsSummaryPanelProps {
 }
 
 export function DriverDocumentsSummaryPanel({ driver }: DriverDocumentsSummaryPanelProps) {
-  const totalRequired = driver.total_driver_docs + driver.total_vehicle_docs;
-  const totalMissing = driver.missing_driver_docs + driver.missing_vehicle_docs;
-  const totalExpired = driver.expired_driver_docs + driver.expired_vehicle_docs;
-  const totalPending = driver.pending_driver_docs + driver.pending_vehicle_docs;
-  const uploaded = totalRequired - totalMissing;
+  const totalRequired = driver.documents_required;
+  const totalCompleted = driver.documents_completed;
+  const totalExpired = driver.documents_expired;
+  const totalMissing = totalRequired - totalCompleted;
 
   const items = [
     {
@@ -23,8 +22,8 @@ export function DriverDocumentsSummaryPanel({ driver }: DriverDocumentsSummaryPa
       bgColor: "bg-blue-500/10",
     },
     {
-      label: "Uploaded",
-      value: uploaded,
+      label: "Completed",
+      value: totalCompleted,
       icon: CheckCircle2,
       color: "text-green-500",
       bgColor: "bg-green-500/10",
@@ -37,18 +36,11 @@ export function DriverDocumentsSummaryPanel({ driver }: DriverDocumentsSummaryPa
       bgColor: "bg-red-500/10",
     },
     {
-      label: "Expiring Soon",
+      label: "Expired",
       value: totalExpired,
       icon: Clock,
       color: "text-amber-500",
       bgColor: "bg-amber-500/10",
-    },
-    {
-      label: "Pending Review",
-      value: totalPending,
-      icon: XCircle,
-      color: "text-orange-500",
-      bgColor: "bg-orange-500/10",
     },
   ];
 

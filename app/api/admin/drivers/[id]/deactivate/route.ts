@@ -14,49 +14,37 @@ export async function POST(
     }
 
     const { id } = await params;
-    const supabase = await createClient();
+    const body = await request.json();
+    const { reason } = body;
 
-    // Get current user for audit logging
-    const { data: { user } } = await supabase.auth.getUser();
-
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (!reason || typeof reason !== "string" || !reason.trim()) {
+      return NextResponse.json(
+        { error: "Reason is required" },
+        { status: 400 }
+      );
     }
 
-    // Update document status with reviewer info
+    const supabase = await createClient();
+
+    // Deactivate driver
     const { error: updateError } = await supabase
-      .from("driver_documents")
+      .from("drivers")
       .update({
-        status: "approved",
-        reviewed_by: user.id,
-        reviewed_at: new Date().toISOString(),
+        status: "inactive",
+        status_reason: reason.trim(),
+        status_changed_at: new Date().toISOString(),
       })
       .eq("id", id);
 
     if (updateError) {
       console.error("Update error:", updateError);
       return NextResponse.json(
-        { error: "Failed to approve document" },
+        { error: "Failed to deactivate driver" },
         { status: 500 }
       );
     }
 
-    // Fetch updated document
-    const { data: document, error } = await supabase
-      .from("driver_documents")
-      .select()
-      .eq("id", id)
-      .single();
-
-    if (error) {
-      console.error("Fetch error:", error);
-      return NextResponse.json(
-        { error: "Failed to fetch updated document" },
-        { status: 500 }
-      );
-    }
-
-    return NextResponse.json({ document });
+    return NextResponse.json({ success: true });
   } catch (error) {
     console.error("API error:", error);
     return NextResponse.json(

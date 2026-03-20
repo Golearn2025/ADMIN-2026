@@ -5,6 +5,9 @@ import { FileText, Car, Shield, Activity, User } from "lucide-react";
 import { useDriverDetails } from "@/lib/features/drivers/hooks/useDriverDetails";
 import { DriverDocumentsTab } from "@/app/(admin)/drivers/components/tabs/DriverDocumentsTab";
 import { DriverOverviewTab } from "./tabs/DriverOverviewTab";
+import { DriverDetailsTab } from "./tabs/DriverDetailsTab";
+import { DriverVehiclesTab } from "./tabs/DriverVehiclesTab";
+import { DriverComplianceTab } from "./tabs/DriverComplianceTab";
 import { DriverActivityTab } from "./tabs/DriverActivityTab";
 import { DriverDetailHeader } from "./DriverDetailHeader";
 import { PremiumKPICards } from "./PremiumKPICards";
@@ -47,17 +50,8 @@ export function DriverWorkspace({
     alert(`Action "${action}" will be implemented`);
   };
 
-  // Calculate document stats for summary panel
-  const totalRequired = 6; // From business rules
-  const uploaded = driverDocuments.filter(d => d.status === 'approved').length;
-  const missing = driver?.missing_driver_docs || 0;
-  const expiringSoon = driverDocuments.filter(d => {
-    if (!d.expiry_date) return false;
-    const expiryDate = new Date(d.expiry_date);
-    const daysUntilExpiry = Math.ceil((expiryDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
-    return daysUntilExpiry > 0 && daysUntilExpiry <= 30;
-  }).length;
-  const rejected = driverDocuments.filter(d => d.status === 'rejected').length;
+  // NO calculations - use data from admin_driver_overview_v2 view
+  // All stats come from the driver object directly
 
   if (!selectedDriverId) {
     return (
@@ -91,19 +85,19 @@ export function DriverWorkspace({
 
       {/* KPI Cards - Max 4 */}
       <PremiumKPICards
-        rating={driver.rating_average || 0}
-        ratingCount={driver.rating_count || 0}
+        rating={0}
+        ratingCount={0}
         totalTrips={0}
         totalEarnings={0}
-        documentsCompleted={uploaded}
-        documentsTotal={totalRequired}
+        documentsCompleted={driver.documents_completed}
+        documentsTotal={driver.documents_required}
       />
 
       {/* Compact Documents Summary */}
       <CompactDocumentsSummary
-        uploaded={uploaded}
-        expiring={expiringSoon}
-        missing={missing}
+        approved={driver.documents_completed}
+        expired={driver.documents_expired}
+        missing={driver.documents_required - driver.documents_completed}
       />
 
       {/* Tabs Section - Sticky */}
@@ -127,10 +121,7 @@ export function DriverWorkspace({
           </TabsContent>
 
           <TabsContent value="details">
-            <div className="rounded-lg border bg-card p-6">
-              <h3 className="mb-4 text-lg font-semibold">Driver Details</h3>
-              <p className="text-sm text-muted-foreground">Detailed information coming soon</p>
-            </div>
+            <DriverDetailsTab driver={driver} />
           </TabsContent>
 
           <TabsContent value="documents">
@@ -143,42 +134,11 @@ export function DriverWorkspace({
           </TabsContent>
 
         <TabsContent value="vehicles">
-          <div className="rounded-lg border border-border bg-card p-6">
-            <h3 className="mb-4 text-lg font-semibold">Vehicles</h3>
-            {vehicles.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No vehicles found</p>
-            ) : (
-              <div className="space-y-4">
-                {vehicles.map((vehicle: any) => (
-                  <div key={vehicle.id} className="rounded-lg border border-border p-4">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="font-medium">
-                          {vehicle.model_name || vehicle.make || "Unknown Vehicle"}
-                        </p>
-                        <p className="text-sm text-muted-foreground">
-                          Year: {vehicle.year} • Plate: {vehicle.plate || "N/A"} • Color: {vehicle.color || "N/A"}
-                        </p>
-                        {vehicle.category && (
-                          <p className="text-xs text-muted-foreground capitalize">
-                            Category: {vehicle.category}
-                          </p>
-                        )}
-                      </div>
-                      <span className="text-sm capitalize">{vehicle.status}</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+          <DriverVehiclesTab vehicles={vehicles} />
         </TabsContent>
 
         <TabsContent value="compliance">
-          <div className="rounded-lg border bg-card p-6">
-            <h3 className="mb-4 text-lg font-semibold">Compliance Status</h3>
-            <p className="text-sm text-muted-foreground">Compliance tracking coming soon</p>
-          </div>
+          <DriverComplianceTab driver={driver} />
         </TabsContent>
 
         <TabsContent value="activity">

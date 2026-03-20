@@ -1,45 +1,39 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
-import { CheckCircle, Shield, Clock, Ban, XCircle } from "lucide-react";
+import { CheckCircle, Ban, XCircle } from "lucide-react";
 import { useState } from "react";
 
-type FilterTab = 'all' | 'pending' | 'approved' | 'authorized' | 'suspended' | 'missing_docs' | 'expiring' | 'rejected';
+type FilterTab = 'all' | 'pending' | 'approved' | 'suspended' | 'inactive' | 'missing_docs' | 'expiring';
 
 interface DriversPageHeaderProps {
   totalCount: number;
   pendingCount: number;
   approvedCount: number;
-  authorizedCount: number;
   suspendedCount: number;
+  inactiveCount: number;
   missingDocsCount: number;
   expiringCount: number;
-  rejectedCount: number;
   activeFilter: FilterTab;
   onFilterChange: (filter: FilterTab) => void;
   onApprove?: () => void;
-  onAuthorize?: () => void;
-  onPutPending?: () => void;
   onSuspend?: () => void;
-  onReject?: () => void;
+  onDeactivate?: () => void;
 }
 
 export function DriversPageHeader({
   totalCount,
   pendingCount,
   approvedCount,
-  authorizedCount,
   suspendedCount,
+  inactiveCount,
   missingDocsCount,
   expiringCount,
-  rejectedCount,
   activeFilter,
   onFilterChange,
   onApprove,
-  onAuthorize,
-  onPutPending,
   onSuspend,
-  onReject,
+  onDeactivate,
 }: DriversPageHeaderProps) {
   return (
     <div className="border-b border-border bg-card">
@@ -58,22 +52,6 @@ export function DriversPageHeader({
             Approve
           </Button>
           <Button
-            onClick={onAuthorize}
-            size="sm"
-            variant="outline"
-          >
-            <Shield className="h-4 w-4 mr-1.5" />
-            Authorize
-          </Button>
-          <Button
-            onClick={onPutPending}
-            size="sm"
-            variant="outline"
-          >
-            <Clock className="h-4 w-4 mr-1.5" />
-            Put Pending
-          </Button>
-          <Button
             onClick={onSuspend}
             size="sm"
             variant="outline"
@@ -82,12 +60,12 @@ export function DriversPageHeader({
             Suspend
           </Button>
           <Button
-            onClick={onReject}
+            onClick={onDeactivate}
             size="sm"
-            variant="outline"
+            variant="secondary"
           >
             <XCircle className="h-4 w-4 mr-1.5" />
-            Reject
+            Deactivate
           </Button>
         </div>
       </div>
@@ -144,26 +122,10 @@ export function DriversPageHeader({
           </button>
 
           <button
-            onClick={() => onFilterChange('authorized')}
-            className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-all whitespace-nowrap ${
-              activeFilter === 'authorized'
-                ? 'bg-white/10 text-white border border-white/20'
-                : 'bg-muted/50 text-muted-foreground hover:bg-muted'
-            }`}
-          >
-            Authorized
-            <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
-              activeFilter === 'authorized' ? 'bg-white/20' : 'bg-background'
-            }`}>
-              {authorizedCount}
-            </span>
-          </button>
-
-          <button
             onClick={() => onFilterChange('suspended')}
             className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-all whitespace-nowrap ${
               activeFilter === 'suspended'
-                ? 'bg-white/10 text-white border border-white/20'
+                ? 'bg-yellow-600/20 text-yellow-400 border border-yellow-500/30'
                 : 'bg-muted/50 text-muted-foreground hover:bg-muted'
             }`}
           >
@@ -172,6 +134,22 @@ export function DriversPageHeader({
               activeFilter === 'suspended' ? 'bg-white/20' : 'bg-background'
             }`}>
               {suspendedCount}
+            </span>
+          </button>
+
+          <button
+            onClick={() => onFilterChange('inactive')}
+            className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-all whitespace-nowrap ${
+              activeFilter === 'inactive'
+                ? 'bg-white/10 text-white border border-white/20'
+                : 'bg-muted/50 text-muted-foreground hover:bg-muted'
+            }`}
+          >
+            Inactive
+            <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+              activeFilter === 'inactive' ? 'bg-white/20' : 'bg-background'
+            }`}>
+              {inactiveCount}
             </span>
           </button>
 
@@ -207,21 +185,6 @@ export function DriversPageHeader({
             </span>
           </button>
 
-          <button
-            onClick={() => onFilterChange('rejected')}
-            className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-all whitespace-nowrap ${
-              activeFilter === 'rejected'
-                ? 'bg-white/10 text-white border border-white/20'
-                : 'bg-muted/50 text-muted-foreground hover:bg-muted'
-            }`}
-          >
-            Rejected
-            <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
-              activeFilter === 'rejected' ? 'bg-white/20' : 'bg-background'
-            }`}>
-              {rejectedCount}
-            </span>
-          </button>
         </div>
       </div>
     </div>

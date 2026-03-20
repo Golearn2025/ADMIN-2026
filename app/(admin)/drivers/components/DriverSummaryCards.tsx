@@ -10,32 +10,32 @@ interface DriverSummaryCardsProps {
 export function DriverSummaryCards({ driver }: DriverSummaryCardsProps) {
   const cards = [
     {
-      title: "Driver Documents",
-      value: driver.total_driver_docs,
+      title: "Documents Required",
+      value: driver.documents_required,
       icon: FileText,
       color: "text-blue-500",
       bgColor: "bg-blue-500/10",
     },
     {
-      title: "Vehicle Documents",
-      value: driver.total_vehicle_docs,
+      title: "Documents Completed",
+      value: driver.documents_completed,
       icon: FileText,
-      color: "text-purple-500",
-      bgColor: "bg-purple-500/10",
+      color: "text-green-500",
+      bgColor: "bg-green-500/10",
     },
     {
-      title: "Missing Documents",
-      value: driver.missing_driver_docs + driver.missing_vehicle_docs,
+      title: "Documents Expired",
+      value: driver.documents_expired,
       icon: AlertTriangle,
       color: "text-red-500",
       bgColor: "bg-red-500/10",
     },
     {
-      title: "Expiring Soon",
-      value: driver.expired_driver_docs + driver.expired_vehicle_docs,
+      title: "Vehicles",
+      value: driver.total_vehicles,
       icon: Clock,
-      color: "text-amber-500",
-      bgColor: "bg-amber-500/10",
+      color: "text-purple-500",
+      bgColor: "bg-purple-500/10",
     },
   ];
 

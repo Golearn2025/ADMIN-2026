@@ -124,7 +124,7 @@ function DocumentRow({
       case "approved":
         return "default"; // green
       case "pending":
-        return "secondary"; // yellow/gray
+        return "outline"; // yellow
       case "rejected":
         return "destructive"; // red
       default:
@@ -170,8 +170,8 @@ function DocumentRow({
           : "N/A"}
       </td>
       <td className="p-4 text-center text-sm text-muted-foreground">
-        {document.uploaded_at
-          ? new Date(document.uploaded_at).toLocaleDateString()
+        {document.created_at
+          ? new Date(document.created_at).toLocaleDateString()
           : "-"}
       </td>
       <td className="p-4 text-center">
@@ -188,7 +188,7 @@ function DocumentRow({
             )}
           </div>
         ) : (
-          <span className="text-sm text-muted-foreground">Not reviewed</span>
+          <span className="text-sm text-muted-foreground">Pending review</span>
         )}
       </td>
       <td className="p-4">
