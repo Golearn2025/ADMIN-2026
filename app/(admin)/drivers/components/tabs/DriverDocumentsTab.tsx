@@ -79,8 +79,115 @@ export function DriverDocumentsTab({
     }
   };
 
+  // Document action handlers
   const handleDocumentAction = (action: string, docId: string) => {
     console.log(`Document action: ${action}`, docId);
+    
+    switch (action) {
+      case 'view':
+        handleViewDocument(docId);
+        break;
+      case 'download':
+        handleDownloadDocument(docId);
+        break;
+      case 'replace':
+        handleReplaceDocument(docId);
+        break;
+      case 'history':
+        handleViewHistory(docId);
+        break;
+      case 'edit-expiry':
+        handleEditExpiry(docId);
+        break;
+      case 'delete':
+        handleDeleteDocument(docId);
+        break;
+      default:
+        console.warn('Unknown action:', action);
+    }
+  };
+
+  const handleViewDocument = (docId: string) => {
+    console.log('📄 View document:', docId);
+    
+    // Find document in both driver and vehicle documents
+    const doc = [...driverDocuments, ...vehicleDocuments].find(d => d.id === docId);
+    
+    if (!doc) {
+      console.error('Document not found:', docId);
+      alert('Document not found');
+      return;
+    }
+    
+    if (!doc.file_url) {
+      console.error('Document has no file URL:', docId);
+      alert('Document file is not available');
+      return;
+    }
+    
+    // Open document in new tab
+    window.open(doc.file_url, '_blank');
+  };
+
+  const handleDownloadDocument = (docId: string) => {
+    console.log('⬇️ Download document:', docId);
+    
+    // Find document in both driver and vehicle documents
+    const doc = [...driverDocuments, ...vehicleDocuments].find(d => d.id === docId);
+    
+    if (!doc) {
+      console.error('Document not found:', docId);
+      alert('Document not found');
+      return;
+    }
+    
+    if (!doc.file_url) {
+      console.error('Document has no file URL:', docId);
+      alert('Document file is not available');
+      return;
+    }
+    
+    // Create meaningful filename
+    const fileExtension = doc.file_url.split('.').pop()?.split('?')[0] || 'pdf';
+    const fileName = doc.file_name || `${doc.document_type.replace(/_/g, '-')}.${fileExtension}`;
+    
+    console.log('📥 Downloading:', fileName);
+    
+    // Simple approach: just open URL in new tab
+    // Browser will handle download based on Content-Disposition header from Supabase
+    window.open(doc.file_url, '_blank');
+    
+    console.log('✅ Download triggered');
+  };
+
+  const handleReplaceDocument = (docId: string) => {
+    console.log('📤 Replace document:', docId);
+    // TODO: Open file upload modal for replacement
+    // Example: setUploadModalOpen({ docId, mode: 'replace' });
+  };
+
+  const handleViewHistory = (docId: string) => {
+    console.log('📜 View history:', docId);
+    // TODO: Fetch and display document status change history
+    // Example: 
+    // const history = await fetchDocumentHistory(docId);
+    // setHistoryModalOpen({ docId, history });
+  };
+
+  const handleEditExpiry = (docId: string) => {
+    console.log('📅 Edit expiry:', docId);
+    // TODO: Open date picker modal to update expiry date
+    // Example: setExpiryModalOpen({ docId, currentExpiry: doc.expiry_date });
+  };
+
+  const handleDeleteDocument = (docId: string) => {
+    console.log('🗑️ Delete document:', docId);
+    // TODO: Show confirmation dialog and delete
+    // Example:
+    // if (confirm('Are you sure you want to delete this document?')) {
+    //   await deleteDocument(docId);
+    //   onRefresh();
+    // }
   };
 
   return (

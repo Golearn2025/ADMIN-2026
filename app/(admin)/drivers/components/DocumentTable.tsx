@@ -4,7 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Check, X, FileText } from "lucide-react";
-import { DocumentActionsMenu } from "./DocumentActionsMenu";
+import { DocumentActions } from "./actions/DocumentActions";
 import type { DriverDocument, VehicleDocument } from "@/lib/features/drivers/drivers.types";
 
 const DOCUMENT_LABELS: Record<string, string> = {
@@ -215,11 +215,15 @@ function DocumentRow({
               </Button>
             </>
           ) : (
-            <DocumentActionsMenu
+            <DocumentActions
               documentId={document.id}
-              onReplace={() => onDocumentAction('replace', document.id)}
               onView={() => onDocumentAction('view', document.id)}
-              onManage={() => onDocumentAction('manage', document.id)}
+              onDownload={() => onDocumentAction('download', document.id)}
+              onReplace={() => onDocumentAction('replace', document.id)}
+              onViewHistory={() => onDocumentAction('history', document.id)}
+              onEditExpiry={() => onDocumentAction('edit-expiry', document.id)}
+              onDelete={() => onDocumentAction('delete', document.id)}
+              showDelete={false}
             />
           )}
         </div>
