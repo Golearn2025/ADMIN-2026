@@ -1,6 +1,5 @@
 import { getUserRole } from "@/lib/auth/roles";
 import { createClient } from "@/lib/supabase/server";
-import { getDriverActivityLogs } from "@/lib/features/drivers/drivers.api";
 import { NextRequest, NextResponse } from "next/server";
 
 export async function GET(
@@ -9,26 +8,32 @@ export async function GET(
 ) {
   const { id } = await params;
   try {
-    const { hasAccess } = await getUserRole();
+    const { orgId, hasAccess } = await getUserRole();
 
-    if (!hasAccess) {
+    if (!hasAccess || !orgId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const searchParams = request.nextUrl.searchParams;
-    const organizationId = searchParams.get("organizationId");
+    const supabase = await createClient();
+    
+    // Fetch from admin_driver_activity_v1 view (single source of truth)
+    const { data, error } = await supabase
+      .from("admin_driver_activity_v1")
+      .select("*")
+      .eq("driver_id", id)
+      .eq("organization_id", orgId)
+      .order("created_at", { ascending: false })
+      .limit(100);
 
-    if (!organizationId) {
+    if (error) {
+      console.error("Error fetching activity logs:", error);
       return NextResponse.json(
-        { error: "organizationId is required" },
-        { status: 400 }
+        { error: "Failed to fetch activity logs" },
+        { status: 500 }
       );
     }
 
-    const supabase = await createClient();
-    const logs = await getDriverActivityLogs(supabase, organizationId, id);
-
-    return NextResponse.json({ logs });
+    return NextResponse.json({ logs: data || [] });
   } catch (error) {
     console.error("API error:", error);
     return NextResponse.json(

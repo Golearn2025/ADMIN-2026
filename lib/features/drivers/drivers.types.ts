@@ -1,34 +1,58 @@
 // ============================================================================
 // DRIVERS TYPES - STRICT CONTRACT WITH BACKEND
 // ============================================================================
-// Based on: admin_driver_overview_v2 (SINGLE SOURCE OF TRUTH)
+// Based on: admin_drivers_list_v4 (SINGLE SOURCE OF TRUTH)
 // DO NOT modify without updating corresponding view
 
 export type Driver = {
   // Identity
   id: string;
   organization_id: string;
-  full_name: string;
+  first_name: string;
+  last_name: string;
+  full_name?: string; // computed for backward compatibility
   email: string | null;
   phone: string | null;
   profile_photo_url: string | null;
-  member_since: string;
+  profile_photo_status?: "pending" | "approved" | "rejected" | null;
+  profile_photo_reviewed_by?: string | null;
+  profile_photo_reviewed_at?: string | null;
+  profile_photo_rejection_reason?: string | null;
+  created_at: string;
+  updated_at: string;
 
   // Status
   status: string; // pending, approved, suspended, inactive
+  status_reason?: string | null; // reason for suspend/inactive
+  status_changed_at?: string | null; // when status last changed
   online_status: string;
   is_active: boolean;
   is_approved: boolean;
+  is_available: boolean;
   onboarding_status: string;
-  driver_status: string;
+
+  // Rating
+  rating_average: number | null;
+  rating_count: number;
 
   // Vehicles
   total_vehicles: number;
 
   // Documents (from view - NO calculations)
-  documents_required: number;
-  documents_completed: number;
-  documents_expired: number;
+  approved_driver_docs: number;
+  expired_driver_docs: number;
+  approved_vehicle_docs: number;
+  expired_vehicle_docs: number;
+  driver_required_docs: number;
+  vehicle_required_docs: number;
+  total_required_docs: number;
+  total_approved_docs: number;
+
+  // Backward compatibility fields (computed from v4 data)
+  documents_required?: number; // alias for total_required_docs
+  documents_completed?: number; // alias for total_approved_docs
+  documents_expired?: number; // computed: expired_driver_docs + expired_vehicle_docs
+  member_since?: string; // alias for created_at
 
   // Compliance (from view - NO derivation)
   compliance_status: "ok" | "missing" | "no_vehicle" | "expired";

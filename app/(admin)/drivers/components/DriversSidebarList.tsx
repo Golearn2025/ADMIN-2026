@@ -22,6 +22,7 @@ interface AdvancedFilters {
   category: string[];
   make: string[];
   color: string[];
+  year: number[];
 }
 
 export function DriversSidebarList({
@@ -38,12 +39,14 @@ export function DriversSidebarList({
     category: [],
     make: [],
     color: [],
+    year: [],
   });
   const [filterOptions, setFilterOptions] = useState<{
     categories: string[];
     makes: string[];
     colors: string[];
-  }>({ categories: [], makes: [], colors: [] });
+    years: number[];
+  }>({ categories: [], makes: [], colors: [], years: [] });
 
   // Load filter options from API
   useEffect(() => {
@@ -71,38 +74,40 @@ export function DriversSidebarList({
     }
   }, [filters, onFiltersChange]);
 
-  const toggleFilter = (type: keyof AdvancedFilters, value: string) => {
+  const toggleFilter = (type: keyof AdvancedFilters, value: string | number) => {
     setFilters(prev => ({
       ...prev,
-      [type]: prev[type].includes(value)
+      [type]: prev[type].includes(value as any)
         ? prev[type].filter(v => v !== value)
-        : [...prev[type], value]
+        : [...prev[type], value as any]
     }));
   };
 
   const clearAllFilters = () => {
-    setFilters({ category: [], make: [], color: [] });
+    setFilters({ category: [], make: [], color: [], year: [] });
   };
 
-  const removeFilter = (type: keyof AdvancedFilters, value: string) => {
+  const removeFilter = (type: keyof AdvancedFilters, value: string | number) => {
     setFilters(prev => ({
       ...prev,
       [type]: prev[type].filter(v => v !== value)
     }));
   };
 
-  const activeFiltersCount = filters.category.length + filters.make.length + filters.color.length;
+  const activeFiltersCount = filters.category.length + filters.make.length + filters.color.length + filters.year.length;
   const getStatusBadge = (driver: Driver) => {
-    if (driver.onboarding_status === 'review') {
-      return { label: 'Pending Review', variant: 'secondary' as const, className: 'bg-yellow-500/10 text-yellow-600 border-yellow-500/20' };
+    // Show only PRIMARY status - driver.status is source of truth
+    if (driver.status === 'approved') {
+      return { label: 'Active', variant: 'default' as const, className: 'bg-green-500/10 text-green-600 border-green-500/20' };
     }
-    if (driver.is_approved) {
-      return { label: 'Approved', variant: 'default' as const, className: 'bg-green-500/10 text-green-600 border-green-500/20' };
+    if (driver.status === 'suspended') {
+      return { label: 'Suspended', variant: 'secondary' as const, className: 'bg-yellow-500/10 text-yellow-600 border-yellow-500/20' };
     }
-    if (driver.compliance_status === 'expired') {
-      return { label: 'Expiring Soon', variant: 'destructive' as const, className: 'bg-orange-500/10 text-orange-600 border-orange-500/20' };
+    if (driver.status === 'inactive') {
+      return { label: 'Inactive', variant: 'outline' as const, className: 'bg-gray-500/10 text-gray-600 border-gray-500/20' };
     }
-    return { label: 'Draft', variant: 'outline' as const, className: '' };
+    // Pending = not yet approved
+    return { label: 'Pending', variant: 'secondary' as const, className: 'bg-blue-500/10 text-blue-600 border-blue-500/20' };
   };
 
 
@@ -236,6 +241,24 @@ export function DriversSidebarList({
               </div>
             </div>
 
+            {/* Year Filter */}
+            <div className="space-y-2">
+              <label className="text-xs font-semibold text-foreground uppercase tracking-wide">Year</label>
+              <div className="space-y-0.5 bg-background/50 rounded-lg p-2 max-h-40 overflow-y-auto custom-scrollbar">
+                {filterOptions.years.map(year => (
+                  <label key={year} className="flex items-center gap-2.5 text-sm cursor-pointer hover:bg-primary/5 rounded-md px-2.5 py-1.5 transition-colors group">
+                    <input
+                      type="checkbox"
+                      checked={filters.year.includes(year)}
+                      onChange={() => toggleFilter('year', year)}
+                      className="rounded border-border text-primary focus:ring-primary focus:ring-offset-0 w-4 h-4"
+                    />
+                    <span className="group-hover:text-foreground text-muted-foreground transition-colors">{year}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+
             {/* Result Count */}
             <div className="flex items-center justify-between pt-3 border-t border-border">
               <span className="text-xs font-medium text-muted-foreground">
@@ -304,6 +327,11 @@ export function DriversSidebarList({
                       <p className="text-xs text-muted-foreground truncate">
                         {driver.email || driver.phone}
                       </p>
+                      {(driver.status === 'suspended' || driver.status === 'inactive') && driver.status_reason && (
+                        <p className="text-xs text-yellow-600 dark:text-yellow-500 truncate mt-0.5">
+                          {driver.status_reason}
+                        </p>
+                      )}
                     </div>
                   </div>
                 </button>

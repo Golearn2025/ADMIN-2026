@@ -60,20 +60,6 @@ export function DriverDetailsTab({ driver }: DriverDetailsTabProps) {
     }
   };
 
-  const getDriverStatusBadge = (status: string) => {
-    switch (status) {
-      case 'active':
-        return <Badge variant="success">Active</Badge>;
-      case 'inactive':
-        return <Badge variant="secondary">Inactive</Badge>;
-      case 'incomplete':
-        return <Badge variant="warning">Incomplete</Badge>;
-      case 'pending':
-        return <Badge variant="outline">Pending</Badge>;
-      default:
-        return <Badge variant="secondary">{status}</Badge>;
-    }
-  };
 
   return (
     <div className="space-y-6">
@@ -91,9 +77,9 @@ export function DriverDetailsTab({ driver }: DriverDetailsTabProps) {
               Member Since
             </dt>
             <dd className="mt-1 text-sm">
-              <div className="font-medium">{formatDate(driver.member_since)}</div>
+              <div className="font-medium">{formatDate(driver.member_since || driver.created_at)}</div>
               <div className="text-xs text-muted-foreground">
-                {getRelativeTime(driver.member_since)}
+                {getRelativeTime(driver.member_since || driver.created_at)}
               </div>
             </dd>
           </div>
@@ -101,25 +87,23 @@ export function DriverDetailsTab({ driver }: DriverDetailsTabProps) {
           <div>
             <dt className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
               <Shield className="h-4 w-4" />
-              Account Status
-            </dt>
-            <dd className="mt-1">
-              <div className="flex gap-2">
-                {driver.is_active && <Badge variant="success">Active</Badge>}
-                {!driver.is_active && <Badge variant="secondary">Inactive</Badge>}
-                {driver.is_approved && <Badge variant="default">Approved</Badge>}
-                {!driver.is_approved && <Badge variant="outline">Not Approved</Badge>}
-              </div>
-            </dd>
-          </div>
-
-          <div>
-            <dt className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-              <Activity className="h-4 w-4" />
               Driver Status
             </dt>
             <dd className="mt-1">
-              {getDriverStatusBadge(driver.driver_status)}
+              <div className="flex flex-col gap-2">
+                <div>
+                  {driver.status === 'approved' && <Badge variant="success">Active</Badge>}
+                  {driver.status === 'suspended' && <Badge variant="warning">Suspended</Badge>}
+                  {driver.status === 'inactive' && <Badge variant="secondary">Inactive</Badge>}
+                  {driver.status === 'pending' && <Badge variant="outline">Pending</Badge>}
+                  {!driver.status && <Badge variant="outline">Pending</Badge>}
+                </div>
+                {(driver.status === 'suspended' || driver.status === 'inactive') && driver.status_reason && (
+                  <p className="text-sm text-yellow-600 dark:text-yellow-500">
+                    Reason: {driver.status_reason}
+                  </p>
+                )}
+              </div>
             </dd>
           </div>
 

@@ -6,6 +6,7 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   try {
     const { hasAccess } = await getUserRole();
 
@@ -13,34 +14,28 @@ export async function POST(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { id } = await params;
-    const body = await request.json();
-    const { reason } = body;
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
 
-    if (!reason || typeof reason !== "string" || !reason.trim()) {
-      return NextResponse.json(
-        { error: "Reason is required" },
-        { status: 400 }
-      );
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const supabase = await createClient();
-
-    // Deactivate driver
-    const { error: updateError } = await supabase
+    // Update profile photo status to approved
+    const { error } = await supabase
       .from("drivers")
       .update({
-        status: "inactive",
-        is_active: false,
-        status_reason: reason.trim(),
-        status_changed_at: new Date().toISOString(),
+        profile_photo_status: "approved",
+        profile_photo_reviewed_by: user.id,
+        profile_photo_reviewed_at: new Date().toISOString(),
+        profile_photo_rejection_reason: null,
       })
       .eq("id", id);
 
-    if (updateError) {
-      console.error("Update error:", updateError);
+    if (error) {
+      console.error("Error approving profile photo:", error);
       return NextResponse.json(
-        { error: "Failed to deactivate driver" },
+        { error: "Failed to approve profile photo" },
         { status: 500 }
       );
     }

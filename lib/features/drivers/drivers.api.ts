@@ -23,17 +23,27 @@ export async function getDrivers(
 ) {
   // Single query to enterprise view - NO filters, NO calculations
   const { data, error } = await supabase
-    .from("admin_driver_overview_v2")
+    .from("admin_drivers_list_v4")
     .select("*")
     .eq("organization_id", organizationId)
-    .order("full_name", { ascending: true });
+    .order("first_name", { ascending: true });
 
   if (error) {
     console.error("Error fetching drivers:", error);
     throw new Error(error.message);
   }
 
-  return data as Driver[];
+  // Add computed fields for backward compatibility with old v2 view
+  const driversWithComputedFields = data.map((driver: any) => ({
+    ...driver,
+    full_name: `${driver.first_name} ${driver.last_name}`,
+    documents_completed: driver.total_approved_docs || 0,
+    documents_expired: (driver.expired_driver_docs || 0) + (driver.expired_vehicle_docs || 0),
+    documents_required: driver.total_required_docs || 0,
+    member_since: driver.created_at,
+  }));
+
+  return driversWithComputedFields as Driver[];
 }
 
 // ============================================================================

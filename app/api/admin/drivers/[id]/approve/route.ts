@@ -46,6 +46,8 @@ export async function POST(
       .from("drivers")
       .update({
         status: "approved",
+        is_active: true,
+        is_approved: true,
         status_changed_at: new Date().toISOString(),
         status_reason: null,
       })

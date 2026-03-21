@@ -14,13 +14,14 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { category, make, color } = body;
+    const { category, make, color, year } = body;
 
     console.log("🔍 ADVANCED FILTERS API CALLED");
     console.log("   org_id:", orgId);
     console.log("   category:", category);
     console.log("   make:", make);
     console.log("   color:", color);
+    console.log("   year:", year);
 
     const supabase = await createClient();
 
@@ -30,6 +31,7 @@ export async function POST(request: NextRequest) {
       f_category: category,
       f_make: make,
       f_color: color,
+      f_year: year,
     });
 
     if (rpcError) {

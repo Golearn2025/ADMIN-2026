@@ -4,13 +4,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { FileText, Car, Shield, Activity, User } from "lucide-react";
 import { useDriverDetails } from "@/lib/features/drivers/hooks/useDriverDetails";
 import { DriverDocumentsTab } from "@/app/(admin)/drivers/components/tabs/DriverDocumentsTab";
-import { DriverOverviewTab } from "./tabs/DriverOverviewTab";
 import { DriverDetailsTab } from "./tabs/DriverDetailsTab";
 import { DriverVehiclesTab } from "./tabs/DriverVehiclesTab";
 import { DriverComplianceTab } from "./tabs/DriverComplianceTab";
 import { DriverActivityTab } from "./tabs/DriverActivityTab";
 import { DriverDetailHeader } from "./DriverDetailHeader";
-import { PremiumKPICards } from "./PremiumKPICards";
 import { CompactDocumentsSummary } from "./CompactDocumentsSummary";
 
 interface DriverWorkspaceProps {
@@ -83,31 +81,20 @@ export function DriverWorkspace({
         {/* Hero Section */}
         <DriverDetailHeader driver={driver} />
 
-      {/* KPI Cards - Max 4 */}
-      <PremiumKPICards
-        rating={0}
-        ratingCount={0}
-        totalTrips={0}
-        totalEarnings={0}
-        documentsCompleted={driver.documents_completed}
-        documentsTotal={driver.documents_required}
-      />
-
-      {/* Compact Documents Summary */}
+      {/* Documents Summary */}
       <CompactDocumentsSummary
-        approved={driver.documents_completed}
-        expired={driver.documents_expired}
-        missing={driver.documents_required - driver.documents_completed}
+        approved={driver.documents_completed ?? 0}
+        expired={driver.documents_expired ?? 0}
+        missing={(driver.documents_required ?? 0) - (driver.documents_completed ?? 0)}
       />
 
       {/* Tabs Section - Sticky */}
       <div className="sticky top-0 z-10 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 -mx-8 px-8 py-4 border-b border-border">
-        <Tabs defaultValue="overview" className="space-y-6" onValueChange={(value) => {
+        <Tabs defaultValue="details" className="space-y-6" onValueChange={(value) => {
           console.log("CLICK TAB:", value);
           console.log("ACTIVE TAB:", value);
         }}>
           <TabsList className="h-12">
-            <TabsTrigger value="overview" className="data-[state=active]:font-bold">Overview</TabsTrigger>
             <TabsTrigger value="details" className="data-[state=active]:font-bold">Details</TabsTrigger>
             <TabsTrigger value="documents" className="data-[state=active]:font-bold">Documents</TabsTrigger>
             <TabsTrigger value="vehicles" className="data-[state=active]:font-bold">Vehicles</TabsTrigger>
@@ -116,10 +103,6 @@ export function DriverWorkspace({
             <TabsTrigger value="notes" className="data-[state=active]:font-bold">Notes</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="overview">
-            <DriverOverviewTab driver={driver} />
-          </TabsContent>
-
           <TabsContent value="details">
             <DriverDetailsTab driver={driver} />
           </TabsContent>
@@ -127,6 +110,11 @@ export function DriverWorkspace({
           <TabsContent value="documents">
             <DriverDocumentsTab 
               driverId={driver.id}
+              profilePhotoUrl={driver.profile_photo_url}
+              profilePhotoStatus={driver.profile_photo_status || "pending"}
+              profilePhotoReviewedBy={driver.profile_photo_reviewed_by}
+              profilePhotoReviewedAt={driver.profile_photo_reviewed_at}
+              profilePhotoRejectionReason={driver.profile_photo_rejection_reason}
               driverDocuments={driverDocuments}
               vehicleDocuments={vehicleDocuments}
               onRefresh={refetch}

@@ -12,6 +12,7 @@ interface AdvancedFilters {
   category: string[];
   make: string[];
   color: string[];
+  year: number[];
 }
 
 export function useDriversPage() {
@@ -28,6 +29,7 @@ export function useDriversPage() {
     category: [],
     make: [],
     color: [],
+    year: [],
   });
 
   useEffect(() => {
@@ -36,7 +38,7 @@ export function useDriversPage() {
 
   // Refetch when advanced filters change
   useEffect(() => {
-    if (advancedFilters.category.length > 0 || advancedFilters.make.length > 0 || advancedFilters.color.length > 0) {
+    if (advancedFilters.category.length > 0 || advancedFilters.make.length > 0 || advancedFilters.color.length > 0 || advancedFilters.year.length > 0) {
       fetchDriversWithFilters();
     } else {
       fetchDrivers();
@@ -77,6 +79,7 @@ export function useDriversPage() {
           category: advancedFilters.category.length > 0 ? advancedFilters.category : null,
           make: advancedFilters.make.length > 0 ? advancedFilters.make : null,
           color: advancedFilters.color.length > 0 ? advancedFilters.color : null,
+          year: advancedFilters.year.length > 0 ? advancedFilters.year : null,
         }),
       });
 
@@ -104,7 +107,7 @@ export function useDriversPage() {
         driver.first_name.toLowerCase().includes(query) ||
         driver.last_name.toLowerCase().includes(query) ||
         driver.email?.toLowerCase().includes(query) ||
-        driver.phone.toLowerCase().includes(query);
+        driver.phone?.toLowerCase().includes(query);
 
       if (!matchesSearch) return false;
     }

@@ -30,6 +30,7 @@ interface DocumentTableProps {
   onReject: (id: string) => void;
   onDocumentAction: (action: string, id: string) => void;
   isProcessing: boolean;
+  isDownloading?: string | null;
 }
 
 export function DocumentTable({
@@ -41,6 +42,7 @@ export function DocumentTable({
   onReject,
   onDocumentAction,
   isProcessing,
+  isDownloading,
 }: DocumentTableProps) {
   if (documents.length === 0) {
     return <p className="p-6 text-sm text-muted-foreground">No documents found</p>;
@@ -87,6 +89,7 @@ export function DocumentTable({
               onReject={() => onReject(doc.id)}
               onDocumentAction={onDocumentAction}
               isProcessing={isProcessing}
+              isDownloading={isDownloading}
             />
           ))}
         </tbody>
@@ -103,6 +106,7 @@ function DocumentRow({
   onReject,
   onDocumentAction,
   isProcessing,
+  isDownloading,
 }: {
   document: DriverDocument | VehicleDocument;
   isSelected: boolean;
@@ -111,6 +115,7 @@ function DocumentRow({
   onReject: () => void;
   onDocumentAction: (action: string, docId: string) => void;
   isProcessing: boolean;
+  isDownloading?: string | null;
 }) {
   const isExpired = (expiryDate: string | null): boolean => {
     if (!expiryDate) return false;
@@ -223,6 +228,7 @@ function DocumentRow({
               onViewHistory={() => onDocumentAction('history', document.id)}
               onEditExpiry={() => onDocumentAction('edit-expiry', document.id)}
               onDelete={() => onDocumentAction('delete', document.id)}
+              disabled={isDownloading === document.id}
               showDelete={false}
             />
           )}

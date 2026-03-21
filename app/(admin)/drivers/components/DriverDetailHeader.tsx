@@ -5,18 +5,20 @@ import { StatusBadge } from "./StatusBadge";
 import { DriverInfo } from "./DriverInfo";
 import { DriverMetaRow } from "./DriverMetaRow";
 import { Badge } from "@/components/ui/badge";
-import { CheckCircle, XCircle, Clock, AlertTriangle, Mail, Phone, Building2 } from "lucide-react";
+import { CheckCircle, XCircle, Clock, AlertTriangle, Mail, Phone, Building2, Ban, Star, Car, PoundSterling } from "lucide-react";
 
 interface DriverDetailHeaderProps {
   driver: {
     id: string;
-    full_name: string;
+    full_name?: string;
     email: string | null;
     phone: string | null;
     profile_photo_url: string | null;
     organization_id: string;
     organization_name?: string;
     driver_type?: string;
+    status: string;
+    status_reason?: string | null;
     onboarding_status: string;
     compliance_status: string;
     is_approved: boolean;
@@ -34,10 +36,11 @@ interface DriverDetailHeaderProps {
 
 export function DriverDetailHeader({ driver }: DriverDetailHeaderProps) {
   const getInitials = () => {
-    const names = driver.full_name.split(' ');
+    const fullName = driver.full_name || 'Driver';
+    const names = fullName.split(' ');
     return names.length > 1 
       ? `${names[0][0]}${names[names.length-1][0]}`.toUpperCase()
-      : driver.full_name.substring(0, 2).toUpperCase();
+      : fullName.substring(0, 2).toUpperCase();
   };
 
   const getStatusBadge = (status: string) => {
@@ -74,8 +77,8 @@ export function DriverDetailHeader({ driver }: DriverDetailHeaderProps) {
           <div className="flex items-start gap-6">
             <DriverAvatar
               src={driver.profile_photo_url}
-              alt={driver.full_name}
-              fallback={driver.full_name}
+              alt={driver.full_name || 'Driver'}
+              fallback={driver.full_name || 'Driver'}
               onlineStatus={driver.online_status}
             />
             
@@ -83,7 +86,7 @@ export function DriverDetailHeader({ driver }: DriverDetailHeaderProps) {
               {/* Name */}
               <div>
                 <h1 className="text-4xl font-bold text-white mb-1">
-                  {driver.full_name}
+                  {driver.full_name || 'Driver'}
                 </h1>
                 <p className="text-sm text-gray-400">
                   {driver.driver_type || 'Driver'} • Member since {driver.created_at ? new Date(driver.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : 'N/A'}
@@ -115,33 +118,62 @@ export function DriverDetailHeader({ driver }: DriverDetailHeaderProps) {
                   </div>
                 )}
               </div>
+
+              {/* Compact KPI Stats - Between Name and Status */}
+              <div className="flex items-center gap-4 mt-4">
+                {/* Rating */}
+                <div className="flex items-center gap-2.5 px-5 py-2.5 rounded-lg bg-white/5 border border-white/10">
+                  <Star className="h-5 w-5 text-yellow-500" />
+                  <span className="text-lg font-semibold text-white">0.0</span>
+                </div>
+
+                {/* Trips */}
+                <div className="flex items-center gap-2.5 px-5 py-2.5 rounded-lg bg-white/5 border border-white/10">
+                  <Car className="h-5 w-5 text-blue-500" />
+                  <span className="text-lg font-semibold text-white">0</span>
+                </div>
+
+                {/* Earnings */}
+                <div className="flex items-center gap-2.5 px-5 py-2.5 rounded-lg bg-white/5 border border-white/10">
+                  <PoundSterling className="h-5 w-5 text-green-500" />
+                  <span className="text-lg font-semibold text-white">0</span>
+                </div>
+              </div>
             </div>
           </div>
 
-          {/* Right: Status Badges */}
-          <div className="flex flex-wrap items-start justify-end gap-2">
-            {driver.online_status === 'online' && (
-              <StatusBadge type="online" value={true} />
-            )}
-            {driver.is_available && (
-              <StatusBadge type="available" value={driver.is_available} />
-            )}
-            {driver.profile_completed && (
-              <StatusBadge type="profile_complete" value={driver.profile_completed} />
-            )}
-            {getStatusBadge(driver.onboarding_status)}
-            {getStatusBadge(driver.compliance_status)}
-            {driver.is_approved && (
-              <Badge variant="default" className="gap-1">
-                <CheckCircle className="h-3 w-3" />
-                Approved
-              </Badge>
-            )}
-            {driver.can_receive_jobs && (
-              <Badge variant="default" className="gap-1">
-                <CheckCircle className="h-3 w-3" />
-                Authorized
-              </Badge>
+          {/* Right: Status Badge - ONLY PRIMARY STATUS */}
+          <div className="flex flex-col items-end gap-1">
+            <div className="flex items-center gap-2">
+              {driver.status === 'approved' && (
+                <Badge variant="default" className="gap-1 bg-green-500/10 text-green-600 border-green-500/20 text-base px-4 py-2">
+                  <CheckCircle className="h-4 w-4" />
+                  Active
+                </Badge>
+              )}
+              {driver.status === 'suspended' && (
+                <Badge variant="secondary" className="gap-1 bg-yellow-500/10 text-yellow-600 border-yellow-500/20 text-base px-4 py-2">
+                  <Ban className="h-4 w-4" />
+                  Suspended
+                </Badge>
+              )}
+              {driver.status === 'inactive' && (
+                <Badge variant="outline" className="gap-1 bg-gray-500/10 text-gray-600 border-gray-500/20 text-base px-4 py-2">
+                  <XCircle className="h-4 w-4" />
+                  Inactive
+                </Badge>
+              )}
+              {!driver.status || (driver.status !== 'approved' && driver.status !== 'suspended' && driver.status !== 'inactive') && (
+                <Badge variant="secondary" className="gap-1 bg-blue-500/10 text-blue-600 border-blue-500/20 text-base px-4 py-2">
+                  <Clock className="h-4 w-4" />
+                  Pending
+                </Badge>
+              )}
+            </div>
+            {(driver.status === 'suspended' || driver.status === 'inactive') && driver.status_reason && (
+              <p className="text-sm text-yellow-600 dark:text-yellow-500">
+                {driver.status_reason}
+              </p>
             )}
           </div>
         </div>

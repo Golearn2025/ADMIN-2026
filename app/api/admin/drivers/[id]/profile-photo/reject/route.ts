@@ -6,6 +6,7 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   try {
     const { hasAccess } = await getUserRole();
 
@@ -13,46 +14,43 @@ export async function POST(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { id } = await params;
     const body = await request.json();
     const { reason } = body;
 
-    if (!reason || typeof reason !== "string" || !reason.trim()) {
+    if (!reason || !reason.trim()) {
       return NextResponse.json(
-        { error: "Reason is required" },
+        { error: "Rejection reason is required" },
         { status: 400 }
       );
     }
 
     const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
 
-    console.log("🔴 SUSPEND API - Starting update for driver:", id);
-    console.log("🔴 SUSPEND API - Reason:", reason.trim());
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
 
-    // Suspend driver
-    const { data, error: updateError } = await supabase
+    // Update profile photo status to rejected
+    const { error } = await supabase
       .from("drivers")
       .update({
-        status: "suspended",
-        is_active: false,
-        status_reason: reason.trim(),
-        status_changed_at: new Date().toISOString(),
+        profile_photo_status: "rejected",
+        profile_photo_reviewed_by: user.id,
+        profile_photo_reviewed_at: new Date().toISOString(),
+        profile_photo_rejection_reason: reason,
       })
-      .eq("id", id)
-      .select();
+      .eq("id", id);
 
-    console.log("🔴 SUSPEND API - Update result:", { data, error: updateError });
-
-    if (updateError) {
-      console.error("🔴 SUSPEND API - Update error:", updateError);
+    if (error) {
+      console.error("Error rejecting profile photo:", error);
       return NextResponse.json(
-        { error: "Failed to suspend driver" },
+        { error: "Failed to reject profile photo" },
         { status: 500 }
       );
     }
 
-    console.log("🔴 SUSPEND API - Success! Updated rows:", data?.length || 0);
-    return NextResponse.json({ success: true, data });
+    return NextResponse.json({ success: true });
   } catch (error) {
     console.error("API error:", error);
     return NextResponse.json(
