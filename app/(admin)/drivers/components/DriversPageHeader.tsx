@@ -1,9 +1,5 @@
 "use client";
 
-import { Button } from "@/components/ui/button";
-import { CheckCircle, Ban, XCircle } from "lucide-react";
-import { useState } from "react";
-
 type FilterTab = 'all' | 'pending' | 'approved' | 'suspended' | 'inactive' | 'missing_docs' | 'expiring';
 
 interface DriversPageHeaderProps {
@@ -16,9 +12,6 @@ interface DriversPageHeaderProps {
   expiringCount: number;
   activeFilter: FilterTab;
   onFilterChange: (filter: FilterTab) => void;
-  onApprove?: () => void;
-  onSuspend?: () => void;
-  onDeactivate?: () => void;
 }
 
 export function DriversPageHeader({
@@ -31,43 +24,12 @@ export function DriversPageHeader({
   expiringCount,
   activeFilter,
   onFilterChange,
-  onApprove,
-  onSuspend,
-  onDeactivate,
 }: DriversPageHeaderProps) {
   return (
     <div className="border-b border-border bg-card">
       <div className="flex items-center justify-between px-6 py-4">
         {/* Left: Title */}
         <h1 className="text-2xl font-bold">Drivers</h1>
-
-        {/* Right: Action Buttons */}
-        <div className="flex items-center gap-2">
-          <Button
-            onClick={onApprove}
-            size="sm"
-            className="bg-green-600 hover:bg-green-700 text-white"
-          >
-            <CheckCircle className="h-4 w-4 mr-1.5" />
-            Approve
-          </Button>
-          <Button
-            onClick={onSuspend}
-            size="sm"
-            variant="outline"
-          >
-            <Ban className="h-4 w-4 mr-1.5" />
-            Suspend
-          </Button>
-          <Button
-            onClick={onDeactivate}
-            size="sm"
-            variant="secondary"
-          >
-            <XCircle className="h-4 w-4 mr-1.5" />
-            Deactivate
-          </Button>
-        </div>
       </div>
 
       {/* Filter Tabs */}

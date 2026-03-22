@@ -3,11 +3,12 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Check, X, FileText } from "lucide-react";
+import { Check, X, FileText, User } from "lucide-react";
 import { DocumentActions } from "./actions/DocumentActions";
 import type { DriverDocument, VehicleDocument } from "@/lib/features/drivers/drivers.types";
 
 const DOCUMENT_LABELS: Record<string, string> = {
+  profile_photo: "Profile Photo",
   driving_licence: "Driving Licence",
   electronic_counterpart: "Electronic Counterpart",
   pco_licence: "PCO Licence",
@@ -55,10 +56,11 @@ export function DocumentTable({
       <table className="w-full table-fixed">
         <colgroup>
           <col className="w-[5%]" />
-          <col className="w-[23%]" />
-          <col className="w-[12%]" />
-          <col className="w-[13%]" />
-          <col className="w-[13%]" />
+          <col className="w-[8%]" />
+          <col className="w-[20%]" />
+          <col className="w-[11%]" />
+          <col className="w-[11%]" />
+          <col className="w-[11%]" />
           <col className="w-[13%]" />
           <col className="w-[21%]" />
         </colgroup>
@@ -70,6 +72,7 @@ export function DocumentTable({
                 onCheckedChange={onToggleSelectAll}
               />
             </th>
+            <th className="p-4 text-center text-sm font-semibold">Preview</th>
             <th className="p-4 text-left text-sm font-semibold">Document Type</th>
             <th className="p-4 text-center text-sm font-semibold">Status</th>
             <th className="p-4 text-center text-sm font-semibold">Expiry Date</th>
@@ -148,8 +151,33 @@ function DocumentRow({
         <Checkbox checked={isSelected} onCheckedChange={onToggleSelect} />
       </td>
       <td className="p-4">
+        <div className="flex items-center justify-center">
+          {document.file_url ? (
+            <div className="relative h-12 w-12 rounded-lg overflow-hidden border-2 border-border bg-muted">
+              <img
+                src={document.file_url}
+                alt={document.document_type || "Document"}
+                className="h-full w-full object-cover"
+              />
+            </div>
+          ) : (
+            <div className="flex h-12 w-12 items-center justify-center rounded-lg border-2 border-dashed border-border bg-muted">
+              {document.document_type === 'profile_photo' ? (
+                <User className="h-6 w-6 text-muted-foreground" />
+              ) : (
+                <FileText className="h-6 w-6 text-muted-foreground" />
+              )}
+            </div>
+          )}
+        </div>
+      </td>
+      <td className="p-4">
         <div className="flex items-center gap-2">
-          <FileText className="h-4 w-4 text-muted-foreground" />
+          {document.document_type === 'profile_photo' ? (
+            <User className="h-4 w-4 text-primary" />
+          ) : (
+            <FileText className="h-4 w-4 text-muted-foreground" />
+          )}
           <p className="font-medium">
             {document.document_type 
               ? DOCUMENT_LABELS[document.document_type] || document.document_type.replace(/_/g, " ")

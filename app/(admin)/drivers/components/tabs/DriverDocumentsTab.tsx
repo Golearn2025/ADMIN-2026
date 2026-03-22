@@ -3,11 +3,10 @@
 import { useEffect, useState } from "react";
 import { useDriverActions } from "@/lib/features/drivers/hooks/useDriverActions";
 import { useDocumentBulkActions } from "../../hooks/useDocumentBulkActions";
-import { AlertCircle, User as UserIcon, Car as CarIcon, Camera } from "lucide-react";
+import { AlertCircle, User as UserIcon, Car as CarIcon } from "lucide-react";
 import { BulkActionsBar } from "../BulkActionsBar";
 import { InlineRejectPanel } from "../InlineRejectPanel";
 import { DocumentTable } from "../DocumentTable";
-import { ProfilePhotoCard } from "../ProfilePhotoCard";
 import { downloadFile } from "@/lib/utils/downloadFile";
 import type { DriverDocument, VehicleDocument } from "@/lib/features/drivers/drivers.types";
 
@@ -64,36 +63,61 @@ export function DriverDocumentsTab({
     setUserId("current-user-id");
   }, []);
 
+  // Create profile photo document object to integrate with driver documents
+  const profilePhotoDoc: DriverDocument = {
+    id: `profile-photo-${driverId}`,
+    driver_id: driverId,
+    document_type: 'profile_photo',
+    document_category: 'driver',
+    file_url: profilePhotoUrl,
+    file_name: 'profile_photo.jpg',
+    status: profilePhotoStatus,
+    expiry_date: null,
+    created_at: profilePhotoReviewedAt || new Date().toISOString(),
+    reviewed_at: profilePhotoReviewedAt || null,
+    reviewed_by: profilePhotoReviewedBy || null,
+    reviewed_by_name: profilePhotoReviewedBy || null,
+    reviewed_by_email: null,
+    reviewed_by_role: null,
+    rejection_reason: profilePhotoRejectionReason || null,
+  };
+
+  // Combine profile photo with driver documents (profile photo first)
+  const allDriverDocuments: DriverDocument[] = [profilePhotoDoc, ...driverDocuments];
+
   const handleApprove = async (docId: string) => {
-    const isDriverDoc = driverDocuments.some(d => d.id === docId);
-    try {
+    // Check if this is the profile photo
+    if (docId.startsWith('profile-photo-')) {
+      await handleApproveProfilePhoto();
+    } else {
+      const isDriverDoc = driverDocuments.some(d => d.id === docId);
       if (isDriverDoc) {
         await actions.approveDriverDocument(docId, userId);
       } else {
         await actions.approveVehicleDocument(docId, userId);
       }
-      // Refresh documents after approval
       onRefresh();
-    } catch (error) {
-      console.error("Failed to approve:", error);
     }
   };
 
   const handleReject = async (docId: string) => {
-    const reason = prompt("Rejection reason:");
-    if (!reason) return;
-    
-    const isDriverDoc = driverDocuments.some(d => d.id === docId);
-    try {
+    // Check if this is the profile photo
+    if (docId.startsWith('profile-photo-')) {
+      const reason = prompt("Please provide a reason for rejecting this profile photo:");
+      if (reason) {
+        await handleRejectProfilePhoto(reason);
+      }
+    } else {
+      const reason = prompt("Rejection reason:");
+      if (!reason) return;
+      
+      const isDriverDoc = driverDocuments.some(d => d.id === docId);
       if (isDriverDoc) {
         await actions.rejectDriverDocument(docId, userId, reason);
       } else {
         await actions.rejectVehicleDocument(docId, userId, reason);
       }
-      // Refresh documents after rejection
       onRefresh();
-    } catch (error) {
-      console.error("Failed to reject:", error);
     }
   };
 
@@ -128,8 +152,8 @@ export function DriverDocumentsTab({
   const handleViewDocument = (docId: string) => {
     console.log('📄 View document:', docId);
     
-    // Find document in both driver and vehicle documents
-    const doc = [...driverDocuments, ...vehicleDocuments].find(d => d.id === docId);
+    // Find document in all documents (including profile photo)
+    const doc = [...allDriverDocuments, ...vehicleDocuments].find(d => d.id === docId);
     
     if (!doc) {
       console.error('Document not found:', docId);
@@ -150,8 +174,8 @@ export function DriverDocumentsTab({
   const handleDownloadDocument = async (docId: string) => {
     console.log('⬇️ Download document:', docId);
     
-    // Find document in both driver and vehicle documents
-    const doc = [...driverDocuments, ...vehicleDocuments].find(d => d.id === docId);
+    // Find document in all documents (including profile photo)
+    const doc = [...allDriverDocuments, ...vehicleDocuments].find(d => d.id === docId);
     
     if (!doc) {
       console.error('Document not found:', docId);
@@ -190,8 +214,8 @@ export function DriverDocumentsTab({
   const handleReplaceDocument = async (docId: string) => {
     console.log('📤 Replace document:', docId);
     
-    // Find document to get type and entity
-    const doc = [...driverDocuments, ...vehicleDocuments].find(d => d.id === docId);
+    // Find document to get type and entity (including profile photo)
+    const doc = [...allDriverDocuments, ...vehicleDocuments].find(d => d.id === docId);
     
     if (!doc) {
       alert('Document not found');
@@ -314,34 +338,6 @@ export function DriverDocumentsTab({
 
   return (
     <div className="space-y-8">
-      {/* SECTION 0: Profile Photo */}
-      <div className="space-y-4">
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-            <Camera className="h-5 w-5 text-primary" />
-          </div>
-          <div>
-            <h2 className="text-xl font-bold">Profile Photo</h2>
-            <p className="text-sm text-muted-foreground">
-              Driver's profile picture for identification and verification
-            </p>
-          </div>
-        </div>
-
-        <ProfilePhotoCard
-          driverId={driverId}
-          photoUrl={profilePhotoUrl}
-          status={profilePhotoStatus}
-          reviewedBy={profilePhotoReviewedBy}
-          reviewedAt={profilePhotoReviewedAt}
-          rejectionReason={profilePhotoRejectionReason}
-          onApprove={handleApproveProfilePhoto}
-          onReject={handleRejectProfilePhoto}
-          onPhotoChange={onRefresh}
-          isProcessing={isPhotoProcessing}
-        />
-      </div>
-
       {/* Unified Bulk Actions - Sticky at top */}
       {bulkActions.selectedDocuments.length > 0 && (
         <div className="sticky top-0 z-50 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b border-border pb-4 mb-4">
@@ -365,7 +361,7 @@ export function DriverDocumentsTab({
         </div>
       )}
 
-      {/* SECTION 1: Driver Documents */}
+      {/* SECTION 1: Driver Documents (includes Profile Photo) */}
       <div className="space-y-4">
         <div className="flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-500/10">
@@ -374,17 +370,17 @@ export function DriverDocumentsTab({
           <div>
             <h2 className="text-xl font-bold">Driver Documents</h2>
             <p className="text-sm text-muted-foreground">
-              Personal identification and licensing documents
+              Profile photo and personal identification documents
             </p>
           </div>
         </div>
 
         <div className="rounded-lg border border-border bg-card">
           <DocumentTable
-            documents={driverDocuments}
+            documents={allDriverDocuments}
             selectedIds={bulkActions.selectedDocuments}
             onToggleSelect={bulkActions.toggleDocument}
-            onToggleSelectAll={() => bulkActions.toggleSectionDocs(driverDocuments)}
+            onToggleSelectAll={() => bulkActions.toggleSectionDocs(allDriverDocuments)}
             onApprove={handleApprove}
             onReject={handleReject}
             onDocumentAction={handleDocumentAction}

@@ -84,29 +84,7 @@ export function DriverDetailsTab({ driver }: DriverDetailsTabProps) {
             </dd>
           </div>
 
-          <div>
-            <dt className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-              <Shield className="h-4 w-4" />
-              Driver Status
-            </dt>
-            <dd className="mt-1">
-              <div className="flex flex-col gap-2">
-                <div>
-                  {driver.status === 'approved' && <Badge variant="success">Active</Badge>}
-                  {driver.status === 'suspended' && <Badge variant="warning">Suspended</Badge>}
-                  {driver.status === 'inactive' && <Badge variant="secondary">Inactive</Badge>}
-                  {driver.status === 'pending' && <Badge variant="outline">Pending</Badge>}
-                  {!driver.status && <Badge variant="outline">Pending</Badge>}
-                </div>
-                {(driver.status === 'suspended' || driver.status === 'inactive') && driver.status_reason && (
-                  <p className="text-sm text-yellow-600 dark:text-yellow-500">
-                    Reason: {driver.status_reason}
-                  </p>
-                )}
-              </div>
-            </dd>
-          </div>
-
+          
           <div>
             <dt className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
               <Building2 className="h-4 w-4" />
