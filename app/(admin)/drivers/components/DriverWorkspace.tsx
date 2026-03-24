@@ -1,15 +1,17 @@
 "use client";
 
+import { useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { FileText, Car, Shield, Activity, User } from "lucide-react";
 import { useDriverDetails } from "@/lib/features/drivers/hooks/useDriverDetails";
 import { DriverDocumentsTab } from "@/app/(admin)/drivers/components/tabs/DriverDocumentsTab";
 import { DriverDetailsTab } from "./tabs/DriverDetailsTab";
 import { DriverVehiclesTab } from "./tabs/DriverVehiclesTab";
-import { DriverComplianceTab } from "./tabs/DriverComplianceTab";
 import { DriverActivityTab } from "./tabs/DriverActivityTab";
 import { DriverDetailHeader } from "./DriverDetailHeader";
 import { CompactDocumentsSummary } from "./CompactDocumentsSummary";
+import { DriverActionDialog } from "./DriverActionDialog";
+import { useToast } from "@/hooks/use-toast";
 
 interface DriverWorkspaceProps {
   selectedDriverId: string | null;
@@ -22,6 +24,11 @@ export function DriverWorkspace({
 }: DriverWorkspaceProps) {
   const { driver, driverDocuments, vehicles, vehicleDocuments, isLoading, refetch } = 
     useDriverDetails(selectedDriverId);
+  
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [dialogAction, setDialogAction] = useState<"suspend" | "deactivate">("suspend");
+  const [isProcessing, setIsProcessing] = useState(false);
+  const { toast } = useToast();
 
   // DEBUG: Hook data
   console.log("=== DRIVER WORKSPACE HOOK DATA ===");
@@ -42,14 +49,95 @@ export function DriverWorkspace({
   console.log("vehicleDocuments length:", vehicleDocuments?.length || 0);
   console.log("==================================");
 
-  const handleDriverAction = (action: string) => {
-    console.log(`Driver action: ${action}`, selectedDriverId);
-    // TODO: Implement driver actions via API
-    alert(`Action "${action}" will be implemented`);
-  };
-
   // NO calculations - use data from admin_driver_overview_v2 view
   // All stats come from the driver object directly
+
+  const handleApprove = async () => {
+    if (!driver) return;
+
+    if (driver.compliance_status !== "ok") {
+      toast({
+        title: "Cannot Approve Driver",
+        description: `Driver compliance status is '${driver.compliance_status}'. Only drivers with 'ok' compliance can be approved.`,
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsProcessing(true);
+    try {
+      const response = await fetch(`/api/admin/drivers/${driver.id}/approve`, {
+        method: "POST",
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || "Failed to approve driver");
+      }
+
+      toast({
+        title: "Driver Approved",
+        description: "Driver has been successfully approved.",
+      });
+      refetch();
+      onRefresh();
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to approve driver",
+        variant: "destructive",
+      });
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleSuspend = () => {
+    if (!driver) return;
+    setDialogAction("suspend");
+    setDialogOpen(true);
+  };
+
+  const handleDeactivate = () => {
+    if (!driver) return;
+    setDialogAction("deactivate");
+    setDialogOpen(true);
+  };
+
+  const handleConfirmAction = async (reason: string) => {
+    if (!driver) return;
+
+    setIsProcessing(true);
+    try {
+      const endpoint = dialogAction === "suspend" ? "suspend" : "deactivate";
+      const response = await fetch(`/api/admin/drivers/${driver.id}/${endpoint}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reason }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || `Failed to ${dialogAction} driver`);
+      }
+
+      toast({
+        title: `Driver ${dialogAction === "suspend" ? "Suspended" : "Deactivated"}`,
+        description: `Driver has been successfully ${dialogAction === "suspend" ? "suspended" : "deactivated"}.`,
+      });
+      setDialogOpen(false);
+      refetch();
+      onRefresh();
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : `Failed to ${dialogAction} driver`,
+        variant: "destructive",
+      });
+    } finally {
+      setIsProcessing(false);
+    }
+  };
 
   if (!selectedDriverId) {
     return (
@@ -79,7 +167,7 @@ export function DriverWorkspace({
     <div className="h-full overflow-y-auto">
       <div className="flex flex-col gap-8 p-8">
         {/* Hero Section */}
-        <DriverDetailHeader driver={driver} />
+        <DriverDetailHeader driver={driver} onRefresh={refetch} />
 
       {/* Documents Summary */}
       <CompactDocumentsSummary
@@ -98,7 +186,6 @@ export function DriverWorkspace({
             <TabsTrigger value="details" className="data-[state=active]:font-bold">Details</TabsTrigger>
             <TabsTrigger value="documents" className="data-[state=active]:font-bold">Documents</TabsTrigger>
             <TabsTrigger value="vehicles" className="data-[state=active]:font-bold">Vehicles</TabsTrigger>
-            <TabsTrigger value="compliance" className="data-[state=active]:font-bold">Compliance</TabsTrigger>
             <TabsTrigger value="activity" className="data-[state=active]:font-bold">Activity Log</TabsTrigger>
             <TabsTrigger value="notes" className="data-[state=active]:font-bold">Notes</TabsTrigger>
           </TabsList>
@@ -125,10 +212,7 @@ export function DriverWorkspace({
           <DriverVehiclesTab vehicles={vehicles} />
         </TabsContent>
 
-        <TabsContent value="compliance">
-          <DriverComplianceTab driver={driver} />
-        </TabsContent>
-
+        
         <TabsContent value="activity">
           <DriverActivityTab driverId={driver.id} organizationId={driver.organization_id} />
         </TabsContent>
@@ -142,6 +226,15 @@ export function DriverWorkspace({
       </Tabs>
       </div>
       </div>
+
+      <DriverActionDialog
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        action={dialogAction}
+        driverName={driver.full_name || "Driver"}
+        onConfirm={handleConfirmAction}
+        isProcessing={isProcessing}
+      />
     </div>
   );
 }

@@ -25,7 +25,7 @@ export default function DriversPage() {
   const suspendedCount = driversState.drivers.filter(d => d.status === 'suspended').length;
   const inactiveCount = driversState.drivers.filter(d => d.status === 'inactive').length;
   const missingDocsCount = driversState.drivers.filter(d => d.compliance_status === 'missing').length;
-  const expiringCount = driversState.drivers.filter(d => d.documents_expired > 0).length;
+  const expiringCount = driversState.drivers.filter(d => (d.documents_expired ?? 0) > 0).length;
 
   // Filter drivers based on active filter - use view data, NO calculations
   const filteredDrivers = (() => {
@@ -41,7 +41,7 @@ export default function DriversPage() {
       case 'missing_docs':
         return driversState.drivers.filter(d => d.compliance_status === 'missing');
       case 'expiring':
-        return driversState.drivers.filter(d => d.documents_expired > 0);
+        return driversState.drivers.filter(d => (d.documents_expired ?? 0) > 0);
       default:
         return driversState.drivers;
     }
@@ -168,9 +168,6 @@ export default function DriversPage() {
         expiringCount={expiringCount}
         activeFilter={activeFilter}
         onFilterChange={setActiveFilter}
-        onApprove={handleApprove}
-        onSuspend={handleSuspend}
-        onDeactivate={handleDeactivate}
       />
 
       {/* Content: Sidebar + Workspace */}

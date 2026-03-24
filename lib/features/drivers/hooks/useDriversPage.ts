@@ -7,6 +7,7 @@
 import { useState, useEffect } from "react";
 import type { Driver } from "../drivers.types";
 import { createClient } from "@/lib/supabase/client";
+import { apiFetch } from "@/lib/api/apiClient";
 
 interface AdvancedFilters {
   category: string[];
@@ -50,7 +51,7 @@ export function useDriversPage() {
     setError(null);
 
     try {
-      const response = await fetch("/api/admin/drivers");
+      const response = await apiFetch("/api/admin/drivers");
 
       if (!response.ok) {
         throw new Error("Failed to fetch drivers");
@@ -72,9 +73,8 @@ export function useDriversPage() {
 
     try {
       // Get organization ID from API (same as fetchDrivers)
-      const response = await fetch("/api/admin/drivers/filtered", {
+      const response = await apiFetch("/api/admin/drivers/filtered", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           category: advancedFilters.category.length > 0 ? advancedFilters.category : null,
           make: advancedFilters.make.length > 0 ? advancedFilters.make : null,

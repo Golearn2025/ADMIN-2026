@@ -1,6 +1,7 @@
 import { getUserRole } from "@/lib/auth/roles";
 import { createClient } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
+import { getOrganizationContext, applyOrganizationFilter } from "@/lib/multi-tenant";
 
 export async function GET(
   request: NextRequest,
@@ -10,21 +11,28 @@ export async function GET(
     const { id: bookingId } = await params;
     const supabase = await createClient();
 
-    const { orgId, hasAccess } = await getUserRole();
+    const { hasAccess } = await getUserRole();
 
-    if (!hasAccess || !orgId) {
+    if (!hasAccess) {
       return NextResponse.json(
         { error: "Unauthorized" },
         { status: 403 }
       );
     }
 
-    const { data, error } = await supabase
+    // 🔥 FOLOSIM CONTEXTUL CORECT
+    const orgContext = await getOrganizationContext(request);
+
+    let query = supabase
       .from("admin_booking_payments_list")
       .select("*")
-      .eq("booking_id", bookingId)
-      .eq("organization_id", orgId)
-      .order("attempt_no", { ascending: false });
+      .eq("booking_id", bookingId);
+
+    // 🔥 APLICĂ FILTRUL CORECT
+    query = applyOrganizationFilter(query, orgContext);
+    query = query.order("attempt_no", { ascending: false });
+
+    const { data, error } = await query;
 
     if (error) {
       console.error("Error fetching booking payments:", error);

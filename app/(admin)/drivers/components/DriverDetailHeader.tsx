@@ -4,37 +4,16 @@ import { DriverAvatar } from "./DriverAvatar";
 import { StatusBadge } from "./StatusBadge";
 import { DriverInfo } from "./DriverInfo";
 import { DriverMetaRow } from "./DriverMetaRow";
+import { DriverHeaderActions } from "./DriverHeaderActions";
 import { Badge } from "@/components/ui/badge";
 import { CheckCircle, XCircle, Clock, AlertTriangle, Mail, Phone, Building2, Ban, Star, Car, PoundSterling } from "lucide-react";
 
 interface DriverDetailHeaderProps {
-  driver: {
-    id: string;
-    full_name?: string;
-    email: string | null;
-    phone: string | null;
-    profile_photo_url: string | null;
-    organization_id: string;
-    organization_name?: string;
-    driver_type?: string;
-    status: string;
-    status_reason?: string | null;
-    onboarding_status: string;
-    compliance_status: string;
-    is_approved: boolean;
-    can_receive_jobs: boolean;
-    total_vehicles?: number;
-    online_status?: string;
-    last_online_at?: string;
-    is_available?: boolean;
-    profile_completed?: boolean;
-    last_device_login_at?: string;
-    location_updated_at?: string;
-    created_at?: string;
-  };
+  driver: any;
+  onRefresh?: () => void;
 }
 
-export function DriverDetailHeader({ driver }: DriverDetailHeaderProps) {
+export function DriverDetailHeader({ driver, onRefresh }: DriverDetailHeaderProps) {
   const getInitials = () => {
     const fullName = driver.full_name || 'Driver';
     const names = fullName.split(' ');
@@ -142,9 +121,11 @@ export function DriverDetailHeader({ driver }: DriverDetailHeaderProps) {
             </div>
           </div>
 
-          {/* Right: Status Badge - ONLY PRIMARY STATUS */}
-          <div className="flex flex-col items-end gap-1">
+          {/* Right: Status Badge + Action Buttons */}
+          <div className="flex flex-col items-end gap-3">
+            {/* Status Badge + Three-dot Menu (same line) */}
             <div className="flex items-center gap-2">
+              {/* Status Badge */}
               {driver.status === 'approved' && (
                 <Badge variant="default" className="gap-1 bg-green-500/10 text-green-600 border-green-500/20 text-base px-4 py-2">
                   <CheckCircle className="h-4 w-4" />
@@ -169,7 +150,12 @@ export function DriverDetailHeader({ driver }: DriverDetailHeaderProps) {
                   Pending
                 </Badge>
               )}
+
+              {/* Action Buttons (three-dot menu) */}
+              {onRefresh && <DriverHeaderActions driver={driver} onRefresh={onRefresh} />}
             </div>
+
+            {/* Status Reason */}
             {(driver.status === 'suspended' || driver.status === 'inactive') && driver.status_reason && (
               <p className="text-sm text-yellow-600 dark:text-yellow-500">
                 {driver.status_reason}

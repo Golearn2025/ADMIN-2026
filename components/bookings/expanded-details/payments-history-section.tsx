@@ -45,7 +45,7 @@ export function PaymentsHistorySection({ payments }: PaymentsHistorySectionProps
       ) : (
         <div className="space-y-1.5">
           {payments.map((payment) => (
-            <div key={payment.attempt_no} className="flex items-center justify-between text-xs py-1 px-2 bg-muted/20 rounded">
+            <div key={`${payment.attempt_no}-${payment.created_at}`} className="flex items-center justify-between text-xs py-1 px-2 bg-muted/20 rounded">
               <div className="flex items-center gap-2">
                 {payment.status === "succeeded" ? (
                   <CheckCircle className="w-3 h-3 text-green-500" />

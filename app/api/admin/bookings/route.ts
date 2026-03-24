@@ -1,103 +1,64 @@
-import { getUserRole } from "@/lib/auth/roles";
 import { createClient } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
+import { getCurrentOrg } from "@/lib/auth/org";
 
 export async function GET(request: NextRequest) {
   try {
     const supabase = await createClient();
-    const { orgId } = await getUserRole();
 
-    if (!orgId) {
-      return NextResponse.json(
-        { error: "Unauthorized - no organization" },
-        { status: 401 }
-      );
+    // Get current user
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    
+    if (!user || authError) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const searchParams = request.nextUrl.searchParams;
-    const page = parseInt(searchParams.get("page") || "1");
-    // Cap pageSize at 100 to prevent DoS attacks
-    const pageSize = Math.min(parseInt(searchParams.get("pageSize") || "20"), 100);
-    const search = searchParams.get("search") || "";
+    // Get current organization from database (backend-controlled)
+    const currentOrgId = await getCurrentOrg(supabase, user.id);
 
-    const offset = (page - 1) * pageSize;
+    // Check if user is super admin
+    const { data: isSuperAdmin } = await supabase
+      .rpc('get_user_super_admin_status', { user_id: user.id });
 
-    // Build query - select only needed fields for performance
+    // Base query from VIEW
     let query = supabase
       .from("admin_booking_list")
-      .select(
-        `
-        id,
-        reference,
-        status,
-        trip_status,
-        booking_type,
-        scheduled_at,
-        created_at,
-        customer_first_name,
-        customer_last_name,
-        customer_phone,
-        customer_email,
-        pickup_address,
-        dropoff_address,
-        distance_miles,
-        duration_min,
-        requested_vehicle_category_label,
-        requested_vehicle_display,
-        driver_name,
-        driver_phone,
-        vehicle_plate,
-        vehicle_make_model,
-        vehicle_status,
-        display_price_pence,
-        latest_payment_currency,
-        latest_payment_status,
-        latest_payment_created_at,
-        pricing_source,
-        has_financial_snapshot,
-        financial_status,
-        booked_hours,
-        booked_days,
-        return_scheduled_at,
-        fleet_size
-      `,
-        { count: "exact" }
-      )
-      .eq("organization_id", orgId)
-      .order("created_at", { ascending: false });
+      .select("*");
 
-    // Add search filter
-    if (search) {
-      query = query.or(
-        `reference.ilike.%${search}%,customer_first_name.ilike.%${search}%,customer_last_name.ilike.%${search}%,customer_phone.ilike.%${search}%,requested_vehicle_category_label.ilike.%${search}%,requested_vehicle_model_label.ilike.%${search}%,pickup_address.ilike.%${search}%,dropoff_address.ilike.%${search}%,driver_name.ilike.%${search}%,vehicle_plate.ilike.%${search}%`
-      );
+    // Backend-controlled filtering
+    // Super admin with specific org selected: filter by that org
+    // Super admin with NULL org (ALL): no filter
+    // Normal user: always filter by their org
+    if (isSuperAdmin) {
+      // Super admin: filter only if org is selected
+      if (currentOrgId) {
+        query = query.eq("organization_id", currentOrgId);
+      }
+      // If currentOrgId is NULL, no filter (see ALL)
+    } else {
+      // Normal user: must have org context
+      if (!currentOrgId) {
+        return NextResponse.json({ error: "No organization context found" }, { status: 400 });
+      }
+      query = query.eq("organization_id", currentOrgId);
     }
 
-    // Add pagination
-    query = query.range(offset, offset + pageSize - 1);
+    const { data, error } = await query.limit(20);
 
-    const { data, error, count } = await query;
+    console.log('📅 BOOKINGS API DEBUG (Backend-Controlled):');
+    console.log('   userId:', user.id);
+    console.log('   currentOrgId (from DB):', currentOrgId);
+    console.log('   isSuperAdmin:', !!isSuperAdmin);
+    console.log('   bookings returned:', data?.length || 0);
 
     if (error) {
-      console.error("Supabase error:", JSON.stringify(error, null, 2));
-      console.error("Search term:", search);
-      return NextResponse.json(
-        { error: "Failed to fetch bookings", details: error.message, code: error.code },
-        { status: 500 }
-      );
+      console.error("BOOKINGS ERROR:", error);
+      return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    return NextResponse.json({
-      data: data || [],
-      total: count || 0,
-      page,
-      pageSize,
-    });
-  } catch (error) {
-    console.error("API error:", error);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    );
+    return NextResponse.json({ data });
+  } catch (err) {
+    console.error("CRASH:", err);
+    return NextResponse.json({ error: "Server crash" }, { status: 500 });
   }
 }

@@ -1,18 +1,46 @@
 import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
+import { getCurrentOrg } from "@/lib/auth/org";
 
 export async function GET() {
   try {
     const supabase = await createClient();
 
+    // Get current user
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (!user || authError) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    // Get current organization from database
+    const currentOrgId = await getCurrentOrg(supabase, user.id);
+
+    // Check if user is super admin
+    const { data: isSuperAdmin } = await supabase
+      .rpc('get_user_super_admin_status', { user_id: user.id });
+
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
     const thirtyDaysAgoISO = thirtyDaysAgo.toISOString();
 
-    const { data: bookings, error } = await supabase
+    let query = supabase
       .from("admin_booking_list")
       .select("*")
       .gte("created_at", thirtyDaysAgoISO);
+
+    // Apply organization filtering
+    if (isSuperAdmin) {
+      if (currentOrgId) {
+        query = query.eq("organization_id", currentOrgId);
+      }
+    } else {
+      if (!currentOrgId) {
+        return NextResponse.json({ error: "No organization context found" }, { status: 400 });
+      }
+      query = query.eq("organization_id", currentOrgId);
+    }
+
+    const { data: bookings, error } = await query;
 
     if (error) {
       console.error("Dashboard stats error:", error);
