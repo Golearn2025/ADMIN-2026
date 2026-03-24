@@ -5,6 +5,16 @@ import { getCurrentOrg } from "@/lib/auth/org";
 export async function GET(request: NextRequest) {
   try {
     const supabase = await createClient();
+    const { searchParams } = new URL(request.url);
+
+    // Get pagination params
+    let page = parseInt(searchParams.get('page') || '1');
+    let pageSize = parseInt(searchParams.get('pageSize') || '20');
+    const search = searchParams.get('search') || '';
+
+    // Validate pagination
+    if (page < 1) page = 1;
+    if (pageSize < 1 || pageSize > 100) pageSize = 20;
 
     // Get current user
     const { data: { user }, error: authError } = await supabase.auth.getUser();
@@ -20,10 +30,21 @@ export async function GET(request: NextRequest) {
     const { data: isSuperAdmin } = await supabase
       .rpc('get_user_super_admin_status', { user_id: user.id });
 
-    // Base query from VIEW
+    // Base query from VIEW - SINGLE SOURCE OF TRUTH
     let query = supabase
       .from("admin_booking_list")
-      .select("*");
+      .select("*", { count: "exact" });
+
+    // Apply search filter (enterprise backend-controlled)
+    if (search) {
+      query = query.or(`
+        reference.ilike.%${search}%, 
+        customer_first_name.ilike.%${search}%, 
+        customer_last_name.ilike.%${search}%, 
+        customer_email.ilike.%${search}%, 
+        customer_phone.ilike.%${search}%
+      `);
+    }
 
     // Backend-controlled filtering
     // Super admin with specific org selected: filter by that org
@@ -43,7 +64,13 @@ export async function GET(request: NextRequest) {
       query = query.eq("organization_id", currentOrgId);
     }
 
-    const { data, error } = await query.limit(20);
+    // Apply pagination - ENTERPRISE STANDARD
+    const offset = (page - 1) * pageSize;
+    query = query
+      .order('created_at', { ascending: false })
+      .range(offset, offset + pageSize - 1);
+
+    const { data, error, count } = await query;
 
     console.log('📅 BOOKINGS API DEBUG (Backend-Controlled):');
     console.log('   userId:', user.id);
@@ -56,7 +83,13 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    return NextResponse.json({ data });
+    return NextResponse.json({ 
+      data,
+      total: count || 0,
+      page,
+      pageSize,
+      totalPages: Math.ceil((count || 0) / pageSize)
+    });
   } catch (err) {
     console.error("CRASH:", err);
     return NextResponse.json({ error: "Server crash" }, { status: 500 });

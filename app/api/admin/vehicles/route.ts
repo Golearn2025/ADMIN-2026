@@ -22,9 +22,9 @@ export async function GET(request: NextRequest) {
     const { data: isSuperAdmin } = await supabase
       .rpc('get_user_super_admin_status', { user_id: user.id });
 
-    // Base query from table
+    // Base query from VIEW - SINGLE SOURCE OF TRUTH
     let query = supabase
-      .from('vehicles')
+      .from('admin_driver_vehicles_v4')
       .select('*');
 
     // Backend-controlled filtering
@@ -56,63 +56,40 @@ export async function GET(request: NextRequest) {
 
     let result = vehicles;
 
-    // Fetch organization names for multi-tenant support
-    if (vehicles && vehicles.length > 0) {
-      const orgIds = [...new Set(vehicles.map(v => v.organization_id))];
-      
-      const { data: orgs } = await supabase
-        .from('organizations')
-        .select('id, name')
-        .in('id', orgIds);
+    // If includeDrivers is requested, fetch driver info from VIEW
+    if (includeDrivers && vehicles && vehicles.length > 0) {
+      const driverIds = vehicles
+        .filter(v => v.driver_id)
+        .map(v => v.driver_id)
+        .filter(Boolean);
 
-      const orgMap: { [key: string]: string } = (orgs || []).reduce((acc: { [key: string]: string }, org) => {
-        acc[org.id] = org.name;
-        return acc;
-      }, {});
+      if (driverIds.length > 0) {
+        // Use admin_drivers_list_v4 for driver info - SINGLE SOURCE OF TRUTH
+        let driverQuery = supabase
+          .from('admin_drivers_list_v4')
+          .select('id, first_name, last_name, organization_id')
+          .in('id', driverIds);
 
-      result = vehicles.map(vehicle => ({
-        ...vehicle,
-        organization_name: orgMap[vehicle.organization_id] || 'Unknown'
-      }));
-
-      // If includeDrivers is requested, fetch driver names
-      if (includeDrivers) {
-        const driverIds = vehicles
-          .filter(v => v.driver_id)
-          .map(v => v.driver_id)
-          .filter(Boolean);
-
-        if (driverIds.length > 0) {
-          let driverQuery = supabase
-            .from('drivers')
-            .select('id, first_name, last_name')
-            .in('id', driverIds)
-            .is('deleted_at', null);
-
-          // Apply organization filter for drivers too (backend-controlled)
-          // Super admin with specific org selected: filter by that org
-          // Super admin with NULL org (ALL): no filter
-          // Normal user: always filter by their org
-          if (isSuperAdmin) {
-            if (currentOrgId) {
-              driverQuery = driverQuery.eq('organization_id', currentOrgId);
-            }
-          } else {
+        // Apply organization filter for drivers too (backend-controlled)
+        if (isSuperAdmin) {
+          if (currentOrgId) {
             driverQuery = driverQuery.eq('organization_id', currentOrgId);
           }
-
-          const { data: drivers } = await driverQuery;
-
-          const driverMap: { [key: string]: string } = (drivers || []).reduce((acc: { [key: string]: string }, driver) => {
-            acc[driver.id] = `${driver.first_name} ${driver.last_name}`;
-            return acc;
-          }, {});
-
-          result = result.map(vehicle => ({
-            ...vehicle,
-            driver_name: vehicle.driver_id ? driverMap[vehicle.driver_id] || 'Unknown Driver' : null
-          }));
+        } else {
+          driverQuery = driverQuery.eq('organization_id', currentOrgId);
         }
+
+        const { data: drivers } = await driverQuery;
+
+        const driverMap: { [key: string]: string } = (drivers || []).reduce((acc: { [key: string]: string }, driver) => {
+          acc[driver.id] = `${driver.first_name} ${driver.last_name}`;
+          return acc;
+        }, {});
+
+        result = result.map(vehicle => ({
+          ...vehicle,
+          driver_name: vehicle.driver_id ? driverMap[vehicle.driver_id] || 'Unknown Driver' : null
+        }));
       }
     }
 
@@ -188,14 +165,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Get vehicle model to determine category
-    const { data: model, error: modelError } = await supabase
-      .from('vehicle_model_catalog')
-      .select('category_id')
-      .eq('id', model_id)
+    // Validate vehicle model exists in admin_driver_vehicles_v4
+    const { data: modelCheck, error: modelError } = await supabase
+      .from('admin_driver_vehicles_v4')
+      .select('model_id, category_id')
+      .eq('model_id', model_id)
+      .limit(1)
       .single();
 
-    if (modelError || !model) {
+    if (modelError || !modelCheck) {
       return NextResponse.json(
         { error: "Invalid vehicle model" },
         { status: 400 }
@@ -228,7 +206,7 @@ export async function POST(request: NextRequest) {
         year,
         color_id,
         driver_id: driver_id || null,
-        category_id: model.category_id,
+        category_id: modelCheck.category_id,
         status: 'available',
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
