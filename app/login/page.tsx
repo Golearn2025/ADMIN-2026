@@ -30,7 +30,33 @@ export default function LoginPage() {
         return;
       }
 
+      // Set organization context in backend (auto-detect)
+      try {
+        const contextResponse = await fetch('/api/auth/set-organization-context', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        });
+        
+        const context = await contextResponse.json();
+        
+        if (context.success) {
+          console.log("✅ Organization context set:", {
+            currentOrg: context.currentOrganizationId,
+            isSuperAdmin: context.isSuperAdmin,
+            orgCount: context.organizations.length,
+            autoSelected: context.autoSelected
+          });
+        } else {
+          console.error("Failed to set organization context");
+        }
+      } catch (error) {
+        console.error("Error setting organization context:", error);
+      }
+      
       router.push("/dashboard");
+
       router.refresh();
     } catch {
       setError("An unexpected error occurred");

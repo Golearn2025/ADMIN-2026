@@ -1,18 +1,10 @@
-import { getUserRole } from "@/lib/auth/roles";
 import { createClient } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
+import { getCurrentOrg } from "@/lib/auth/org";
 
 export async function GET(request: NextRequest) {
   try {
     const supabase = await createClient();
-    const { orgId } = await getUserRole();
-
-    if (!orgId) {
-      return NextResponse.json(
-        { error: "Unauthorized - no organization" },
-        { status: 401 }
-      );
-    }
 
     const searchParams = request.nextUrl.searchParams;
     const page = parseInt(searchParams.get("page") || "1");
@@ -21,6 +13,20 @@ export async function GET(request: NextRequest) {
     const roleFilter = searchParams.get("role") || "";
 
     const offset = (page - 1) * pageSize;
+
+    // Get current user
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    
+    if (!user || authError) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    // Get current organization from database (backend-controlled)
+    const currentOrgId = await getCurrentOrg(supabase, user.id);
+
+    // Check if user is super admin
+    const { data: isSuperAdmin } = await supabase
+      .rpc('get_user_super_admin_status', { user_id: user.id });
 
     // Query organization_members with auth.users data
     let query = supabase
@@ -34,9 +40,26 @@ export async function GET(request: NextRequest) {
         organization_id
       `,
         { count: "exact" }
-      )
-      .eq("organization_id", orgId)
-      .order("created_at", { ascending: false });
+      );
+
+    // Backend-controlled filtering
+    // Super admin with specific org selected: filter by that org
+    // Super admin with NULL org (ALL): no filter
+    // Normal user: always filter by their org
+    if (isSuperAdmin) {
+      // Super admin: filter only if org is selected
+      if (currentOrgId) {
+        query = query.eq("organization_id", currentOrgId);
+      }
+      // If currentOrgId is NULL, no filter (see ALL)
+    } else {
+      // Normal user: must have org context
+      if (!currentOrgId) {
+        return NextResponse.json({ error: "No organization context found" }, { status: 400 });
+      }
+      query = query.eq("organization_id", currentOrgId);
+    }
+    query = query.order("created_at", { ascending: false });
 
     // Add role filter
     if (roleFilter) {
@@ -47,6 +70,12 @@ export async function GET(request: NextRequest) {
     query = query.range(offset, offset + pageSize - 1);
 
     const { data, error, count } = await query;
+
+    console.log('👥 USERS API DEBUG (Backend-Controlled):');
+    console.log('   userId:', user.id);
+    console.log('   currentOrgId (from DB):', currentOrgId);
+    console.log('   isSuperAdmin:', !!isSuperAdmin);
+    console.log('   users returned:', data?.length || 0);
 
     if (error) {
       console.error("Supabase error:", JSON.stringify(error, null, 2));

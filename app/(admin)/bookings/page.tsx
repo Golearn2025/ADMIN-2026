@@ -8,6 +8,7 @@ import { useDeferredValue, useEffect, useState } from "react";
 import { BookingExpandedRow } from "./booking-expanded-row";
 import { columns } from "./bookings.columns";
 import type { Booking } from "./types";
+import { apiFetch } from "@/lib/api/apiClient";
 
 export default function BookingsPage() {
   const [searchValue, setSearchValue] = useState("");
@@ -29,7 +30,7 @@ export default function BookingsPage() {
           search: debouncedSearch,
         });
 
-        const response = await fetch(`/api/admin/bookings?${params}`);
+        const response = await apiFetch(`/api/admin/bookings?${params}`);
         const result = await response.json();
 
         if (response.ok) {

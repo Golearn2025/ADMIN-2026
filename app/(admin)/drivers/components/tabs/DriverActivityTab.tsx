@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { ActivityTimeline } from "../ActivityTimeline";
 import type { ActivityLog } from "@/lib/features/drivers/activity.types";
+import { apiFetch } from "@/lib/api/apiClient";
 
 interface DriverActivityTabProps {
   driverId: string;
@@ -23,7 +24,7 @@ export function DriverActivityTab({
   const fetchActivityLogs = async () => {
     setIsLoading(true);
     try {
-      const response = await fetch(`/api/admin/drivers/${driverId}/activity`);
+      const response = await apiFetch(`/api/admin/drivers/${driverId}/activity`);
 
       if (response.ok) {
         const data = await response.json();

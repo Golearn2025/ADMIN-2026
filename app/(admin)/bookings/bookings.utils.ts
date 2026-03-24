@@ -1,4 +1,6 @@
-export const getStatusBadgeVariant = (status: string) => {
+export const getStatusBadgeVariant = (status?: string) => {
+  if (!status) return "neutral";
+  
   const statusMap: Record<string, "success" | "warning" | "error" | "neutral" | "primary"> = {
     completed: "success",
     confirmed: "success",
@@ -10,7 +12,9 @@ export const getStatusBadgeVariant = (status: string) => {
   return statusMap[status.toLowerCase()] || "neutral";
 };
 
-export const getTripStatusBadgeVariant = (tripStatus: string) => {
+export const getTripStatusBadgeVariant = (tripStatus?: string) => {
+  if (!tripStatus) return "neutral";
+  
   const statusMap: Record<string, "success" | "warning" | "error" | "neutral" | "info" | "primary"> = {
     pending: "neutral",
     assigned: "info",
@@ -63,7 +67,9 @@ export const formatDuration = (minutes: number | null) => {
   return `${hours}h ${mins}m`;
 };
 
-export const getBookingTypeColor = (type: string) => {
+export const getBookingTypeColor = (type?: string) => {
+  if (!type) return "text-gray-500";
+  
   const colorMap: Record<string, string> = {
     oneway: "text-blue-500",
     return: "text-green-500",
@@ -77,14 +83,18 @@ export const getBookingTypeColor = (type: string) => {
   return colorMap[type.toLowerCase()] || "text-gray-500";
 };
 
-export const formatBookingType = (type: string) => {
+export const formatBookingType = (type?: string) => {
+  if (!type) return "";
+  
   return type
     .split("_")
     .map(word => word.charAt(0).toUpperCase() + word.slice(1))
     .join(" ");
 };
 
-export const formatText = (text: string) => {
+export const formatText = (text?: string) => {
+  if (!text) return "";
+  
   return text
     .split("_")
     .map(word => word.charAt(0).toUpperCase() + word.slice(1))

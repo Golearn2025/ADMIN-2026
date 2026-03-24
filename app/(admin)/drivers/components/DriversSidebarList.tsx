@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Search, User, ChevronDown, SlidersHorizontal, X } from "lucide-react";
 import type { Driver } from "@/lib/features/drivers/drivers.types";
 import { useState, useEffect } from "react";
+import { apiFetch } from "@/lib/api/apiClient";
 
 interface DriversSidebarListProps {
   drivers: Driver[];
@@ -52,7 +53,7 @@ export function DriversSidebarList({
   useEffect(() => {
     async function loadFilterOptions() {
       try {
-        const response = await fetch("/api/admin/drivers/filter-options");
+        const response = await apiFetch("/api/admin/drivers/filter-options");
         if (response.ok) {
           const data = await response.json();
           setFilterOptions(data);
@@ -75,12 +76,17 @@ export function DriversSidebarList({
   }, [filters, onFiltersChange]);
 
   const toggleFilter = (type: keyof AdvancedFilters, value: string | number) => {
-    setFilters(prev => ({
-      ...prev,
-      [type]: prev[type].includes(value as any)
-        ? prev[type].filter(v => v !== value)
-        : [...prev[type], value as any]
-    }));
+    setFilters(prev => {
+      const currentArray = prev[type];
+      const typedValue = value as string & number;
+      
+      return {
+        ...prev,
+        [type]: currentArray.includes(typedValue)
+          ? currentArray.filter(v => v !== typedValue)
+          : [...currentArray, typedValue]
+      };
+    });
   };
 
   const clearAllFilters = () => {

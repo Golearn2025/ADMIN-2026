@@ -1,6 +1,7 @@
 import { getUserRole } from "@/lib/auth/roles";
 import { createClient } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
+import { getOrganizationContext, applyOrganizationFilter } from "@/lib/multi-tenant";
 
 export async function GET(
   request: NextRequest,
@@ -8,20 +9,26 @@ export async function GET(
 ) {
   const { id } = await params;
   try {
-    const { orgId, hasAccess } = await getUserRole();
+    const { hasAccess } = await getUserRole();
 
-    if (!hasAccess || !orgId) {
+    if (!hasAccess) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const supabase = await createClient();
+
+    // 🔥 FOLOSIM CONTEXTUL CORECT
+    const orgContext = await getOrganizationContext(request);
     
-    // Fetch from admin_driver_activity_v1 view (single source of truth)
-    const { data, error } = await supabase
+    // 🔥 APLICĂ FILTRUL CORECT
+    let query = supabase
       .from("admin_driver_activity_v1")
       .select("*")
-      .eq("driver_id", id)
-      .eq("organization_id", orgId)
+      .eq("driver_id", id);
+
+    query = applyOrganizationFilter(query, orgContext);
+
+    const { data, error } = await query
       .order("created_at", { ascending: false })
       .limit(100);
 

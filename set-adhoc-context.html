@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Set ADhoc Context</title>
+</head>
+<body>
+    <h1>Set ADhoc Organization Context</h1>
+    
+    <button onclick="setAdhocContext()">Set ADhoc as Current Organization</button>
+    <button onclick="checkContext()">Check Current Context</button>
+    <button onclick="clearContext()">Clear Context</button>
+    
+    <div id="result"></div>
+    
+    <script>
+        function setAdhocContext() {
+            localStorage.setItem('currentOrganizationId', '713a648e-84a5-4a64-8a4f-8b2635f5cba4');
+            document.getElementById('result').innerHTML = '✅ ADhoc organization set! Refresh the page.';
+        }
+        
+        function checkContext() {
+            const orgId = localStorage.getItem('currentOrganizationId');
+            document.getElementById('result').innerHTML = 'Current org: ' + orgId;
+        }
+        
+        function clearContext() {
+            localStorage.removeItem('currentOrganizationId');
+            document.getElementById('result').innerHTML = '✅ Context cleared!';
+        }
+    </script>
+</body>
+</html>
