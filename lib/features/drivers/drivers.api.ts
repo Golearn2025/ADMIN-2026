@@ -51,15 +51,15 @@ export async function getDrivers(
 // ============================================================================
 
 export async function getDriverById(supabase: any, driverId: string) {
-
+  // Use admin_drivers_list_v4 as single source of truth
   const { data, error } = await supabase
-    .from("drivers")
+    .from("admin_drivers_list_v4")
     .select("*")
     .eq("id", driverId)
     .single();
 
   if (error) {
-    console.error("Error fetching driver:", error);
+    console.error("Error fetching driver from view:", error);
     throw new Error(error.message);
   }
 

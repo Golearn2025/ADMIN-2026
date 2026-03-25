@@ -70,5 +70,6 @@ export function useDriverDetails(driverId: string | null) {
     isLoading,
     error,
     refetch: fetchDriverDetails,
+    refetchDriver: fetchDriverDetails, // Export for realtime hook
   };
 }

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { FileText, Car, Shield, Activity, User } from "lucide-react";
 import { useDriverDetails } from "@/lib/features/drivers/hooks/useDriverDetails";
+import { useAdminDriverRealtime } from "@/lib/features/drivers/hooks/useAdminDriverRealtime";
 import { DriverDocumentsTab } from "@/app/(admin)/drivers/components/tabs/DriverDocumentsTab";
 import { DriverDetailsTab } from "./tabs/DriverDetailsTab";
 import { DriverVehiclesTab } from "./tabs/DriverVehiclesTab";
@@ -24,6 +25,9 @@ export function DriverWorkspace({
 }: DriverWorkspaceProps) {
   const { driver, driverDocuments, vehicles, vehicleDocuments, isLoading, refetch } = 
     useDriverDetails(selectedDriverId);
+  
+  // Enable realtime for driver updates
+  useAdminDriverRealtime({ driverId: selectedDriverId || "" });
   
   const [dialogOpen, setDialogOpen] = useState(false);
   const [dialogAction, setDialogAction] = useState<"suspend" | "deactivate">("suspend");
