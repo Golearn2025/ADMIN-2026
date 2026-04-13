@@ -87,6 +87,24 @@ export async function PATCH(request: NextRequest) {
 
       console.log(`✅ APPROVE SUCCESS - ${successCount}/${document_ids.length} documents approved`);
       
+      // Trigger manual realtime event since RPC doesn't trigger view updates
+      console.log("🔄 Triggering manual realtime event");
+      // Get driver_id from first document to trigger the event
+      const { data: docData } = await supabase
+        .from(tableName)
+        .select('driver_id')
+        .eq('id', document_ids[0])
+        .single();
+      
+      if (docData?.driver_id) {
+        // Create a simple update to trigger realtime
+        await supabase
+          .from('drivers')
+          .update({ updated_at: new Date().toISOString() })
+          .eq('id', docData.driver_id);
+        console.log("✅ Manual realtime trigger sent for driver:", docData.driver_id);
+      }
+      
       if (errors.length > 0) {
         console.error("❌ Some documents failed:", errors);
         return NextResponse.json(
@@ -134,6 +152,24 @@ export async function PATCH(request: NextRequest) {
       }
 
       console.log(`✅ REJECT SUCCESS - ${successCount}/${document_ids.length} documents rejected`);
+      
+      // Trigger manual realtime event since RPC doesn't trigger view updates
+      console.log("🔄 Triggering manual realtime event");
+      // Get driver_id from first document to trigger the event
+      const { data: docData } = await supabase
+        .from(tableName)
+        .select('driver_id')
+        .eq('id', document_ids[0])
+        .single();
+      
+      if (docData?.driver_id) {
+        // Create a simple update to trigger realtime
+        await supabase
+          .from('drivers')
+          .update({ updated_at: new Date().toISOString() })
+          .eq('id', docData.driver_id);
+        console.log("✅ Manual realtime trigger sent for driver:", docData.driver_id);
+      }
       
       if (errors.length > 0) {
         console.error("❌ Some documents failed:", errors);

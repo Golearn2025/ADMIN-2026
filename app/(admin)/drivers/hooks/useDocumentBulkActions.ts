@@ -97,8 +97,8 @@ export function useDocumentBulkActions({
       }
 
       setSelectedDocuments([]);
-      console.log("✅ APPROVE REFRESH TRIGGERED");
-      onRefresh();
+      // ✅ NO MANUAL REFRESH - realtime will update UI
+      console.log("✅ APPROVE COMPLETED - Realtime will update UI");
     } catch (error) {
       console.error("❌ Bulk approve error:", error);
     } finally {
@@ -165,8 +165,8 @@ export function useDocumentBulkActions({
 
       setSelectedDocuments([]);
       setShowRejectPanel(false);
-      console.log("✅ REFRESH TRIGGERED");
-      onRefresh();
+      // ✅ NO MANUAL REFRESH - realtime will update UI
+      console.log("✅ REJECT COMPLETED - Realtime will update UI");
     } catch (error) {
       console.error("❌ Bulk reject error:", error);
     } finally {

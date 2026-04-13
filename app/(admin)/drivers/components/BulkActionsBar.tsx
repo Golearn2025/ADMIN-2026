@@ -35,6 +35,7 @@ export function BulkActionsBar({
         <Button
           size="sm"
           variant="default"
+          type="button"
           onClick={onApprove}
           disabled={isProcessing}
         >
@@ -45,6 +46,7 @@ export function BulkActionsBar({
         <Button
           size="sm"
           variant={isRejectPanelOpen ? "outline" : "destructive"}
+          type="button"
           onClick={onReject}
           disabled={isProcessing}
         >
@@ -55,6 +57,7 @@ export function BulkActionsBar({
         <Button
           size="sm"
           variant="outline"
+          type="button"
           onClick={onClear}
           disabled={isProcessing}
         >

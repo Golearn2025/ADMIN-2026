@@ -63,63 +63,34 @@ export function DriverDocumentsTab({
     setUserId("current-user-id");
   }, []);
 
-  // Create profile photo document object to integrate with driver documents
-  const profilePhotoDoc: DriverDocument = {
-    id: `profile-photo-${driverId}`,
-    driver_id: driverId,
-    document_type: 'profile_photo',
-    document_category: 'driver',
-    file_url: profilePhotoUrl,
-    file_name: 'profile_photo.jpg',
-    status: profilePhotoStatus,
-    expiry_date: null,
-    created_at: profilePhotoReviewedAt || new Date().toISOString(),
-    reviewed_at: profilePhotoReviewedAt || null,
-    reviewed_by: profilePhotoReviewedBy || null,
-    reviewed_by_name: profilePhotoReviewedBy || null,
-    reviewed_by_email: null,
-    reviewed_by_role: null,
-    rejection_reason: profilePhotoRejectionReason || null,
-  };
-
-  // Combine profile photo with driver documents (profile photo first)
-  const allDriverDocuments: DriverDocument[] = [profilePhotoDoc, ...driverDocuments];
+  // ✅ NO MORE FAKE PROFILE PHOTO - use real DB data only
 
   const handleApprove = async (docId: string) => {
-    // Check if this is the profile photo
-    if (docId.startsWith('profile-photo-')) {
-      await handleApproveProfilePhoto();
-    } else {
-      const isDriverDoc = driverDocuments.some(d => d.id === docId);
-      if (isDriverDoc) {
-        await actions.approveDriverDocument(docId, userId);
-      } else {
-        await actions.approveVehicleDocument(docId, userId);
-      }
-      onRefresh();
-    }
-  };
+  const isDriverDoc = driverDocuments.some(d => d.id === docId);
+
+  if (isDriverDoc) {
+    await actions.approveDriverDocument(docId, userId);
+  } else {
+    await actions.approveVehicleDocument(docId, userId);
+  }
+
+  // ✅ NO MANUAL REFRESH - let realtime handle UI update
+};
 
   const handleReject = async (docId: string) => {
-    // Check if this is the profile photo
-    if (docId.startsWith('profile-photo-')) {
-      const reason = prompt("Please provide a reason for rejecting this profile photo:");
-      if (reason) {
-        await handleRejectProfilePhoto(reason);
-      }
-    } else {
-      const reason = prompt("Rejection reason:");
-      if (!reason) return;
-      
-      const isDriverDoc = driverDocuments.some(d => d.id === docId);
-      if (isDriverDoc) {
-        await actions.rejectDriverDocument(docId, userId, reason);
-      } else {
-        await actions.rejectVehicleDocument(docId, userId, reason);
-      }
-      onRefresh();
-    }
-  };
+  const reason = prompt("Rejection reason:");
+  if (!reason) return;
+  
+  const isDriverDoc = driverDocuments.some(d => d.id === docId);
+
+  if (isDriverDoc) {
+    await actions.rejectDriverDocument(docId, userId, reason);
+  } else {
+    await actions.rejectVehicleDocument(docId, userId, reason);
+  }
+
+  // ✅ NO MANUAL REFRESH - let realtime handle UI update
+};
 
   // Document action handlers
   const handleDocumentAction = (action: string, docId: string) => {
@@ -152,8 +123,8 @@ export function DriverDocumentsTab({
   const handleViewDocument = (docId: string) => {
     console.log('📄 View document:', docId);
     
-    // Find document in all documents (including profile photo)
-    const doc = [...allDriverDocuments, ...vehicleDocuments].find(d => d.id === docId);
+    // Find document in real documents only (no fake profile photo)
+    const doc = [...driverDocuments, ...vehicleDocuments].find(d => d.id === docId);
     
     if (!doc) {
       console.error('Document not found:', docId);
@@ -174,8 +145,8 @@ export function DriverDocumentsTab({
   const handleDownloadDocument = async (docId: string) => {
     console.log('⬇️ Download document:', docId);
     
-    // Find document in all documents (including profile photo)
-    const doc = [...allDriverDocuments, ...vehicleDocuments].find(d => d.id === docId);
+    // Find document in real documents only (no fake profile photo)
+    const doc = [...driverDocuments, ...vehicleDocuments].find(d => d.id === docId);
     
     if (!doc) {
       console.error('Document not found:', docId);
@@ -214,8 +185,8 @@ export function DriverDocumentsTab({
   const handleReplaceDocument = async (docId: string) => {
     console.log('📤 Replace document:', docId);
     
-    // Find document to get type and entity (including profile photo)
-    const doc = [...allDriverDocuments, ...vehicleDocuments].find(d => d.id === docId);
+    // Find document in real documents only (no fake profile photo)
+    const doc = [...driverDocuments, ...vehicleDocuments].find(d => d.id === docId);
     
     if (!doc) {
       alert('Document not found');
@@ -257,8 +228,7 @@ export function DriverDocumentsTab({
 
         console.log('✅ Document replaced successfully');
         
-        // Refresh to show new document
-        onRefresh();
+        // ✅ NO MANUAL REFRESH - let realtime handle UI update
       } catch (error) {
         console.error('❌ Replace failed:', error);
         alert('Failed to replace document. Please try again.');
@@ -294,47 +264,7 @@ export function DriverDocumentsTab({
     // }
   };
 
-  const handleApproveProfilePhoto = async () => {
-    setIsPhotoProcessing(true);
-    try {
-      const response = await fetch(`/api/admin/drivers/${driverId}/profile-photo/approve`, {
-        method: "POST",
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to approve profile photo");
-      }
-
-      onRefresh();
-    } catch (error) {
-      console.error("Error approving profile photo:", error);
-      alert("Failed to approve profile photo");
-    } finally {
-      setIsPhotoProcessing(false);
-    }
-  };
-
-  const handleRejectProfilePhoto = async (reason: string) => {
-    setIsPhotoProcessing(true);
-    try {
-      const response = await fetch(`/api/admin/drivers/${driverId}/profile-photo/reject`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ reason }),
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to reject profile photo");
-      }
-
-      onRefresh();
-    } catch (error) {
-      console.error("Error rejecting profile photo:", error);
-      alert("Failed to reject profile photo");
-    } finally {
-      setIsPhotoProcessing(false);
-    }
-  };
+  // ✅ NO MORE FAKE PROFILE PHOTO HANDLERS - use real DB data only
 
   return (
     <div className="space-y-8">
@@ -377,10 +307,10 @@ export function DriverDocumentsTab({
 
         <div className="rounded-lg border border-border bg-card">
           <DocumentTable
-            documents={allDriverDocuments}
+            documents={driverDocuments}
             selectedIds={bulkActions.selectedDocuments}
             onToggleSelect={bulkActions.toggleDocument}
-            onToggleSelectAll={() => bulkActions.toggleSectionDocs(allDriverDocuments)}
+            onToggleSelectAll={() => bulkActions.toggleSectionDocs(driverDocuments)}
             onApprove={handleApprove}
             onReject={handleReject}
             onDocumentAction={handleDocumentAction}

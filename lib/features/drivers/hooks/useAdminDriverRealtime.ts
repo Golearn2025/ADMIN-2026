@@ -19,6 +19,8 @@ interface UseAdminDriverRealtimeProps {
  */
 export function useAdminDriverRealtime({ driverId }: UseAdminDriverRealtimeProps) {
   const channelRef = useRef<any>(null);
+  
+  // Get refetch function directly from the hook
   const { refetchDriver } = useDriverDetails(driverId);
 
   useEffect(() => {
@@ -84,7 +86,7 @@ export function useAdminDriverRealtime({ driverId }: UseAdminDriverRealtimeProps
         channelRef.current = null;
       }
     };
-  }, [driverId, refetchDriver]);
+  }, [driverId]);
 
   // Return cleanup function for manual cleanup if needed
   return {

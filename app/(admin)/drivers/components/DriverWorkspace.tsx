@@ -1,10 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { FileText, Car, Shield, Activity, User } from "lucide-react";
 import { useDriverDetails } from "@/lib/features/drivers/hooks/useDriverDetails";
-import { useAdminDriverRealtime } from "@/lib/features/drivers/hooks/useAdminDriverRealtime";
 import { DriverDocumentsTab } from "@/app/(admin)/drivers/components/tabs/DriverDocumentsTab";
 import { DriverDetailsTab } from "./tabs/DriverDetailsTab";
 import { DriverVehiclesTab } from "./tabs/DriverVehiclesTab";
@@ -16,7 +15,7 @@ import { useToast } from "@/hooks/use-toast";
 
 interface DriverWorkspaceProps {
   selectedDriverId: string | null;
-  onRefresh: () => void;
+  onRefresh?: () => void; // ✅ OPTIONAL - doar pentru driver actions
 }
 
 export function DriverWorkspace({
@@ -26,35 +25,22 @@ export function DriverWorkspace({
   const { driver, driverDocuments, vehicles, vehicleDocuments, isLoading, refetch } = 
     useDriverDetails(selectedDriverId);
   
-  // Enable realtime for driver updates
-  useAdminDriverRealtime({ driverId: selectedDriverId || "" });
+  // ✅ REALTIME is now built into useDriverDetails hook
   
   const [dialogOpen, setDialogOpen] = useState(false);
   const [dialogAction, setDialogAction] = useState<"suspend" | "deactivate">("suspend");
   const [isProcessing, setIsProcessing] = useState(false);
+  const [activeTab, setActiveTab] = useState("details"); // ✅ CONTROLLED TABS
   const { toast } = useToast();
 
-  // DEBUG: Hook data
-  console.log("=== DRIVER WORKSPACE HOOK DATA ===");
-  console.log("DRIVER FULL:", driver);
-  console.log("DOCUMENTS:", driver?.driver_documents);
-  console.log("VEHICLES:", driver?.vehicles);
-  console.log("---");
-  console.log("driverDocuments from hook:", driverDocuments);
-  console.log("driverDocuments is ARRAY?", Array.isArray(driverDocuments));
-  console.log("driverDocuments length:", driverDocuments?.length || 0);
-  console.log("---");
-  console.log("vehicles from hook:", vehicles);
-  console.log("vehicles is ARRAY?", Array.isArray(vehicles));
-  console.log("vehicles length:", vehicles?.length || 0);
-  console.log("---");
-  console.log("vehicleDocuments from hook:", vehicleDocuments);
-  console.log("vehicleDocuments is ARRAY?", Array.isArray(vehicleDocuments));
-  console.log("vehicleDocuments length:", vehicleDocuments?.length || 0);
-  console.log("==================================");
+  // ✅ NO MORE handleRefresh - not needed without onRefresh
 
-  // NO calculations - use data from admin_driver_overview_v2 view
-  // All stats come from the driver object directly
+  // Memoize documents summary to prevent unnecessary re-renders
+  const documentsSummary = useMemo(() => ({
+    approved: driver?.documents_completed ?? 0,
+    expired: driver?.documents_expired ?? 0,
+    missing: (driver?.documents_required ?? 0) - (driver?.documents_completed ?? 0)
+  }), [driver?.documents_completed, driver?.documents_expired, driver?.documents_required]);
 
   const handleApprove = async () => {
     if (!driver) return;
@@ -83,8 +69,7 @@ export function DriverWorkspace({
         title: "Driver Approved",
         description: "Driver has been successfully approved.",
       });
-      refetch();
-      onRefresh();
+      // ✅ NO MANUAL REFRESH - let realtime handle UI update
     } catch (error) {
       toast({
         title: "Error",
@@ -130,8 +115,7 @@ export function DriverWorkspace({
         description: `Driver has been successfully ${dialogAction === "suspend" ? "suspended" : "deactivated"}.`,
       });
       setDialogOpen(false);
-      refetch();
-      onRefresh();
+      // ✅ NO MANUAL REFRESH - let realtime handle UI update
     } catch (error) {
       toast({
         title: "Error",
@@ -171,21 +155,18 @@ export function DriverWorkspace({
     <div className="h-full overflow-y-auto">
       <div className="flex flex-col gap-8 p-8">
         {/* Hero Section */}
-        <DriverDetailHeader driver={driver} onRefresh={refetch} />
+        <DriverDetailHeader driver={driver} onRefresh={onRefresh} />
 
       {/* Documents Summary */}
       <CompactDocumentsSummary
-        approved={driver.documents_completed ?? 0}
-        expired={driver.documents_expired ?? 0}
-        missing={(driver.documents_required ?? 0) - (driver.documents_completed ?? 0)}
+        approved={documentsSummary.approved}
+        expired={documentsSummary.expired}
+        missing={documentsSummary.missing}
       />
 
       {/* Tabs Section - Sticky */}
       <div className="sticky top-0 z-10 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 -mx-8 px-8 py-4 border-b border-border">
-        <Tabs defaultValue="details" className="space-y-6" onValueChange={(value) => {
-          console.log("CLICK TAB:", value);
-          console.log("ACTIVE TAB:", value);
-        }}>
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
           <TabsList className="h-12">
             <TabsTrigger value="details" className="data-[state=active]:font-bold">Details</TabsTrigger>
             <TabsTrigger value="documents" className="data-[state=active]:font-bold">Documents</TabsTrigger>

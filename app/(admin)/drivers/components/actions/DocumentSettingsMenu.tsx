@@ -8,12 +8,15 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { MoreVertical, History, Calendar, Trash2 } from "lucide-react";
+import { MoreVertical, History, Calendar, Trash2, Check, X } from "lucide-react";
 
 interface DocumentSettingsMenuProps {
   documentId: string;
+  documentStatus?: string;
   onViewHistory: (documentId: string) => void;
   onEditExpiry: (documentId: string) => void;
+  onApprove?: (documentId: string) => void;
+  onReject?: (documentId: string) => void;
   onDelete?: (documentId: string) => void;
   disabled?: boolean;
   showDelete?: boolean;
@@ -29,12 +32,17 @@ interface DocumentSettingsMenuProps {
  */
 export function DocumentSettingsMenu({
   documentId,
+  documentStatus,
   onViewHistory,
   onEditExpiry,
+  onApprove,
+  onReject,
   onDelete,
   disabled = false,
   showDelete = false,
 }: DocumentSettingsMenuProps) {
+  const isPending = documentStatus === "pending";
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -49,6 +57,25 @@ export function DocumentSettingsMenu({
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
+        {isPending && onApprove && onReject && (
+          <>
+            <DropdownMenuItem 
+              onClick={() => onApprove(documentId)}
+              className="text-green-600 focus:text-green-700"
+            >
+              <Check className="h-4 w-4 mr-2" />
+              Approve Document
+            </DropdownMenuItem>
+            <DropdownMenuItem 
+              onClick={() => onReject(documentId)}
+              className="text-red-600 focus:text-red-700"
+            >
+              <X className="h-4 w-4 mr-2" />
+              Reject Document
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+          </>
+        )}
         <DropdownMenuItem onClick={() => onViewHistory(documentId)}>
           <History className="h-4 w-4 mr-2" />
           View History

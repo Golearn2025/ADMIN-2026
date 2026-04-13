@@ -4,7 +4,7 @@
 
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import type { Driver } from "../drivers.types";
 import { createClient } from "@/lib/supabase/client";
 import { apiFetch } from "@/lib/api/apiClient";
@@ -33,20 +33,21 @@ export function useDriversPage() {
     year: [],
   });
 
+  // ✅ FETCH ONCE - no dependencies causing re-fetch
   useEffect(() => {
     fetchDrivers();
-  }, []);
+  }, []); // ✅ EMPTY deps - fetch only once
 
-  // Refetch when advanced filters change
-  useEffect(() => {
-    if (advancedFilters.category.length > 0 || advancedFilters.make.length > 0 || advancedFilters.color.length > 0 || advancedFilters.year.length > 0) {
-      fetchDriversWithFilters();
-    } else {
-      fetchDrivers();
-    }
-  }, [advancedFilters]);
+  // ✅ REMOVED advanced filters re-fetch - causing loop
+// useEffect(() => {
+//   if (advancedFilters.category.length > 0 || advancedFilters.make.length > 0 || advancedFilters.color.length > 0 || advancedFilters.year.length > 0) {
+//     fetchDriversWithFilters();
+//   } else {
+//     fetchDrivers();
+//   }
+// }, [advancedFilters]);
 
-  const fetchDrivers = async () => {
+  const fetchDrivers = useCallback(async () => {
     setIsLoading(true);
     setError(null);
 
@@ -65,7 +66,7 @@ export function useDriversPage() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []); // ✅ EMPTY deps - stable function
 
   const fetchDriversWithFilters = async () => {
     setIsLoading(true);
@@ -98,44 +99,49 @@ export function useDriversPage() {
     }
   };
 
-  // Filter drivers based on search and filters
-  const filteredDrivers = drivers.filter((driver) => {
-    // Search filter
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase();
-      const matchesSearch =
-        driver.first_name.toLowerCase().includes(query) ||
-        driver.last_name.toLowerCase().includes(query) ||
-        driver.email?.toLowerCase().includes(query) ||
-        driver.phone?.toLowerCase().includes(query);
+  // Filter drivers based on search and filters - MEMOIZED to prevent re-renders
+  const filteredDrivers = useMemo(() => {
+    return drivers.filter((driver) => {
+      // Search filter
+      if (searchQuery) {
+        const query = searchQuery.toLowerCase();
+        const matchesSearch =
+          driver.first_name.toLowerCase().includes(query) ||
+          driver.last_name.toLowerCase().includes(query) ||
+          driver.email?.toLowerCase().includes(query) ||
+          driver.phone?.toLowerCase().includes(query);
 
-      if (!matchesSearch) return false;
-    }
-
-    // Compliance filter
-    if (complianceFilter.length > 0) {
-      if (!complianceFilter.includes(driver.compliance_status)) {
-        return false;
+        if (!matchesSearch) return false;
       }
-    }
 
-    // Onboarding filter
-    if (onboardingFilter.length > 0) {
-      if (!onboardingFilter.includes(driver.onboarding_status)) {
-        return false;
+      // Compliance filter
+      if (complianceFilter.length > 0) {
+        if (!complianceFilter.includes(driver.compliance_status)) {
+          return false;
+        }
       }
-    }
 
-    return true;
-  });
+      // Onboarding filter
+      if (onboardingFilter.length > 0) {
+        if (!onboardingFilter.includes(driver.onboarding_status)) {
+          return false;
+        }
+      }
 
-  console.log("🔢 Drivers count:", {
-    fromRPC: drivers.length,
-    afterClientFilter: filteredDrivers.length,
-    searchQuery,
-    complianceFilter,
-    onboardingFilter
-  });
+      return true;
+    });
+  }, [drivers, searchQuery, complianceFilter, onboardingFilter]);
+
+  // ✅ MOVED CONSOLE LOG OUTSIDE RENDER - only log when dependencies change
+  useEffect(() => {
+    console.log("🔢 Drivers count:", {
+      fromRPC: drivers.length,
+      afterClientFilter: filteredDrivers.length,
+      searchQuery,
+      complianceFilter,
+      onboardingFilter
+    });
+  }, [drivers.length, filteredDrivers.length, searchQuery, complianceFilter, onboardingFilter]);
 
   const selectedDriver = selectedDriverId
     ? drivers.find((d) => d.id === selectedDriverId) || null

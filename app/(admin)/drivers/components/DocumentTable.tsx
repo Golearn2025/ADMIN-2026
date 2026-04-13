@@ -226,40 +226,20 @@ function DocumentRow({
       </td>
       <td className="p-4">
         <div className="flex items-center justify-end gap-2">
-          {document.status === "pending" ? (
-            <>
-              <Button
-                size="sm"
-                variant="default"
-                onClick={onApprove}
-                disabled={isProcessing}
-              >
-                <Check className="h-4 w-4 mr-1" />
-                Approve
-              </Button>
-              <Button
-                size="sm"
-                variant="destructive"
-                onClick={onReject}
-                disabled={isProcessing}
-              >
-                <X className="h-4 w-4 mr-1" />
-                Reject
-              </Button>
-            </>
-          ) : (
-            <DocumentActions
-              documentId={document.id}
-              onView={() => onDocumentAction('view', document.id)}
-              onDownload={() => onDocumentAction('download', document.id)}
-              onReplace={() => onDocumentAction('replace', document.id)}
-              onViewHistory={() => onDocumentAction('history', document.id)}
-              onEditExpiry={() => onDocumentAction('edit-expiry', document.id)}
-              onDelete={() => onDocumentAction('delete', document.id)}
-              disabled={isDownloading === document.id}
-              showDelete={false}
-            />
-          )}
+          <DocumentActions
+            documentId={document.id}
+            documentStatus={document.status}
+            onView={() => onDocumentAction('view', document.id)}
+            onDownload={() => onDocumentAction('download', document.id)}
+            onReplace={() => onDocumentAction('replace', document.id)}
+            onViewHistory={() => onDocumentAction('history', document.id)}
+            onEditExpiry={() => onDocumentAction('edit-expiry', document.id)}
+            onApprove={onApprove}
+            onReject={onReject}
+            onDelete={() => onDocumentAction('delete', document.id)}
+            disabled={isDownloading === document.id}
+            showDelete={false}
+          />
         </div>
       </td>
     </tr>

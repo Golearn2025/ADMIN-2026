@@ -69,8 +69,7 @@ export function DriverVehiclesTab({ vehicles }: DriverVehiclesTabProps) {
         description: "Vehicle information has been successfully updated.",
       });
       
-      // Refresh the page to show updated data
-      window.location.reload();
+      // ✅ NO MANUAL RELOAD - let realtime handle UI update
     } catch (error) {
       toast({
         title: "Error",
@@ -103,8 +102,7 @@ export function DriverVehiclesTab({ vehicles }: DriverVehiclesTabProps) {
         description: `Vehicle status has been changed to ${status}.`,
       });
       
-      // Refresh the page to show updated data
-      window.location.reload();
+      // ✅ NO MANUAL RELOAD - let realtime handle UI update
     } catch (error) {
       toast({
         title: "Error",

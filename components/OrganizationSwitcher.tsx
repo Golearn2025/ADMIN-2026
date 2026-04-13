@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, memo } from "react";
 import { Building2, ChevronDown, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -20,7 +20,7 @@ interface OrganizationSwitcherProps {
   onOrganizationChange?: (orgId: string) => void;
 }
 
-export function OrganizationSwitcher({ 
+export const OrganizationSwitcher = memo(function OrganizationSwitcher({ 
   currentOrgId, 
   onOrganizationChange 
 }: OrganizationSwitcherProps) {
@@ -28,12 +28,8 @@ export function OrganizationSwitcher({
   const [loading, setLoading] = useState(true);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
 
-  // Fetch organizations
-  useEffect(() => {
-    fetchOrganizations();
-  }, []);
-
-  const fetchOrganizations = async () => {
+  // ✅ useCallback WITHOUT dependencies - prevent re-fetch
+  const fetchOrganizations = useCallback(async () => {
     try {
       console.log('OrganizationSwitcher: Fetching organizations...');
       
@@ -60,7 +56,12 @@ export function OrganizationSwitcher({
     } finally {
       setLoading(false);
     }
-  };
+  }, []); // ✅ EMPTY deps - stable function
+
+  // Fetch organizations - ONLY ONCE
+  useEffect(() => {
+    fetchOrganizations();
+  }, []); // ✅ EMPTY deps - fetch only once
 
   const getCurrentOrganization = () => {
     if (currentOrgId === "ALL") return null;
@@ -111,13 +112,13 @@ export function OrganizationSwitcher({
     );
   }
 
-  // Debug logging
-  console.log('OrganizationSwitcher:', { 
-    isSuperAdmin, 
-    orgCount: organizations.length, 
-    currentOrgId,
-    organizations: organizations.map(o => o.name)
-  });
+  // ✅ REMOVED DEBUG LOG - causing hook order issues
+  // console.log('OrganizationSwitcher:', { 
+  //   isSuperAdmin, 
+  //   orgCount: organizations.length, 
+  //   currentOrgId,
+  //   organizations: organizations.map(o => o.name)
+  // });
 
   return (
     <DropdownMenu>
@@ -242,4 +243,4 @@ export function OrganizationSwitcher({
       </DropdownMenuContent>
     </DropdownMenu>
   );
-}
+});

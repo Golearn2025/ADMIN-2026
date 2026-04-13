@@ -18,8 +18,6 @@ interface DriverMarkerProps {
 export function DriverMarker({ driver, onClick, isSelected = false }: DriverMarkerProps) {
   const markerRef = useRef<HTMLDivElement | null>(null);
 
-  if (!driver.lat || !driver.lng) return null;
-
   // Get color based on driver status
   const color = getDriverColor(driver.computed_status);
   
@@ -50,6 +48,8 @@ export function DriverMarker({ driver, onClick, isSelected = false }: DriverMark
       });
     }
   }, [driver, color, vehicleScale, licensePlate, isSelected, onClick]);
+
+  if (!driver.lat || !driver.lng) return null;
 
   return (
     <Marker

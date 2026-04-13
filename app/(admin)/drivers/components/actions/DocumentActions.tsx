@@ -5,11 +5,14 @@ import { DocumentSettingsMenu } from "./DocumentSettingsMenu";
 
 interface DocumentActionsProps {
   documentId: string;
+  documentStatus?: string;
   onView: (documentId: string) => void;
   onDownload: (documentId: string) => void;
   onReplace: (documentId: string) => void;
   onViewHistory: (documentId: string) => void;
   onEditExpiry: (documentId: string) => void;
+  onApprove?: (documentId: string) => void;
+  onReject?: (documentId: string) => void;
   onDelete?: (documentId: string) => void;
   disabled?: boolean;
   showDelete?: boolean;
@@ -26,11 +29,14 @@ interface DocumentActionsProps {
  */
 export function DocumentActions({
   documentId,
+  documentStatus,
   onView,
   onDownload,
   onReplace,
   onViewHistory,
   onEditExpiry,
+  onApprove,
+  onReject,
   onDelete,
   disabled = false,
   showDelete = false,
@@ -46,8 +52,11 @@ export function DocumentActions({
       />
       <DocumentSettingsMenu
         documentId={documentId}
+        documentStatus={documentStatus}
         onViewHistory={onViewHistory}
         onEditExpiry={onEditExpiry}
+        onApprove={onApprove}
+        onReject={onReject}
         onDelete={onDelete}
         disabled={disabled}
         showDelete={showDelete}

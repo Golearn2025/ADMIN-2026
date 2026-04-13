@@ -84,7 +84,7 @@ export default function DriversPage() {
         title: "Driver Approved",
         description: "Driver has been successfully approved.",
       });
-      driversState.refetch();
+      // ✅ NO GLOBAL REFRESH - let realtime handle UI update
     } catch (error) {
       toast({
         title: "Error",
@@ -143,7 +143,7 @@ export default function DriversPage() {
         title: `Driver ${dialogAction === "suspend" ? "Suspended" : "Deactivated"}`,
         description: `Driver has been successfully ${dialogAction === "suspend" ? "suspended" : "deactivated"}.`,
       });
-      driversState.refetch();
+      // ✅ NO GLOBAL REFRESH - let realtime handle UI update
     } catch (error) {
       toast({
         title: "Error",
@@ -185,7 +185,11 @@ export default function DriversPage() {
         <div className="flex-1 overflow-auto">
           <DriverWorkspace
             selectedDriverId={driversState.selectedDriverId}
-            onRefresh={driversState.refetch}
+            onRefresh={() => {
+              // ✅ MINIMAL REFRESH - doar pentru driver actions, nu afectează documents
+              console.log("🔄 Driver action refresh - minimal");
+              driversState.refetch();
+            }}
           />
         </div>
       </div>
