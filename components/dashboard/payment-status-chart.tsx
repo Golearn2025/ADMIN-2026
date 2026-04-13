@@ -43,7 +43,7 @@ export function PaymentStatusChart({ data }: PaymentStatusChartProps) {
               <Cell key={`cell-${index}`} fill={getColor(entry.name)} />
             ))}
           </Pie>
-          <Tooltip formatter={(value: number | undefined) => [`${value ?? 0} payments`, "Count"]} />
+          <Tooltip formatter={(value: any) => [`${value ?? 0} payments`, "Count"]} />
           <Legend />
         </PieChart>
       </ResponsiveContainer>

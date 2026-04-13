@@ -38,17 +38,19 @@ const CATEGORY_LABELS: { [key: string]: string } = {
 const currentYear = new Date().getFullYear();
 const VALID_YEARS = [currentYear, currentYear - 1, currentYear - 2, currentYear - 3]; // 2026, 2025, 2024, 2023
 
+interface VehicleFilters {
+  plateNumber: string;
+  vehicleColor: string;
+  vehicleModel: string;
+  vehicleYear: string;
+  vehicleCategory: string;
+}
+
 interface AdvancedFiltersProps {
   searchQuery: string;
   onSearchChange: (query: string) => void;
-  vehicleFilters: {
-    plateNumber: string;
-    vehicleColor: string;
-    vehicleModel: string;
-    vehicleYear: string;
-    vehicleCategory: string;
-  };
-  onVehicleFiltersChange: (filters: typeof vehicleFilters) => void;
+  vehicleFilters: VehicleFilters;
+  onVehicleFiltersChange: (filters: VehicleFilters) => void;
   onReset: () => void;
 }
 

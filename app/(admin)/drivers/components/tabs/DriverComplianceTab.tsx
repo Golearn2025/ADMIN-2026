@@ -20,10 +20,10 @@ interface DriverComplianceTabProps {
 
 export function DriverComplianceTab({ driver }: DriverComplianceTabProps) {
   // Calculate valid documents (approved - expired)
-  const validDocs = driver.documents_completed - driver.documents_expired;
-  const missingDocs = driver.documents_required - validDocs;
-  const driverDocsProgress = driver.documents_required > 0 
-    ? (validDocs / driver.documents_required) * 100 
+  const validDocs = (driver.documents_completed || 0) - (driver.documents_expired || 0);
+  const missingDocs = (driver.documents_required || 0) - validDocs;
+  const driverDocsProgress = (driver.documents_required || 0) > 0 
+    ? (validDocs / (driver.documents_required || 0)) * 100 
     : 0;
 
   // Determine compliance requirements
@@ -46,15 +46,15 @@ export function DriverComplianceTab({ driver }: DriverComplianceTabProps) {
     },
     {
       label: "All Required Documents Valid",
-      met: validDocs === driver.documents_required && driver.documents_expired === 0,
+      met: validDocs === (driver.documents_required || 0) && (driver.documents_expired || 0) === 0,
       icon: FileText,
       detail: `${validDocs}/${driver.documents_required} valid`,
     },
     {
       label: "No Expired Documents",
-      met: driver.documents_expired === 0,
+      met: (driver.documents_expired || 0) === 0,
       icon: Clock,
-      detail: driver.documents_expired > 0 ? `${driver.documents_expired} expired` : undefined,
+      detail: (driver.documents_expired || 0) > 0 ? `${driver.documents_expired || 0} expired` : undefined,
     },
   ];
 
@@ -67,7 +67,7 @@ export function DriverComplianceTab({ driver }: DriverComplianceTabProps) {
   if (!driver.is_approved) issues.push("Driver is not approved");
   if (driver.total_vehicles === 0) issues.push("No vehicle assigned");
   if (missingDocs > 0) issues.push(`${missingDocs} document${missingDocs > 1 ? 's' : ''} not approved`);
-  if (driver.documents_expired > 0) issues.push(`${driver.documents_expired} document${driver.documents_expired > 1 ? 's' : ''} expired`);
+  if ((driver.documents_expired || 0) > 0) issues.push(`${driver.documents_expired || 0} document${(driver.documents_expired || 0) > 1 ? 's' : ''} expired`);
 
   const getComplianceStatusBadge = (status: string) => {
     switch (status) {
@@ -121,16 +121,15 @@ export function DriverComplianceTab({ driver }: DriverComplianceTabProps) {
           <div className="mt-4">
             <Badge 
               variant={
-                driver.driver_status === 'active' ? 'success' :
-                driver.driver_status === 'inactive' ? 'secondary' :
+                driver.is_active ? 'success' :
+                !driver.is_active ? 'secondary' :
                 'warning'
               }
               className="text-lg px-4 py-2 capitalize"
             >
-              {driver.driver_status === 'active' && '✅ '}
-              {driver.driver_status === 'incomplete' && '⚠️ '}
-              {driver.driver_status === 'pending' && '🕐 '}
-              {driver.driver_status}
+              {driver.is_active && '✅ '}
+              {!driver.is_active && '⚠️ '}
+              {driver.is_active ? 'active' : 'inactive'}
             </Badge>
           </div>
         </div>
@@ -147,7 +146,7 @@ export function DriverComplianceTab({ driver }: DriverComplianceTabProps) {
           <div className="grid gap-4 sm:grid-cols-4">
             <div>
               <dt className="text-sm text-muted-foreground">Required</dt>
-              <dd className="text-2xl font-bold">{driver.documents_required}</dd>
+              <dd className="text-2xl font-bold">{driver.documents_required || 0}</dd>
             </div>
             <div>
               <dt className="text-sm text-muted-foreground">Valid</dt>
@@ -155,7 +154,7 @@ export function DriverComplianceTab({ driver }: DriverComplianceTabProps) {
             </div>
             <div>
               <dt className="text-sm text-muted-foreground">Expired</dt>
-              <dd className="text-2xl font-bold text-red-600">{driver.documents_expired}</dd>
+              <dd className="text-2xl font-bold text-red-600">{driver.documents_expired || 0}</dd>
             </div>
             <div>
               <dt className="text-sm text-muted-foreground">Missing</dt>
@@ -172,7 +171,7 @@ export function DriverComplianceTab({ driver }: DriverComplianceTabProps) {
             <div className="h-3 bg-muted rounded-full overflow-hidden">
               <div 
                 className={`h-full transition-all ${
-                  driver.documents_expired > 0 ? 'bg-yellow-500' :
+                  (driver.documents_expired || 0) > 0 ? 'bg-yellow-500' :
                   driverDocsProgress === 100 ? 'bg-green-500' :
                   driverDocsProgress >= 75 ? 'bg-blue-500' :
                   driverDocsProgress >= 50 ? 'bg-yellow-500' :
@@ -185,20 +184,20 @@ export function DriverComplianceTab({ driver }: DriverComplianceTabProps) {
 
           {/* Status */}
           <div className="pt-2">
-            {driver.documents_expired > 0 ? (
+            {(driver.documents_expired || 0) > 0 ? (
               <Badge variant="destructive" className="gap-2">
                 <AlertTriangle className="h-4 w-4" />
-                {driver.documents_expired} Expired - {validDocs}/{driver.documents_required} Valid
+                {driver.documents_expired || 0} Expired - {validDocs}/{driver.documents_required || 0} Valid
               </Badge>
             ) : missingDocs > 0 ? (
               <Badge variant="warning" className="gap-2">
                 <AlertTriangle className="h-4 w-4" />
-                {missingDocs} Missing - {validDocs}/{driver.documents_required} Valid
+                {missingDocs} Missing - {validDocs}/{driver.documents_required || 0} Valid
               </Badge>
             ) : (
               <Badge variant="success" className="gap-2">
                 <CheckCircle className="h-4 w-4" />
-                All Documents Valid ({validDocs}/{driver.documents_required})
+                All Documents Valid ({validDocs}/{driver.documents_required || 0})
               </Badge>
             )}
           </div>
@@ -358,7 +357,7 @@ export function DriverComplianceTab({ driver }: DriverComplianceTabProps) {
                   <span>Add a vehicle in Vehicles tab</span>
                 </div>
               )}
-              {(missingDocs > 0 || driver.documents_expired > 0) && (
+              {(missingDocs > 0 || (driver.documents_expired || 0) > 0) && (
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <ArrowRight className="h-4 w-4 text-red-500" />
                   <span>Review and approve documents in Documents tab</span>

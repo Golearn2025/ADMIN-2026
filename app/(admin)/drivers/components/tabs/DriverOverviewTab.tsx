@@ -61,18 +61,18 @@ export function DriverOverviewTab({ driver }: DriverOverviewTabProps) {
         <div className="space-y-3">
           <ComplianceItem
             label="Documents Required"
-            value={driver.documents_required}
+            value={driver.documents_required || 0}
             isIssue={false}
           />
           <ComplianceItem
             label="Documents Valid"
-            value={driver.documents_completed - driver.documents_expired}
+            value={(driver.documents_completed || 0) - (driver.documents_expired || 0)}
             isIssue={false}
           />
           <ComplianceItem
             label="Documents Expired"
-            value={driver.documents_expired}
-            isIssue={driver.documents_expired > 0}
+            value={driver.documents_expired || 0}
+            isIssue={(driver.documents_expired || 0) > 0}
           />
           <ComplianceItem
             label="Compliance Status"

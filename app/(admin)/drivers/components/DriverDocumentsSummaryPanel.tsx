@@ -8,9 +8,9 @@ interface DriverDocumentsSummaryPanelProps {
 }
 
 export function DriverDocumentsSummaryPanel({ driver }: DriverDocumentsSummaryPanelProps) {
-  const totalRequired = driver.documents_required;
-  const totalCompleted = driver.documents_completed;
-  const totalExpired = driver.documents_expired;
+  const totalRequired = driver.documents_required || 0;
+  const totalCompleted = driver.documents_completed || 0;
+  const totalExpired = driver.documents_expired || 0;
   const totalMissing = totalRequired - totalCompleted;
 
   const items = [

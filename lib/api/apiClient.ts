@@ -6,6 +6,7 @@
 
 export interface ApiFetchOptions extends RequestInit {
   // No organization header options - backend controls context
+  headers?: Record<string, string>;
 }
 
 export async function apiFetch(url: string, options: ApiFetchOptions = {}) {
