@@ -156,8 +156,8 @@ export const navConfig: NavGroup[] = [
         icon: Headphones,
       },
       {
-        title: "Pricing Calculator",
-        href: "/pricing-calculator",
+        title: "Prices",
+        href: "/prices",
         icon: Calculator,
       },
     ],
