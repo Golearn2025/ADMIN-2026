@@ -401,7 +401,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Forbidden – pricing admin only" }, { status: 403 });
     }
 
-    if (CREATABLE_TABLES.has(table) && !admin) {
+    const body = await request.json();
+    const table = String(body?.table || "");
+    const row = (body?.row && typeof body.row === "object" ? body.row : {}) as Record<string, unknown>;
+
+    if (!CREATABLE_TABLES.has(table)) {
+      return NextResponse.json({ error: "Table does not support create" }, { status: 400 });
+    }
+
+    if (GLOBAL_TABLES.has(table) && !admin) {
       return NextResponse.json(
         {
           error:
@@ -409,14 +417,6 @@ export async function POST(request: NextRequest) {
         },
         { status: 503 }
       );
-    }
-
-    const body = await request.json();
-    const table = String(body?.table || "");
-    const row = (body?.row && typeof body.row === "object" ? body.row : {}) as Record<string, unknown>;
-
-    if (!CREATABLE_TABLES.has(table)) {
-      return NextResponse.json({ error: "Table does not support create" }, { status: 400 });
     }
 
     let db = admin ?? supabase;
