@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getCurrentOrg } from "@/lib/auth/org";
+import { canManagePricing } from "@/lib/auth/pricing-access";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 const ALLOWED_TABLES = [
@@ -39,11 +40,47 @@ const GLOBAL_TABLES = new Set<string>([
   "service_item_payout_rules",
   "service_suppliers",
 ]);
+const CREATABLE_TABLES = new Set<string>([
+  "payout_escalation_tiers",
+  "service_suppliers",
+  "service_item_payout_rules",
+]);
+// Global tables that have no organization_id column (PATCH/POST select)
+const GLOBAL_NO_ORG_TABLES = new Set<string>([
+  "payout_escalation_tiers",
+  "service_items",
+  "service_suppliers",
+]);
 
 type AllowedTable = (typeof ALLOWED_TABLES)[number];
 
 function isAllowedTable(value: string): value is AllowedTable {
   return (ALLOWED_TABLES as readonly string[]).includes(value);
+}
+
+const IMMUTABLE_PATCH_COLUMNS = new Set([
+  "id",
+  "organization_id",
+  "created_at",
+  "updated_at",
+  "pricing_version_id",
+]);
+
+function pickUpdates(updates: Record<string, unknown>): Record<string, unknown> {
+  const payload: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(updates)) {
+    if (!IMMUTABLE_PATCH_COLUMNS.has(key)) {
+      payload[key] = value;
+    }
+  }
+  return payload;
+}
+
+function writeDb(admin: ReturnType<typeof createAdminClient>, table: string) {
+  if (GLOBAL_TABLES.has(table) && !admin) {
+    return null;
+  }
+  return admin ?? null;
 }
 
 export async function GET(request: NextRequest) {
@@ -244,19 +281,18 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: "Invalid update payload" }, { status: 400 });
     }
 
-    // Prevent sensitive/immutable columns from being edited by the UI payload.
-    const blockedColumns = new Set(["id", "organization_id", "created_at", "updated_at"]);
-    for (const key of Object.keys(updates)) {
-      if (blockedColumns.has(key)) {
-        delete updates[key];
-      }
+    const updatePayload = pickUpdates(updates as Record<string, unknown>);
+    if (Object.keys(updatePayload).length === 0) {
+      return NextResponse.json({ error: "No editable fields in update" }, { status: 400 });
     }
 
     let db = admin ?? supabase;
 
+    const selectCols = GLOBAL_NO_ORG_TABLES.has(table) ? "id" : "id, organization_id";
+
     let { data: existing, error: readError } = await db
       .from(table)
-      .select("id, organization_id")
+      .select(selectCols)
       .eq("id", id)
       .single();
 
@@ -267,7 +303,7 @@ export async function PATCH(request: NextRequest) {
         readError.message?.toLowerCase().includes("invalid apikey"))
     ) {
       db = supabase;
-      const retry = await db.from(table).select("id, organization_id").eq("id", id).single();
+      const retry = await db.from(table).select(selectCols).eq("id", id).single();
       existing = retry.data;
       readError = retry.error;
     }
@@ -280,20 +316,32 @@ export async function PATCH(request: NextRequest) {
     const { data: isSuperAdmin } = await supabase.rpc("get_user_super_admin_status", {
       user_id: user.id,
     });
+    const canManage = await canManagePricing(supabase, user.id, Boolean(isSuperAdmin));
 
-    if (GLOBAL_TABLES.has(table) && !isSuperAdmin) {
-      return NextResponse.json({ error: "Forbidden – super admin only" }, { status: 403 });
+    if (!canManage) {
+      return NextResponse.json({ error: "Forbidden – pricing admin only" }, { status: 403 });
     }
-    if (!GLOBAL_TABLES.has(table) && !isSuperAdmin && existing.organization_id !== currentOrgId) {
+    const existingOrgId = (existing as { organization_id?: string }).organization_id;
+    if (!GLOBAL_NO_ORG_TABLES.has(table) && !isSuperAdmin && existingOrgId !== currentOrgId) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    const updatePayload: Record<string, unknown> = { ...updates };
     if (table === "pricing_vehicle_rates") {
       updatePayload.updated_at = new Date().toISOString();
     }
 
-    let { data, error } = await db
+    const writeClient = writeDb(admin, table) ?? (GLOBAL_TABLES.has(table) ? null : supabase);
+    if (!writeClient) {
+      return NextResponse.json(
+        {
+          error:
+            "Server missing SUPABASE_SERVICE_ROLE_KEY — cannot save global pricing tables. Add the key in admin env.",
+        },
+        { status: 503 }
+      );
+    }
+
+    let { data, error } = await writeClient
       .from(table)
       .update(updatePayload)
       .eq("id", id)
@@ -302,6 +350,7 @@ export async function PATCH(request: NextRequest) {
 
     if (
       error &&
+      writeClient === admin &&
       admin &&
       (error.message?.toLowerCase().includes("invalid api key") ||
         error.message?.toLowerCase().includes("invalid apikey"))
@@ -318,12 +367,137 @@ export async function PATCH(request: NextRequest) {
 
     if (error) {
       console.error("Pricing update failed:", error);
-      return NextResponse.json({ error: "Failed to update pricing row" }, { status: 500 });
+      return NextResponse.json(
+        { error: error.message || "Failed to update pricing row" },
+        { status: 500 }
+      );
     }
 
     return NextResponse.json({ row: data });
   } catch (error) {
     console.error("Error in pricing PATCH:", error);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  }
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    const supabase = await createClient();
+    const admin = createAdminClient();
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
+
+    if (!user || authError) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const { data: isSuperAdmin } = await supabase.rpc("get_user_super_admin_status", {
+      user_id: user.id,
+    });
+    const canManage = await canManagePricing(supabase, user.id, Boolean(isSuperAdmin));
+    if (!canManage) {
+      return NextResponse.json({ error: "Forbidden – pricing admin only" }, { status: 403 });
+    }
+
+    if (CREATABLE_TABLES.has(table) && !admin) {
+      return NextResponse.json(
+        {
+          error:
+            "Server missing SUPABASE_SERVICE_ROLE_KEY — cannot create rows. Add the key in admin env.",
+        },
+        { status: 503 }
+      );
+    }
+
+    const body = await request.json();
+    const table = String(body?.table || "");
+    const row = (body?.row && typeof body.row === "object" ? body.row : {}) as Record<string, unknown>;
+
+    if (!CREATABLE_TABLES.has(table)) {
+      return NextResponse.json({ error: "Table does not support create" }, { status: 400 });
+    }
+
+    let db = admin ?? supabase;
+    let insertPayload: Record<string, unknown> = {};
+
+    if (table === "payout_escalation_tiers") {
+      let versionId = String(body?.pricing_version_id || "");
+      if (!versionId) {
+        const { data: activeVersion } = await db
+          .from("pricing_versions")
+          .select("id")
+          .eq("is_active", true)
+          .maybeSingle();
+        versionId = activeVersion?.id ?? "";
+      }
+      if (!versionId) {
+        return NextResponse.json({ error: "No active pricing version" }, { status: 400 });
+      }
+      insertPayload = {
+        pricing_version_id: versionId,
+        label: row.label ?? "New tier",
+        min_hours_before_job: row.min_hours_before_job ?? 0,
+        max_hours_before_job: row.max_hours_before_job ?? null,
+        driver_payout_factor: row.driver_payout_factor ?? 0.5,
+        sort_order: row.sort_order ?? 0,
+        is_active: row.is_active ?? true,
+      };
+    } else if (table === "service_suppliers") {
+      const serviceItemId = String(row.service_item_id || "flowers-standard");
+      if (row.is_default === true) {
+        await db
+          .from("service_suppliers")
+          .update({ is_default: false })
+          .eq("service_item_id", serviceItemId);
+      }
+      insertPayload = {
+        service_item_id: serviceItemId,
+        name: row.name ?? "New supplier",
+        address: row.address ?? null,
+        phone: row.phone ?? null,
+        pickup_instructions: row.pickup_instructions ?? null,
+        is_default: row.is_default ?? false,
+        is_active: row.is_active ?? true,
+      };
+    } else if (table === "service_item_payout_rules") {
+      const currentOrgId = await getCurrentOrg(supabase, user.id);
+      if (!currentOrgId) {
+        return NextResponse.json({ error: "No organization context" }, { status: 400 });
+      }
+      insertPayload = {
+        organization_id: currentOrgId,
+        service_item_id: row.service_item_id ?? "flowers-standard",
+        recipient_type: "driver",
+        payout_mode: row.payout_mode ?? "fixed",
+        payout_value: row.payout_value ?? 2000,
+        currency: row.currency ?? "GBP",
+        is_active: row.is_active ?? true,
+      };
+    }
+
+    let { data, error } = await db.from(table).insert(insertPayload).select("*").single();
+
+    if (
+      error &&
+      admin &&
+      (error.message?.toLowerCase().includes("invalid api key") ||
+        error.message?.toLowerCase().includes("invalid apikey"))
+    ) {
+      const retry = await supabase.from(table).insert(insertPayload).select("*").single();
+      data = retry.data;
+      error = retry.error;
+    }
+
+    if (error) {
+      console.error("Pricing create failed:", error);
+      return NextResponse.json({ error: error.message || "Failed to create row" }, { status: 500 });
+    }
+
+    return NextResponse.json({ row: data });
+  } catch (error) {
+    console.error("Error in pricing POST:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }

@@ -15,6 +15,7 @@ import {
   MapPin,
   Percent,
   Plane,
+  Plus,
   RefreshCw,
   RotateCcw,
   Save,
@@ -111,7 +112,7 @@ const COLS: Record<string, ColDef[]> = {
   ],
   pricing_rounding_rules: [
     { key: "rounding_step_pence", label: "Step (£)", type: "pence", width: "132px" },
-    { key: "rounding_mode", label: "Mode", type: "text", width: "120px" },
+    { key: "rounding_mode", label: "Mode (ceil/floor/nearest)", type: "text", width: "180px" },
   ],
   pricing_commission_profiles: [
     { key: "platform_fee_percent", label: "Platform %", type: "number", width: "120px" },
@@ -142,7 +143,7 @@ const COLS: Record<string, ColDef[]> = {
     { key: "is_active",        label: "Active",        type: "boolean",  width: "80px" },
   ],
   service_suppliers: [
-    { key: "service_item_id",      label: "Service",       type: "readonly", width: "180px" },
+    { key: "service_item_id",      label: "Service ID",    type: "text",     width: "180px" },
     { key: "name",                 label: "Supplier name", type: "text",     width: "200px" },
     { key: "address",              label: "Address",       type: "text",     width: "260px" },
     { key: "phone",                label: "Phone",         type: "text",     width: "160px" },
@@ -181,6 +182,12 @@ const TABS = [
   { key: "service_item_payout_rules", label: "Driver Bonuses", icon: BadgeDollarSign },
   { key: "service_suppliers", label: "Suppliers", icon: Building2 },
 ] as const;
+
+const CREATABLE_TABLES = new Set<string>([
+  "payout_escalation_tiers",
+  "service_suppliers",
+  "service_item_payout_rules",
+]);
 
 const BOOKING_TYPE_ORDER: Record<string, number> = {
   oneway: 1,
@@ -319,16 +326,21 @@ function PricingTable({
   rows,
   cols,
   onSave,
+  onCreate,
+  creating,
 }: {
   table: string;
   rows: Row[];
   cols: ColDef[];
   onSave: (table: string, id: string, updates: Row) => Promise<void>;
+  onCreate?: () => Promise<void>;
+  creating?: boolean;
 }) {
   const [localRows, setLocalRows] = useState<Row[]>(rows);
   const [dirty, setDirty] = useState<Set<string>>(new Set());
   const [saving, setSaving] = useState<string | null>(null);
   const [saved, setSaved] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [draftValues, setDraftValues] = useState<Record<string, string>>({});
 
   const getDraftKey = (id: string, colKey: string) => `${id}:${colKey}`;
@@ -382,16 +394,18 @@ function PricingTable({
     const id = String(row.id ?? "");
     if (!id) return;
     setSaving(id);
+    setSaveError(null);
     try {
-      const updates = { ...row };
-      // Apply any pending drafts before save, especially pence fields.
+      const updates: Row = {};
       for (const col of cols) {
+        if (col.type === "readonly") continue;
         const draftKey = getDraftKey(id, col.key);
-        if (draftValues[draftKey] !== undefined) {
-          updates[col.key] = parseValue(col, draftValues[draftKey]);
-        }
+        const raw =
+          draftValues[draftKey] !== undefined
+            ? draftValues[draftKey]
+            : getDisplayValue(col, row[col.key]);
+        updates[col.key] = parseValue(col, raw);
       }
-      delete updates.id;
       await onSave(table, id, updates);
       setDirty((prev) => {
         const next = new Set(prev);
@@ -407,6 +421,9 @@ function PricingTable({
       });
       setSaved(id);
       setTimeout(() => setSaved(null), 2000);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Save failed";
+      setSaveError(msg);
     } finally {
       setSaving(null);
     }
@@ -418,13 +435,31 @@ function PricingTable({
         <div className="rounded-full bg-muted p-4 mb-3">
           <SlidersHorizontal className="h-6 w-6 text-muted-foreground" />
         </div>
-        <p className="text-sm font-medium text-foreground">No rows found</p>
-        <p className="text-xs text-muted-foreground mt-1">No pricing data for the current organization.</p>
+        <p className="text-sm font-medium text-foreground">No rows yet</p>
+        <p className="text-xs text-muted-foreground mt-1 mb-4">
+          {onCreate ? "Add your first row below." : "No data for this section."}
+        </p>
+        {onCreate && (
+          <Button size="sm" onClick={onCreate} disabled={creating}>
+            {creating ? (
+              <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+            ) : (
+              <Plus className="h-4 w-4 mr-2" />
+            )}
+            Add row
+          </Button>
+        )}
       </div>
     );
   }
 
   return (
+    <div className="space-y-2">
+      {saveError && (
+        <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-2 text-sm text-red-400">
+          {saveError}
+        </div>
+      )}
     <div className="rounded-xl border border-border bg-card overflow-hidden">
       {/* header row */}
       <div className="flex items-center border-b border-border bg-muted/30">
@@ -544,6 +579,7 @@ function PricingTable({
         })}
       </div>
     </div>
+    </div>
   );
 }
 
@@ -558,6 +594,8 @@ export default function PricesPage() {
   const [versionsFilter, setVersionsFilter] = useState<"active" | "inactive" | "all">("active");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [creatingTable, setCreatingTable] = useState<string | null>(null);
+  const [activeVersionId, setActiveVersionId] = useState<string>("");
 
   const fetchPricing = useCallback(async () => {
     setLoading(true);
@@ -572,6 +610,9 @@ export default function PricesPage() {
       setPricing(normalizePricingData(data.pricing || {}));
       const apiVersions: PricingVersion[] = data.available_versions || [];
       setVersions(apiVersions);
+      if (data.active_pricing_version_id) {
+        setActiveVersionId(data.active_pricing_version_id);
+      }
       if (!selectedVersionId && data.active_pricing_version_id) {
         setSelectedVersionId(data.active_pricing_version_id);
       }
@@ -594,15 +635,36 @@ export default function PricesPage() {
     const data = await res.json();
     if (!res.ok) throw new Error(data?.error || "Save failed");
 
-    // update local state so refresh isn't needed
+    const savedRow = (data.row as Row) || updates;
     setPricing((prev) => ({
       ...prev,
       [table]: sortPricingRows(
         table,
-        (prev[table] || []).map((r) => (String(r.id) === id ? { ...r, ...updates } : r))
+        (prev[table] || []).map((r) => (String(r.id) === id ? { ...r, ...savedRow } : r))
       ),
     }));
   }, []);
+
+  const handleCreate = useCallback(
+    async (table: string) => {
+      setCreatingTable(table);
+      try {
+        const res = await apiFetch("/api/admin/pricing", {
+          method: "POST",
+          body: JSON.stringify({
+            table,
+            pricing_version_id: selectedVersionId || activeVersionId || undefined,
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data?.error || "Create failed");
+        await fetchPricing();
+      } finally {
+        setCreatingTable(null);
+      }
+    },
+    [selectedVersionId, activeVersionId, fetchPricing]
+  );
 
   // count of visible (non-null) rows per tab
   const rowCount = (key: string) => (pricing[key] || []).length;
@@ -793,9 +855,37 @@ export default function PricesPage() {
                           {rows.filter((r) => r.active === true).length} active
                         </Badge>
                       )}
+                      {CREATABLE_TABLES.has(key) && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-8"
+                          disabled={creatingTable === key}
+                          onClick={() => handleCreate(key)}
+                        >
+                          {creatingTable === key ? (
+                            <RefreshCw className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+                          ) : (
+                            <Plus className="h-3.5 w-3.5 mr-1.5" />
+                          )}
+                          Add row
+                        </Button>
+                      )}
                     </div>
                   </div>
-                  <PricingTable table={key} rows={rows} cols={cols} onSave={handleSave} />
+                  {key === "payout_escalation_tiers" && (
+                    <p className="text-xs text-muted-foreground mb-3 -mt-2">
+                      Driver payout rounds up to the nearest £1 in the driver app (same as client rounding).
+                    </p>
+                  )}
+                  <PricingTable
+                    table={key}
+                    rows={rows}
+                    cols={cols}
+                    onSave={handleSave}
+                    onCreate={CREATABLE_TABLES.has(key) ? () => handleCreate(key) : undefined}
+                    creating={creatingTable === key}
+                  />
                 </TabsContent>
               );
             })}
