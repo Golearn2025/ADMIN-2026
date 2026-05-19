@@ -15,6 +15,12 @@ const ALLOWED_TABLES = [
   "pricing_fleet_discounts",
   "pricing_rounding_rules",
   "pricing_commission_profiles",
+  // Driver payout tiers (global — no organization_id)
+  "payout_escalation_tiers",
+  // Extra services (global — no organization_id)
+  "service_items",
+  "service_item_payout_rules",
+  "service_suppliers",
 ] as const;
 const VERSIONED_TABLES = new Set<string>([
   "pricing_vehicle_rates",
@@ -24,6 +30,14 @@ const VERSIONED_TABLES = new Set<string>([
   "pricing_airport_fees",
   "pricing_zone_fees",
   "pricing_rounding_rules",
+  "payout_escalation_tiers",
+]);
+// Tables without organization_id column — skip org filter in GET, super-admin only in PATCH
+const GLOBAL_TABLES = new Set<string>([
+  "payout_escalation_tiers",
+  "service_items",
+  "service_item_payout_rules",
+  "service_suppliers",
 ]);
 
 type AllowedTable = (typeof ALLOWED_TABLES)[number];
@@ -127,7 +141,7 @@ export async function GET(request: NextRequest) {
       const db = admin && !adminKeyInvalid ? admin : supabase;
       let query = db.from(table).select("*");
 
-      if (orgId) {
+      if (orgId && !GLOBAL_TABLES.has(table)) {
         query = query.eq("organization_id", orgId);
       }
       if (activePricingVersionId && VERSIONED_TABLES.has(table)) {
@@ -152,8 +166,8 @@ export async function GET(request: NextRequest) {
           reason: fallbackReason,
           fallback_org_scope: orgId,
         });
-        let fallbackQuery = supabase.from(table).select("*");
-        if (orgId) {
+          let fallbackQuery = supabase.from(table).select("*");
+        if (orgId && !GLOBAL_TABLES.has(table)) {
           fallbackQuery = fallbackQuery.eq("organization_id", orgId);
         }
         if (activePricingVersionId && VERSIONED_TABLES.has(table)) {
@@ -267,7 +281,10 @@ export async function PATCH(request: NextRequest) {
       user_id: user.id,
     });
 
-    if (!isSuperAdmin && existing.organization_id !== currentOrgId) {
+    if (GLOBAL_TABLES.has(table) && !isSuperAdmin) {
+      return NextResponse.json({ error: "Forbidden – super admin only" }, { status: 403 });
+    }
+    if (!GLOBAL_TABLES.has(table) && !isSuperAdmin && existing.organization_id !== currentOrgId) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 

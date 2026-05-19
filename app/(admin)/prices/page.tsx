@@ -21,7 +21,11 @@ import {
   SlidersHorizontal,
   Tag,
   Timer,
+  TrendingUp,
   Users,
+  Sparkles,
+  Building2,
+  BadgeDollarSign,
 } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -114,6 +118,38 @@ const COLS: Record<string, ColDef[]> = {
     { key: "operator_fee_percent", label: "Operator %", type: "number", width: "120px" },
     { key: "active", label: "Active", type: "boolean", width: "72px" },
   ],
+  payout_escalation_tiers: [
+    { key: "label",                  label: "Label",          type: "text",    width: "200px" },
+    { key: "min_hours_before_job",   label: "Min hours",      type: "number",  width: "110px" },
+    { key: "max_hours_before_job",   label: "Max hours",      type: "number",  width: "110px" },
+    { key: "driver_payout_factor",   label: "Factor (0-1)",   type: "number",  width: "130px" },
+    { key: "sort_order",             label: "Order",          type: "number",  width: "80px" },
+    { key: "is_active",              label: "Active",         type: "boolean", width: "80px" },
+  ],
+  service_items: [
+    { key: "id",            label: "ID",            type: "readonly", width: "200px" },
+    { key: "name",          label: "Name",          type: "text",     width: "220px" },
+    { key: "price_pence",   label: "Client price",  type: "pence",    width: "140px" },
+    { key: "item_group",    label: "Group",         type: "text",     width: "140px" },
+    { key: "display_order", label: "Order",         type: "number",   width: "80px" },
+    { key: "is_active",     label: "Active",        type: "boolean",  width: "80px" },
+  ],
+  service_item_payout_rules: [
+    { key: "service_item_id",  label: "Service",       type: "readonly", width: "200px" },
+    { key: "recipient_type",   label: "Recipient",     type: "readonly", width: "110px" },
+    { key: "payout_mode",      label: "Mode",          type: "text",     width: "110px" },
+    { key: "payout_value",     label: "Bonus (£)",     type: "pence",    width: "130px" },
+    { key: "is_active",        label: "Active",        type: "boolean",  width: "80px" },
+  ],
+  service_suppliers: [
+    { key: "service_item_id",      label: "Service",       type: "readonly", width: "180px" },
+    { key: "name",                 label: "Supplier name", type: "text",     width: "200px" },
+    { key: "address",              label: "Address",       type: "text",     width: "260px" },
+    { key: "phone",                label: "Phone",         type: "text",     width: "160px" },
+    { key: "pickup_instructions",  label: "Instructions",  type: "text",     width: "320px" },
+    { key: "is_default",           label: "Default",       type: "boolean",  width: "80px" },
+    { key: "is_active",            label: "Active",        type: "boolean",  width: "80px" },
+  ],
   pricing_versions: [
     { key: "version_name", label: "Name", type: "text", width: "160px" },
     { key: "version_number", label: "Ver.", type: "number", width: "55px" },
@@ -138,6 +174,12 @@ const TABS = [
   { key: "pricing_rounding_rules", label: "Rounding", icon: SlidersHorizontal },
   { key: "pricing_commission_profiles", label: "Commission", icon: Percent },
   { key: "pricing_versions", label: "Versions", icon: Tag },
+  // Driver payout tiers
+  { key: "payout_escalation_tiers", label: "Driver Tiers", icon: TrendingUp },
+  // Extra services
+  { key: "service_items", label: "Extras Items", icon: Sparkles },
+  { key: "service_item_payout_rules", label: "Driver Bonuses", icon: BadgeDollarSign },
+  { key: "service_suppliers", label: "Suppliers", icon: Building2 },
 ] as const;
 
 const BOOKING_TYPE_ORDER: Record<string, number> = {
