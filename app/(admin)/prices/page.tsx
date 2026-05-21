@@ -13,9 +13,9 @@ import {
   Check,
   Clock,
   MapPin,
-  Percent,
   Plane,
   Plus,
+  Receipt,
   RefreshCw,
   RotateCcw,
   Save,
@@ -28,6 +28,7 @@ import {
   Building2,
   BadgeDollarSign,
 } from "lucide-react";
+import { OrganizationBillingPanel } from "@/components/pricing/OrganizationBillingPanel";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -164,6 +165,7 @@ const COLS: Record<string, ColDef[]> = {
 };
 
 const TABS = [
+  { key: "organization_billing", label: "VAT & Commission", icon: Receipt },
   { key: "pricing_vehicle_rates", label: "Vehicle Rates", icon: Car },
   { key: "pricing_time_rules", label: "Time Rules", icon: Clock },
   { key: "pricing_airport_fees", label: "Airport Fees", icon: Plane },
@@ -173,7 +175,6 @@ const TABS = [
   { key: "pricing_return_rules", label: "Return", icon: RotateCcw },
   { key: "pricing_fleet_discounts", label: "Fleet", icon: Users },
   { key: "pricing_rounding_rules", label: "Rounding", icon: SlidersHorizontal },
-  { key: "pricing_commission_profiles", label: "Commission", icon: Percent },
   { key: "pricing_versions", label: "Versions", icon: Tag },
   // Driver payout tiers
   { key: "payout_escalation_tiers", label: "Driver Tiers", icon: TrendingUp },
@@ -731,7 +732,7 @@ export default function PricesPage() {
           </div>
         </div>
       ) : (
-        <Tabs defaultValue="pricing_vehicle_rates" className="flex flex-col flex-1 min-h-0">
+        <Tabs defaultValue="organization_billing" className="flex flex-col flex-1 min-h-0">
           {/* ── tab strip ── */}
           <div className="border-b border-border px-8 pt-3 bg-card">
             <TabsList className="h-auto bg-transparent p-0 gap-0.5 border-none flex-wrap">
@@ -759,6 +760,18 @@ export default function PricesPage() {
           {/* ── tab content ── */}
           <div className="flex-1 overflow-auto px-8 py-6">
             {TABS.map(({ key }) => {
+              if (key === "organization_billing") {
+                return (
+                  <TabsContent
+                    key={key}
+                    value={key}
+                    className="mt-0 focus-visible:outline-none"
+                  >
+                    <OrganizationBillingPanel />
+                  </TabsContent>
+                );
+              }
+
               let rows = pricing[key] || [];
               if (key === "pricing_vehicle_rates") {
                 rows = rows.filter((row) => {
