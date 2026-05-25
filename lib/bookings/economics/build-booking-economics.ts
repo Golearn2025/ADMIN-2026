@@ -1,4 +1,5 @@
 import type { BookingEconomicsResponse, EconomicsLegMarketplace } from "./types";
+import { buildPricingEngineBreakdown } from "./extract-pricing-engine-breakdown";
 
 type AcceptanceSnapshot = {
   payout_pence?: number;
@@ -271,5 +272,6 @@ export function buildBookingEconomics(input: {
     driverMarketplace,
     accountingSnapshot,
     operationalEstimate,
+    pricingEngine: buildPricingEngineBreakdown({ quote, legFinancials }),
   };
 }

@@ -1,5 +1,9 @@
 /** Read-only booking economics DTO — values come from DB as stored, no recalculation. */
 
+import type { PricingEngineBreakdown } from "./extract-pricing-engine-breakdown";
+
+export type { PricingEngineBreakdown };
+
 export type EconomicsMoneyField = {
   pence: number | null;
   label: string;
@@ -56,4 +60,5 @@ export type BookingEconomicsResponse = {
     estimatedOperatingProfitPence: number | null;
     missingReason?: string;
   };
+  pricingEngine: PricingEngineBreakdown;
 };
