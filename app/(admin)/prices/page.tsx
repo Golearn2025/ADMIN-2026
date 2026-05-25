@@ -91,6 +91,8 @@ const COLS: Record<string, ColDef[]> = {
   ],
   pricing_daily_rules: [
     { key: "vehicle_category_id", label: "Vehicle", type: "readonly", width: "120px" },
+    { key: "minimum_days", label: "Minimum Days", type: "number", width: "100px" },
+    { key: "maximum_days", label: "Maximum Days", type: "number", width: "100px" },
     { key: "included_hours", label: "Incl. hrs", type: "number", width: "84px" },
     { key: "extra_hour_rate_pence", label: "Extra hr rate", type: "pence", width: "150px" },
     { key: "included_miles", label: "Incl. mi", type: "number", width: "84px" },

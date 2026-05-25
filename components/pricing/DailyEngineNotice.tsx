@@ -14,11 +14,11 @@ export function DailyEngineNotice({ variant = "rules" }: { variant?: "rules" | "
         </p>
       ) : (
         <p>
-          <span className="font-semibold text-amber-400">Daily rules tab:</span> fields below are stored in{" "}
-          <span className="font-mono">pricing_daily_rules</span> but are{" "}
-          <span className="font-semibold">not applied</span> by{" "}
-          <span className="font-mono">FeeCalculators.calculateDailyFee()</span>. Client price = days ×{" "}
-          <span className="font-mono">daily_rate_pence</span> (Vehicle Rates).
+          <span className="font-semibold text-amber-400">Daily rules tab:</span>{" "}
+          <span className="font-mono">minimum_days</span> / <span className="font-mono">maximum_days</span> and{" "}
+          <span className="font-mono">included_hours</span> are used by the quote engine. Package price (£/day) is on{" "}
+          <span className="font-semibold">Vehicle Rates</span> (<span className="font-mono">daily_rate_pence</span>).
+          Extra hour/mile fields below are stored but not yet billed.
         </p>
       )}
       <ul className="list-disc pl-4 space-y-0.5 text-muted-foreground">

@@ -6,7 +6,8 @@
 
 ```
 days = request.days || 1
-transport_net = days × (daily_rate_pence / 100)   // from pricing_vehicle_rates, booking_type=daily
+billable_days = clamp(days, minimum_days, maximum_days)   // from pricing_daily_rules
+transport_net = billable_days × (daily_rate_pence / 100)   // from pricing_vehicle_rates, booking_type=daily
 → applyMultipliers (pricing_time_rules)
 → applyDiscounts (corporate — usually inactive)
 → max(transport, minimum_fare_pence / 100)
@@ -21,6 +22,9 @@ transport_net = days × (daily_rate_pence / 100)   // from pricing_vehicle_rates
 | `pricing_vehicle_rates` | `daily_rate_pence` | **Primary SSOT — £/day package** |
 | `pricing_vehicle_rates` | `minimum_fare_pence` | Floor after multipliers |
 | `pricing_vehicle_rates` | `booking_type` | Must be `daily` or `fleet_daily` |
+| `pricing_daily_rules` | `minimum_days` | Minimum billable days (engine clamp) |
+| `pricing_daily_rules` | `maximum_days` | Maximum billable days (engine clamp) |
+| `pricing_daily_rules` | `included_hours` | Breakdown description text |
 | `organization_settings` | `vat_rate` | Applied after net total |
 
 ## DB columns NOT used by engine (admin may still show them)
