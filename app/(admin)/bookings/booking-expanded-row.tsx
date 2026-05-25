@@ -1,3 +1,4 @@
+import { BookingEconomicsPanel } from "@/components/bookings/economics";
 import { AdditionalStopsSection } from "@/components/bookings/expanded-details/additional-stops-section";
 import { FlightInfoSection } from "@/components/bookings/expanded-details/flight-info-section";
 import { NotesSection } from "@/components/bookings/expanded-details/notes-section";
@@ -10,6 +11,7 @@ import { BookingDetailsBar } from "./booking-details-bar";
 import { FleetSlotsTable } from "./fleet-slots-table";
 import { ReturnLegsTable } from "./return-legs-table";
 import type { Booking } from "./types";
+import type { BookingEconomicsResponse } from "@/lib/bookings/economics/types";
 
 interface BookingExpandedRowProps {
   booking: Booking;
@@ -73,6 +75,8 @@ export function BookingExpandedRow({ booking }: BookingExpandedRowProps) {
   const [slots, setSlots] = useState<FleetSlot[]>([]);
   const [extras, setExtras] = useState<BookingExtras | null>(null);
   const [payments, setPayments] = useState<Payment[]>([]);
+  const [economics, setEconomics] = useState<BookingEconomicsResponse | null>(null);
+  const [economicsError, setEconomicsError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingDetails, setIsLoadingDetails] = useState(false);
 
@@ -133,11 +137,14 @@ export function BookingExpandedRow({ booking }: BookingExpandedRowProps) {
     const fetchDetails = async () => {
       setIsLoadingDetails(true);
       try {
-        const [extrasRes, paymentsRes] = await Promise.all([
+        const [extrasRes, paymentsRes, economicsRes] = await Promise.all([
           fetch(`/api/admin/bookings/${booking.id}/extras`, {
             signal: controller.signal,
           }),
           fetch(`/api/admin/bookings/${booking.id}/payments`, {
+            signal: controller.signal,
+          }),
+          fetch(`/api/admin/bookings/${booking.id}/economics`, {
             signal: controller.signal,
           }),
         ]);
@@ -150,6 +157,18 @@ export function BookingExpandedRow({ booking }: BookingExpandedRowProps) {
         if (paymentsRes.ok) {
           const paymentsData = await paymentsRes.json();
           setPayments(paymentsData || []);
+        }
+
+        if (economicsRes.ok) {
+          const economicsData = (await economicsRes.json()) as BookingEconomicsResponse;
+          setEconomics(economicsData);
+          setEconomicsError(null);
+        } else {
+          const errBody = await economicsRes.json().catch(() => ({}));
+          setEconomics(null);
+          setEconomicsError(
+            typeof errBody?.error === "string" ? errBody.error : "Failed to load booking economics"
+          );
         }
       } catch (error) {
         if (error instanceof Error && error.name !== "AbortError") {
@@ -231,7 +250,16 @@ export function BookingExpandedRow({ booking }: BookingExpandedRowProps) {
               />
             </div>
 
-            {/* Row 2: Payments full width */}
+            {/* Row 2: Booking economics full width */}
+            <div className="md:col-span-6 bg-card border border-border/50 rounded-lg p-3 shadow-sm">
+              <BookingEconomicsPanel
+                data={economics}
+                loading={isLoadingDetails}
+                error={economicsError}
+              />
+            </div>
+
+            {/* Row 3: Payments full width */}
             <div className="md:col-span-6 bg-card border border-border/50 rounded-lg p-3 shadow-sm">
               <PaymentsHistorySection payments={payments} />
             </div>
@@ -245,9 +273,17 @@ export function BookingExpandedRow({ booking }: BookingExpandedRowProps) {
             </div>
           </div>
         ) : (
-          <p className="text-xs text-muted-foreground text-center py-2">
-            Unable to load booking details
-          </p>
+          <div className="space-y-3">
+            <p className="text-xs text-muted-foreground text-center py-2">
+              Unable to load booking extras
+            </p>
+            <div className="bg-card border border-border/50 rounded-lg p-3 shadow-sm">
+              <BookingEconomicsPanel data={economics} loading={false} error={economicsError} />
+            </div>
+            <div className="bg-card border border-border/50 rounded-lg p-3 shadow-sm">
+              <PaymentsHistorySection payments={payments} />
+            </div>
+          </div>
         )}
       </div>
     </div>
