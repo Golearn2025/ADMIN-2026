@@ -1,15 +1,14 @@
 "use client";
 
+import {
+  computeVatPreviewFromNetPounds,
+  formatPenceGBP,
+  parseNetPoundsInput,
+} from "@/components/pricing/pricingVatPreview";
+
 /**
- * UI-only VAT preview for admin pricing fields (does not affect backend calculations).
+ * UI-only VAT preview under NET pricing inputs (admin). Does not change saved values or engine math.
  */
-
-function parseNetPence(input: string): number | null {
-  const n = parseFloat(input.replace(/,/g, ""));
-  if (Number.isNaN(n) || n < 0) return null;
-  return Math.round(n * 100);
-}
-
 export function PenceWithVatPreview({
   netInput,
   vatRatePercent,
@@ -19,29 +18,40 @@ export function PenceWithVatPreview({
   vatRatePercent: number;
   className?: string;
 }) {
-  if (!vatRatePercent || vatRatePercent <= 0) return null;
+  const netPounds = parseNetPoundsInput(netInput);
+  if (netPounds === null) return null;
 
-  const netPence = parseNetPence(netInput);
-  if (netPence === null) return null;
+  if (!vatRatePercent || vatRatePercent <= 0) {
+    return (
+      <p className={`mt-1.5 text-[10px] text-muted-foreground ${className}`}>
+        NET {formatPenceGBP(Math.round(netPounds * 100))} — set VAT % under{" "}
+        <span className="font-medium">VAT &amp; Commission</span> to see website price.
+      </p>
+    );
+  }
 
-  const vatPence = Math.round(netPence * (vatRatePercent / 100));
-  const grossPence = netPence + vatPence;
-
-  const fmt = (p: number) => `£${(p / 100).toFixed(2)}`;
+  const preview = computeVatPreviewFromNetPounds(netPounds, vatRatePercent);
+  if (!preview) return null;
 
   return (
-    <div className={`mt-1 space-y-0.5 text-[10px] leading-tight text-muted-foreground ${className}`}>
-      <div className="flex flex-wrap gap-x-2 gap-y-0">
-        <span>
-          <span className="text-foreground/70">NET</span> {fmt(netPence)}
-        </span>
-        <span>
-          <span className="text-foreground/70">VAT {vatRatePercent}%</span> {fmt(vatPence)}
-        </span>
-        <span className="font-medium text-primary">
-          <span className="text-primary/80">FINAL WEBSITE PRICE</span> {fmt(grossPence)}
-        </span>
-      </div>
+    <div
+      className={`mt-1.5 rounded-md border border-border/50 bg-muted/25 px-2 py-1.5 space-y-0.5 text-[10px] leading-snug ${className}`}
+      aria-live="polite"
+    >
+      <p className="text-muted-foreground">
+        <span className="font-medium text-foreground/80">NET</span>{" "}
+        <span className="font-mono text-foreground">{formatPenceGBP(preview.netPence)}</span>
+      </p>
+      <p className="text-muted-foreground">
+        <span className="font-medium text-foreground/80">VAT</span>{" "}
+        <span className="font-mono text-foreground">{formatPenceGBP(preview.vatPence)}</span>
+        <span className="text-muted-foreground/80"> ({vatRatePercent}%)</span>
+      </p>
+      <p className="font-medium text-primary">
+        <span className="text-primary/90">FINAL WEBSITE PRICE</span>{" "}
+        <span className="font-mono">{formatPenceGBP(preview.grossPence)}</span>
+        <span className="font-normal text-primary/80"> incl. VAT</span>
+      </p>
     </div>
   );
 }

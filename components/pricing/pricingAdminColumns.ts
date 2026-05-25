@@ -79,16 +79,19 @@ export function isColApplicableToBookingType(colKey: string, bookingType: string
   return true;
 }
 
+/** Match PENCE_COLUMN_MIN_WIDTH in pricingVatPreview.ts for VAT helper layout */
+const PENCE_W = "172px";
+
 export const VEHICLE_RATE_COLS: ColDef[] = [
   { key: "vehicle_category_id", label: "Vehicle", type: "readonly", width: "145px" },
   { key: "booking_type", label: "Type", type: "readonly", width: "130px" },
-  { key: "base_fare_pence", label: "Base fare", type: "pence", width: "150px" },
-  { key: "per_mile_first_6_pence", label: "£/mi 1–6", type: "pence", width: "146px" },
-  { key: "per_mile_after_6_pence", label: "£/mi 6+", type: "pence", width: "146px" },
-  { key: "per_minute_pence", label: "£/min", type: "pence", width: "132px" },
-  { key: "hourly_rate_pence", label: "Hourly rate (£/hr)", type: "pence", width: "160px" },
-  { key: "daily_rate_pence", label: "Daily Package Price", type: "pence", width: "180px" },
-  { key: "minimum_fare_pence", label: "Min fare", type: "pence", width: "146px" },
+  { key: "base_fare_pence", label: "Base fare (NET)", type: "pence", width: PENCE_W },
+  { key: "per_mile_first_6_pence", label: "£/mi 1–6 (NET)", type: "pence", width: PENCE_W },
+  { key: "per_mile_after_6_pence", label: "£/mi 6+ (NET)", type: "pence", width: PENCE_W },
+  { key: "per_minute_pence", label: "£/min (NET)", type: "pence", width: PENCE_W },
+  { key: "hourly_rate_pence", label: "Hourly rate (NET)", type: "pence", width: PENCE_W },
+  { key: "daily_rate_pence", label: "Daily Package (NET)", type: "pence", width: PENCE_W },
+  { key: "minimum_fare_pence", label: "Min fare (NET)", type: "pence", width: PENCE_W },
   { key: "active", label: "Active", type: "boolean", width: "90px" },
 ];
 
@@ -107,12 +110,16 @@ export function getColsForVehicleRateRows(rows: { booking_type?: unknown }[], al
   );
 }
 
-/** Tables that show £ fields with VAT preview in admin. */
-/** Tabs with £ fields that show NET / VAT / FINAL WEBSITE PRICE under inputs. Hourly £/hr lives on Vehicle Rates. */
+/** @deprecated Use hasPenceColumns(cols) — any tab with type:"pence" columns shows VAT preview automatically. */
 export const VAT_PREVIEW_TABLES = new Set([
   "pricing_vehicle_rates",
+  "pricing_hourly_rules",
   "pricing_daily_rules",
   "pricing_airport_fees",
   "pricing_zone_fees",
+  "pricing_fleet_discounts",
   "service_items",
+  "service_item_payout_rules",
+  "pricing_versions",
+  "pricing_rounding_rules",
 ]);

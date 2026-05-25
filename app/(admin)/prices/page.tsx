@@ -30,6 +30,7 @@ import {
 } from "lucide-react";
 import { OrganizationBillingPanel } from "@/components/pricing/OrganizationBillingPanel";
 import { PenceWithVatPreview } from "@/components/pricing/PenceWithVatPreview";
+import { PricingVatBanner } from "@/components/pricing/PricingVatBanner";
 import {
   DailyEngineNotice,
   FleetRatesNotice,
@@ -39,9 +40,12 @@ import {
   type ColDef,
   getColsForVehicleRateRows,
   isColApplicableToBookingType,
-  VAT_PREVIEW_TABLES,
   VEHICLE_RATE_COLS,
 } from "@/components/pricing/pricingAdminColumns";
+import {
+  hasPenceColumns,
+  PENCE_COLUMN_MIN_WIDTH,
+} from "@/components/pricing/pricingVatPreview";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -70,16 +74,16 @@ const COLS: Record<string, ColDef[]> = {
   ],
   pricing_airport_fees: [
     { key: "airport_code", label: "Airport", type: "readonly", width: "80px" },
-    { key: "pickup_fee_pence", label: "Pickup", type: "pence", width: "132px" },
-    { key: "dropoff_fee_pence", label: "Dropoff", type: "pence", width: "132px" },
-    { key: "parking_fee_pence", label: "Parking", type: "pence", width: "132px" },
+    { key: "pickup_fee_pence", label: "Pickup (NET)", type: "pence", width: PENCE_COLUMN_MIN_WIDTH },
+    { key: "dropoff_fee_pence", label: "Dropoff (NET)", type: "pence", width: PENCE_COLUMN_MIN_WIDTH },
+    { key: "parking_fee_pence", label: "Parking (NET)", type: "pence", width: PENCE_COLUMN_MIN_WIDTH },
     { key: "included_wait_minutes", label: "Free wait (min)", type: "number", width: "120px" },
-    { key: "extra_wait_per_minute_pence", label: "Extra wait/min", type: "pence", width: "150px" },
+    { key: "extra_wait_per_minute_pence", label: "Extra wait/min (NET)", type: "pence", width: PENCE_COLUMN_MIN_WIDTH },
     { key: "active", label: "Active", type: "boolean", width: "72px" },
   ],
   pricing_zone_fees: [
     { key: "zone_code", label: "Zone", type: "readonly", width: "120px" },
-    { key: "fee_pence", label: "Fee", type: "pence", width: "132px" },
+    { key: "fee_pence", label: "Fee (NET)", type: "pence", width: PENCE_COLUMN_MIN_WIDTH },
     { key: "active", label: "Active", type: "boolean", width: "72px" },
   ],
   pricing_hourly_rules: [
@@ -94,9 +98,9 @@ const COLS: Record<string, ColDef[]> = {
     { key: "minimum_days", label: "Minimum Days", type: "number", width: "100px" },
     { key: "maximum_days", label: "Maximum Days", type: "number", width: "100px" },
     { key: "included_hours", label: "Incl. hrs", type: "number", width: "84px" },
-    { key: "extra_hour_rate_pence", label: "Extra hr rate", type: "pence", width: "150px" },
+    { key: "extra_hour_rate_pence", label: "Extra hr rate (NET)", type: "pence", width: PENCE_COLUMN_MIN_WIDTH },
     { key: "included_miles", label: "Incl. mi", type: "number", width: "84px" },
-    { key: "extra_mile_rate_pence", label: "Extra mi rate", type: "pence", width: "150px" },
+    { key: "extra_mile_rate_pence", label: "Extra mi rate (NET)", type: "pence", width: PENCE_COLUMN_MIN_WIDTH },
     { key: "active", label: "Active", type: "boolean", width: "72px" },
   ],
   pricing_return_rules: [
@@ -109,7 +113,7 @@ const COLS: Record<string, ColDef[]> = {
     { key: "active", label: "Active", type: "boolean", width: "72px" },
   ],
   pricing_rounding_rules: [
-    { key: "rounding_step_pence", label: "Step (£)", type: "pence", width: "132px" },
+    { key: "rounding_step_pence", label: "Step (NET)", type: "pence", width: PENCE_COLUMN_MIN_WIDTH },
     { key: "rounding_mode", label: "Mode (ceil/floor/nearest)", type: "text", width: "180px" },
   ],
   pricing_commission_profiles: [
@@ -128,7 +132,7 @@ const COLS: Record<string, ColDef[]> = {
   service_items: [
     { key: "id",            label: "ID",            type: "readonly", width: "200px" },
     { key: "name",          label: "Name",          type: "text",     width: "220px" },
-    { key: "price_pence",   label: "Client price",  type: "pence",    width: "140px" },
+    { key: "price_pence",   label: "Client price (NET)",  type: "pence",    width: PENCE_COLUMN_MIN_WIDTH },
     { key: "item_group",    label: "Group",         type: "text",     width: "140px" },
     { key: "display_order", label: "Order",         type: "number",   width: "80px" },
     { key: "is_active",     label: "Active",        type: "boolean",  width: "80px" },
@@ -137,7 +141,7 @@ const COLS: Record<string, ColDef[]> = {
     { key: "service_item_id",  label: "Service",       type: "readonly", width: "200px" },
     { key: "recipient_type",   label: "Recipient",     type: "readonly", width: "110px" },
     { key: "payout_mode",      label: "Mode",          type: "text",     width: "110px" },
-    { key: "payout_value",     label: "Bonus (£)",     type: "pence",    width: "130px" },
+    { key: "payout_value",     label: "Bonus (NET)",     type: "pence",    width: PENCE_COLUMN_MIN_WIDTH },
     { key: "is_active",        label: "Active",        type: "boolean",  width: "80px" },
   ],
   service_suppliers: [
@@ -156,7 +160,7 @@ const COLS: Record<string, ColDef[]> = {
     { key: "is_published", label: "Published", type: "boolean", width: "88px" },
     { key: "effective_from", label: "From", type: "text", width: "128px" },
     { key: "effective_until", label: "Until", type: "text", width: "128px" },
-    { key: "multi_stop_fee_pence", label: "Multi-stop", type: "pence", width: "132px" },
+    { key: "multi_stop_fee_pence", label: "Multi-stop (NET)", type: "pence", width: PENCE_COLUMN_MIN_WIDTH },
     { key: "driver_pricing_factor", label: "Driver ×", type: "number", width: "84px" },
   ],
 };
@@ -348,7 +352,7 @@ function PricingTable({
 
   const getDraftKey = (id: string, colKey: string) => `${id}:${colKey}`;
   const headerCols = resolveHeaderCols ? resolveHeaderCols(localRows, cols) : cols;
-  const showVatPreview = VAT_PREVIEW_TABLES.has(table) && vatRatePercent > 0;
+  const showVatPreview = hasPenceColumns(headerCols);
 
   const colsForRow = (row: Row): ColDef[] => {
     if (table !== "pricing_vehicle_rates") return headerCols;
@@ -474,15 +478,19 @@ function PricingTable({
     <div className="rounded-xl border border-border bg-card overflow-hidden">
       {/* header row */}
       <div className="flex items-center border-b border-border bg-muted/30">
-        {headerCols.map((col) => (
-          <div
-            key={col.key}
-            style={{ minWidth: col.width, width: col.width }}
-            className="shrink-0 px-4 py-3.5 text-sm font-semibold uppercase tracking-wider text-muted-foreground"
-          >
-            {col.label}
-          </div>
-        ))}
+        {headerCols.map((col) => {
+          const headerWidth =
+            hasPenceColumns(headerCols) && col.type === "pence" ? PENCE_COLUMN_MIN_WIDTH : col.width;
+          return (
+            <div
+              key={col.key}
+              style={{ minWidth: headerWidth, width: headerWidth }}
+              className="shrink-0 px-4 py-3.5 text-sm font-semibold uppercase tracking-wider text-muted-foreground"
+            >
+              {col.label}
+            </div>
+          );
+        })}
         {/* save col */}
         <div className="flex-1 px-3 py-2.5" />
       </div>
@@ -553,12 +561,20 @@ function PricingTable({
                 const value = draftValues[draftKey] ?? displayVal;
                 const prefix = col.type === "pence" ? "£" : "";
 
+                const cellWidth =
+                  showVatPreview && col.type === "pence" ? PENCE_COLUMN_MIN_WIDTH : col.width;
+
                 return (
                   <div
                     key={col.key}
-                    style={{ minWidth: col.width, width: col.width }}
-                    className="shrink-0 px-4 py-2.5"
+                    style={{ minWidth: cellWidth, width: cellWidth }}
+                    className="shrink-0 px-4 py-2.5 align-top"
                   >
+                    {col.type === "pence" && showVatPreview && (
+                      <p className="text-[9px] uppercase tracking-wider text-muted-foreground mb-1">
+                        NET (ex VAT)
+                      </p>
+                    )}
                     <div className="relative flex items-center">
                       {prefix && (
                         <span className="absolute left-3 text-base text-muted-foreground select-none pointer-events-none">
@@ -570,6 +586,9 @@ function PricingTable({
                         onChange={(e) => handleChange(rowIdx, col, e.target.value)}
                         onBlur={() => handleBlur(rowIdx, col)}
                         inputMode={col.type === "pence" ? "decimal" : undefined}
+                        aria-label={
+                          col.type === "pence" ? `${col.label} net amount excluding VAT` : col.label
+                        }
                         className={`h-10 text-base font-mono bg-transparent border-border/50 focus:border-primary focus:bg-background transition-colors ${prefix ? "pl-8" : ""}`}
                       />
                     </div>
@@ -940,11 +959,7 @@ export default function PricesPage() {
                   {key === "pricing_hourly_rules" && <HourlyRatesNotice />}
                   {key === "pricing_daily_rules" && <DailyEngineNotice variant="rules" />}
                   {key === "pricing_fleet_discounts" && <FleetRatesNotice />}
-                  {VAT_PREVIEW_TABLES.has(key) && vatRatePercent > 0 && (
-                    <p className="text-xs text-muted-foreground mb-3 -mt-1">
-                      VAT preview ({vatRatePercent}%): NET → VAT → FINAL WEBSITE PRICE (UI only; from org billing settings).
-                    </p>
-                  )}
+                  {hasPenceColumns(cols) && <PricingVatBanner vatRatePercent={vatRatePercent} />}
                   <PricingTable
                     table={key}
                     rows={rows}

@@ -11,6 +11,7 @@ export function DailyEngineNotice({ variant = "rules" }: { variant?: "rules" | "
           <span className="font-mono">Daily Package Price</span> ({DAILY_ENGINE_SSOT.rateColumn}) on rows with
           booking type <span className="font-mono">daily</span> / <span className="font-mono">fleet_daily</span>.
           Base fare and per-mile/minute fields are hidden — the engine does not use them for daily bookings.
+          £ fields show NET with website price incl. VAT below each input.
         </p>
       ) : (
         <p>
@@ -38,6 +39,7 @@ export function HourlyRatesNotice() {
       <span className="font-semibold text-foreground">Hourly rate (£/hr)</span> is edited under{" "}
       <span className="font-semibold">Vehicle Rates</span> (filter booking type = hourly). This tab only controls
       min/max hours; <span className="font-mono">billing_increment_hours</span> is not used by the pricing engine.
+      Hourly <span className="font-semibold">NET</span> rates show VAT preview (NET / VAT / FINAL WEBSITE PRICE incl. VAT).
     </div>
   );
 }
