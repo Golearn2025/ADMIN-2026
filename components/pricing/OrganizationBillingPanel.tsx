@@ -86,35 +86,43 @@ export function OrganizationBillingPanel() {
       <div>
         <h2 className="text-sm font-semibold text-foreground">VAT & Commission</h2>
         <p className="text-xs text-muted-foreground mt-1">
-          Aceste valori sunt folosite de backend-ul de pricing la quote și plată (TVA pe total,
-          comision platformă / operator). Modificările se sincronizează și cu tab-ul Commission din
-          DB.
+          Live settings used by the pricing engine for website quotes and payouts: VAT on the client
+          total, platform fee, and operator fee. Stored in{" "}
+          <span className="font-mono">organization_settings</span>. VAT % here also drives the NET →
+          VAT → FINAL WEBSITE PRICE preview on price tables.
+        </p>
+        <p className="text-xs text-muted-foreground mt-2 border-l-2 border-amber-500/40 pl-3">
+          <span className="font-medium text-amber-600">Coming later (Phase 1B):</span> payment processor
+          fees, operational reserves, and margin warnings — separate from this tab; not wired to quotes
+          yet.
         </p>
       </div>
 
       <div className="rounded-xl border border-border bg-card p-6 space-y-5">
         <Field
-          label="TVA (%)"
-          hint="Ex: 20 = 20% VAT pe prețul clientului"
+          label="VAT (%)"
+          hint="e.g. 20 = 20% VAT added to the client price"
           value={form.vat_rate_percent}
           onChange={(v) => setForm((f) => ({ ...f, vat_rate_percent: v }))}
         />
         <Field
-          label="Comision platformă (%)"
-          hint="Procent din subtotal înainte de TVA"
+          label="Platform commission (%)"
+          hint="Percent of net transport subtotal (before VAT)"
           value={form.platform_commission_percent}
           onChange={(v) => setForm((f) => ({ ...f, platform_commission_percent: v }))}
         />
         <Field
-          label="Comision operator (%)"
-          hint="Procent din net după comisionul platformei"
+          label="Operator commission (%)"
+          hint="Percent of amount after platform commission"
           value={form.operator_commission_percent}
           onChange={(v) => setForm((f) => ({ ...f, operator_commission_percent: v }))}
         />
 
         {error && <p className="text-xs text-destructive">{error}</p>}
         {saved && (
-          <p className="text-xs text-emerald-600 font-medium">Salvat — backend folosește noile valori (cache ~1 min).</p>
+          <p className="text-xs text-emerald-600 font-medium">
+            Saved — pricing backend picks up new values (cache ~1 min).
+          </p>
         )}
 
         <div className="flex gap-2 pt-2">

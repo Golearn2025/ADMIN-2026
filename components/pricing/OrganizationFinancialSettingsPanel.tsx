@@ -125,20 +125,27 @@ export function OrganizationFinancialSettingsPanel() {
       <div>
         <h2 className="text-sm font-semibold text-foreground">Financial Settings</h2>
         <p className="text-xs text-muted-foreground mt-1">
-          Phase 1B — configurație economică per organizație (TVA, comision procesator, rezerve
-          operaționale, praguri de marjă). Nu este încă conectată la motorul de quote.
+          Phase 1B — per-organization economics (payment processor fees, operational reserves, margin
+          thresholds). Not connected to the quote engine yet. Requires DB table{" "}
+          <span className="font-mono">organization_financial_settings</span> (migration not applied).
           {source === "defaults" && (
             <span className="block mt-1 text-amber-600">
-              Se afișează valorile implicite — salvează pentru a crea rândul în DB.
+              Showing defaults — save after the table exists to persist a row.
             </span>
           )}
         </p>
       </div>
 
       <div className="rounded-xl border border-border bg-card p-6 space-y-5">
+        <p className="text-xs text-amber-600 border border-amber-500/30 rounded-md px-3 py-2 bg-amber-500/5">
+          VAT for live quotes is edited under <strong>VAT &amp; Commission</strong> (
+          <span className="font-mono">organization_settings</span>). Do not duplicate VAT here once this
+          tab is enabled.
+        </p>
+
         <PctField
-          label="TVA (%)"
-          hint="Ex: 20 = 20% VAT"
+          label="VAT (%) — Phase 1B only"
+          hint="e.g. 20 = 20% (not used by quote engine until Phase 1B is wired)"
           value={form.vat_rate_percent}
           onChange={(v) => setForm((f) => ({ ...f, vat_rate_percent: v }))}
         />
@@ -152,30 +159,30 @@ export function OrganizationFinancialSettingsPanel() {
             }
           />
           <label htmlFor="vat_enabled" className="text-xs font-medium text-foreground cursor-pointer">
-            TVA activat
+            VAT enabled
           </label>
         </div>
 
         <PctField
-          label="Comision procesator (%)"
-          hint="Ex: 1.4 = 1.4% din valoarea tranzacției"
+          label="Payment processor fee (%)"
+          hint="e.g. 1.4 = 1.4% of transaction value (Stripe/card)"
           value={form.processor_fee_percent}
           step={0.01}
           onChange={(v) => setForm((f) => ({ ...f, processor_fee_percent: v }))}
         />
 
         <PoundsField
-          label="Comision fix procesator (£)"
-          hint="Ex: 0.20 = 20p per tranzacție"
+          label="Fixed processor fee (£)"
+          hint="e.g. 0.20 = 20p per transaction"
           value={form.processor_fixed_fee_pounds}
           onChange={(v) => setForm((f) => ({ ...f, processor_fixed_fee_pounds: v }))}
         />
 
         <div className="pt-2 border-t border-border/60 space-y-4">
-          <p className="text-xs font-medium text-foreground">Rezerve operaționale (£)</p>
+          <p className="text-xs font-medium text-foreground">Operational reserves (£)</p>
           <PoundsField
             label="Default"
-            hint="Rezervă implicită per quote"
+            hint="Default reserve deducted per quote (internal economics)"
             value={form.default_operational_reserve_pounds}
             onChange={(v) =>
               setForm((f) => ({ ...f, default_operational_reserve_pounds: v }))
@@ -183,7 +190,7 @@ export function OrganizationFinancialSettingsPanel() {
           />
           <PoundsField
             label="Hourly"
-            hint="Rezervă pentru booking hourly"
+            hint="Reserve for hourly bookings"
             value={form.hourly_operational_reserve_pounds}
             onChange={(v) =>
               setForm((f) => ({ ...f, hourly_operational_reserve_pounds: v }))
@@ -191,7 +198,7 @@ export function OrganizationFinancialSettingsPanel() {
           />
           <PoundsField
             label="Daily"
-            hint="Rezervă pentru booking daily"
+            hint="Reserve for daily bookings"
             value={form.daily_operational_reserve_pounds}
             onChange={(v) =>
               setForm((f) => ({ ...f, daily_operational_reserve_pounds: v }))
@@ -199,7 +206,7 @@ export function OrganizationFinancialSettingsPanel() {
           />
           <PoundsField
             label="Fleet"
-            hint="Rezervă pentru booking fleet"
+            hint="Reserve for fleet bookings"
             value={form.fleet_operational_reserve_pounds}
             onChange={(v) =>
               setForm((f) => ({ ...f, fleet_operational_reserve_pounds: v }))
@@ -208,15 +215,15 @@ export function OrganizationFinancialSettingsPanel() {
         </div>
 
         <PctField
-          label="Avertisment marjă mică (%)"
-          hint="Prag pentru validare economics (mod warn)"
+          label="Low margin warning (%)"
+          hint="Threshold for internal margin validation (warn mode)"
           value={form.low_margin_warning_percent}
           onChange={(v) => setForm((f) => ({ ...f, low_margin_warning_percent: v }))}
         />
 
         <PoundsField
-          label="Profit minim (£)"
-          hint="Prag minim de profit per quote"
+          label="Minimum profit (£)"
+          hint="Minimum profit threshold per quote"
           value={form.minimum_profit_pounds}
           onChange={(v) => setForm((f) => ({ ...f, minimum_profit_pounds: v }))}
         />
@@ -224,7 +231,7 @@ export function OrganizationFinancialSettingsPanel() {
         {error && <p className="text-xs text-destructive">{error}</p>}
         {saved && (
           <p className="text-xs text-emerald-600 font-medium">
-            Salvat — backend folosește noile valori (cache ~1 min).
+            Saved (Phase 1B table only — not used for website quotes yet).
           </p>
         )}
 

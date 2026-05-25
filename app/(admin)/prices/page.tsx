@@ -27,10 +27,8 @@ import {
   Sparkles,
   Building2,
   BadgeDollarSign,
-  Wallet,
 } from "lucide-react";
 import { OrganizationBillingPanel } from "@/components/pricing/OrganizationBillingPanel";
-import { OrganizationFinancialSettingsPanel } from "@/components/pricing/OrganizationFinancialSettingsPanel";
 import { PenceWithVatPreview } from "@/components/pricing/PenceWithVatPreview";
 import {
   DailyEngineNotice,
@@ -163,7 +161,6 @@ const COLS: Record<string, ColDef[]> = {
 
 const TABS = [
   { key: "organization_billing", label: "VAT & Commission", icon: Receipt },
-  { key: "organization_financial", label: "Financial Settings", icon: Wallet },
   { key: "pricing_vehicle_rates", label: "Vehicle Rates", icon: Car },
   { key: "pricing_time_rules", label: "Time Rules", icon: Clock },
   { key: "pricing_airport_fees", label: "Airport Fees", icon: Plane },
@@ -812,18 +809,6 @@ export default function PricesPage() {
                     className="mt-0 focus-visible:outline-none"
                   >
                     <OrganizationBillingPanel />
-                  </TabsContent>
-                );
-              }
-
-              if (key === "organization_financial") {
-                return (
-                  <TabsContent
-                    key={key}
-                    value={key}
-                    className="mt-0 focus-visible:outline-none"
-                  >
-                    <OrganizationFinancialSettingsPanel />
                   </TabsContent>
                 );
               }
