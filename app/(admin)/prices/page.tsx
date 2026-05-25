@@ -36,6 +36,9 @@ import {
   FleetRatesNotice,
   HourlyRatesNotice,
 } from "@/components/pricing/DailyEngineNotice";
+import { ReturnDerivedNotice } from "@/components/pricing/ReturnDerivedNotice";
+import { VehicleRatesSyncToolbar } from "@/components/pricing/VehicleRatesSyncToolbar";
+import { isReturnDerivedBookingType } from "@/components/pricing/pricingVehicleRateSync";
 import {
   type ColDef,
   getColsForVehicleRateRows,
@@ -332,6 +335,7 @@ function PricingTable({
   creating,
   vatRatePercent = 0,
   resolveHeaderCols,
+  isDerivedRow,
 }: {
   table: string;
   rows: Row[];
@@ -342,6 +346,8 @@ function PricingTable({
   vatRatePercent?: number;
   /** e.g. vehicle rates: hide mileage cols when viewing daily/hourly rows */
   resolveHeaderCols?: (visibleRows: Row[], baseCols: ColDef[]) => ColDef[];
+  /** Phase A: return rows — derived from oneway at runtime; read-only in admin */
+  isDerivedRow?: (row: Row) => boolean;
 }) {
   const [localRows, setLocalRows] = useState<Row[]>(rows);
   const [dirty, setDirty] = useState<Set<string>>(new Set());
@@ -499,7 +505,8 @@ function PricingTable({
       <div className="divide-y divide-border/60">
         {localRows.map((row, rowIdx) => {
           const id = String(row.id ?? rowIdx);
-          const isDirty = dirty.has(id);
+          const rowDerived = isDerivedRow?.(row) ?? false;
+          const isDirty = !rowDerived && dirty.has(id);
           const isSaving = saving === id;
           const isJustSaved = saved === id;
 
@@ -507,7 +514,11 @@ function PricingTable({
             <div
               key={id}
               className={`flex items-center transition-colors ${
-                isDirty ? "bg-amber-500/5" : "hover:bg-muted/20"
+                rowDerived
+                  ? "bg-sky-500/[0.03]"
+                  : isDirty
+                    ? "bg-amber-500/5"
+                    : "hover:bg-muted/20"
               }`}
             >
               {headerCols.map((col) => {
@@ -534,9 +545,17 @@ function PricingTable({
                     <div
                       key={col.key}
                       style={{ minWidth: col.width, width: col.width }}
-                      className="shrink-0 px-4 py-2.5"
+                      className="shrink-0 px-4 py-2.5 flex items-center gap-2"
                     >
                       <ReadonlyPill value={raw} table={table} />
+                      {col.key === "booking_type" && rowDerived && (
+                        <Badge
+                          variant="outline"
+                          className="text-[9px] px-1.5 py-0 border-sky-500/40 text-sky-400 shrink-0"
+                        >
+                          Derived
+                        </Badge>
+                      )}
                     </div>
                   );
                 }
@@ -551,6 +570,7 @@ function PricingTable({
                       <ActiveBadge
                         value={row[col.key]}
                         onChange={(v) => handleChange(rowIdx, col, v)}
+                        readonly={rowDerived}
                       />
                     </div>
                   );
@@ -570,30 +590,41 @@ function PricingTable({
                     style={{ minWidth: cellWidth, width: cellWidth }}
                     className="shrink-0 px-4 py-2.5 align-top"
                   >
-                    {col.type === "pence" && showVatPreview && (
+                    {col.type === "pence" && showVatPreview && !rowDerived && (
                       <p className="text-[9px] uppercase tracking-wider text-muted-foreground mb-1">
                         NET (ex VAT)
                       </p>
                     )}
-                    <div className="relative flex items-center">
-                      {prefix && (
-                        <span className="absolute left-3 text-base text-muted-foreground select-none pointer-events-none">
-                          £
-                        </span>
-                      )}
-                      <Input
-                        value={value}
-                        onChange={(e) => handleChange(rowIdx, col, e.target.value)}
-                        onBlur={() => handleBlur(rowIdx, col)}
-                        inputMode={col.type === "pence" ? "decimal" : undefined}
-                        aria-label={
-                          col.type === "pence" ? `${col.label} net amount excluding VAT` : col.label
-                        }
-                        className={`h-10 text-base font-mono bg-transparent border-border/50 focus:border-primary focus:bg-background transition-colors ${prefix ? "pl-8" : ""}`}
-                      />
-                    </div>
-                    {showVatPreview && col.type === "pence" && (
-                      <PenceWithVatPreview netInput={value} vatRatePercent={vatRatePercent} />
+                    {rowDerived ? (
+                      <p className="text-sm font-mono text-muted-foreground/80 py-2">
+                        {prefix}
+                        {value || "—"}
+                      </p>
+                    ) : (
+                      <>
+                        <div className="relative flex items-center">
+                          {prefix && (
+                            <span className="absolute left-3 text-base text-muted-foreground select-none pointer-events-none">
+                              £
+                            </span>
+                          )}
+                          <Input
+                            value={value}
+                            onChange={(e) => handleChange(rowIdx, col, e.target.value)}
+                            onBlur={() => handleBlur(rowIdx, col)}
+                            inputMode={col.type === "pence" ? "decimal" : undefined}
+                            aria-label={
+                              col.type === "pence"
+                                ? `${col.label} net amount excluding VAT`
+                                : col.label
+                            }
+                            className={`h-10 text-base font-mono bg-transparent border-border/50 focus:border-primary focus:bg-background transition-colors ${prefix ? "pl-8" : ""}`}
+                          />
+                        </div>
+                        {showVatPreview && col.type === "pence" && (
+                          <PenceWithVatPreview netInput={value} vatRatePercent={vatRatePercent} />
+                        )}
+                      </>
                     )}
                   </div>
                 );
@@ -601,12 +632,17 @@ function PricingTable({
 
               {/* save / saved */}
               <div className="flex-1 flex items-center justify-end pr-3 gap-2">
-                {isJustSaved && !isDirty && (
+                {rowDerived && (
+                  <span className="text-[10px] text-sky-400/90 max-w-[140px] text-right leading-tight">
+                    Edit oneway row
+                  </span>
+                )}
+                {isJustSaved && !isDirty && !rowDerived && (
                   <span className="flex items-center gap-1 text-xs text-green-400 font-medium">
                     <Check className="h-3 w-3" /> Saved
                   </span>
                 )}
-                {isDirty && (
+                {isDirty && !rowDerived && (
                   <Button
                     size="sm"
                     variant="outline"
@@ -707,6 +743,15 @@ export default function PricesPage() {
       ),
     }));
   }, []);
+
+  const handleVehicleRateSyncPlans = useCallback(
+    async (plans: Array<{ targetId: string; updates: Record<string, unknown> }>) => {
+      for (const plan of plans) {
+        await handleSave("pricing_vehicle_rates", plan.targetId, plan.updates);
+      }
+    },
+    [handleSave]
+  );
 
   const handleCreate = useCallback(
     async (table: string) => {
@@ -954,8 +999,20 @@ export default function PricesPage() {
                     </p>
                   )}
                   {key === "pricing_vehicle_rates" && (
-                    <DailyEngineNotice variant="vehicle" />
+                    <>
+                      <VehicleRatesSyncToolbar
+                        allVehicleRows={vehicleRowsAll}
+                        onSyncPlans={handleVehicleRateSyncPlans}
+                      />
+                      {(bookingTypeFilter === "return" ||
+                        (bookingTypeFilter === "all" &&
+                          rows.some((r) => isReturnDerivedBookingType(r.booking_type)))) && (
+                        <ReturnDerivedNotice variant="vehicle" />
+                      )}
+                      <DailyEngineNotice variant="vehicle" />
+                    </>
                   )}
+                  {key === "pricing_return_rules" && <ReturnDerivedNotice variant="rules" />}
                   {key === "pricing_hourly_rules" && <HourlyRatesNotice />}
                   {key === "pricing_daily_rules" && <DailyEngineNotice variant="rules" />}
                   {key === "pricing_fleet_discounts" && <FleetRatesNotice />}
@@ -968,6 +1025,11 @@ export default function PricesPage() {
                     onCreate={CREATABLE_TABLES.has(key) ? () => handleCreate(key) : undefined}
                     creating={creatingTable === key}
                     vatRatePercent={vatRatePercent}
+                    isDerivedRow={
+                      key === "pricing_vehicle_rates"
+                        ? (row) => isReturnDerivedBookingType(row.booking_type)
+                        : undefined
+                    }
                     resolveHeaderCols={
                       key === "pricing_vehicle_rates"
                         ? (visibleRows, baseCols) => {

@@ -50,7 +50,9 @@ export function FleetRatesNotice() {
       Fleet discounts below apply as a <span className="font-semibold">%</span> on the transport subtotal. Per-vehicle
       fleet rates are under <span className="font-semibold">Vehicle Rates</span> (booking types{" "}
       <span className="font-mono">fleet</span>, <span className="font-mono">fleet_hourly</span>,{" "}
-      <span className="font-mono">fleet_daily</span>) with VAT preview on £ fields.
+      <span className="font-mono">fleet_daily</span>) — use sync buttons on that tab to copy from{" "}
+      <span className="font-mono">oneway</span> / <span className="font-mono">hourly</span> /{" "}
+      <span className="font-mono">daily</span>, then adjust manually if needed.
     </div>
   );
 }
