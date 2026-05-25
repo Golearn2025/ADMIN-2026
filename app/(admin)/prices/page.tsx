@@ -27,14 +27,28 @@ import {
   Sparkles,
   Building2,
   BadgeDollarSign,
+  Wallet,
 } from "lucide-react";
 import { OrganizationBillingPanel } from "@/components/pricing/OrganizationBillingPanel";
+import { OrganizationFinancialSettingsPanel } from "@/components/pricing/OrganizationFinancialSettingsPanel";
+import { PenceWithVatPreview } from "@/components/pricing/PenceWithVatPreview";
+import {
+  DailyEngineNotice,
+  FleetRatesNotice,
+  HourlyRatesNotice,
+} from "@/components/pricing/DailyEngineNotice";
+import {
+  type ColDef,
+  getColsForVehicleRateRows,
+  isColApplicableToBookingType,
+  VAT_PREVIEW_TABLES,
+  VEHICLE_RATE_COLS,
+} from "@/components/pricing/pricingAdminColumns";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type Row = Record<string, unknown>;
 type PricingMap = Record<string, Row[]>;
-type ColType = "text" | "pence" | "number" | "boolean" | "readonly";
 type PricingVersion = {
   id: string;
   version_name: string;
@@ -44,27 +58,10 @@ type PricingVersion = {
   created_at: string | null;
 };
 
-interface ColDef {
-  key: string;
-  label: string;
-  type: ColType;
-  width?: string;
-}
-
 // ─── Column definitions ───────────────────────────────────────────────────────
 
 const COLS: Record<string, ColDef[]> = {
-  pricing_vehicle_rates: [
-    { key: "vehicle_category_id", label: "Vehicle", type: "readonly", width: "145px" },
-    { key: "booking_type", label: "Type", type: "readonly", width: "130px" },
-    { key: "base_fare_pence", label: "Base fare", type: "pence", width: "150px" },
-    { key: "per_mile_first_6_pence", label: "£/mi 1–6", type: "pence", width: "146px" },
-    { key: "per_mile_after_6_pence", label: "£/mi 6+", type: "pence", width: "146px" },
-    { key: "per_minute_pence", label: "£/min", type: "pence", width: "132px" },
-    { key: "minimum_fare_pence", label: "Min fare", type: "pence", width: "146px" },
-    { key: "hourly_rate_pence", label: "Hourly", type: "pence", width: "146px" },
-    { key: "active", label: "Active", type: "boolean", width: "90px" },
-  ],
+  pricing_vehicle_rates: VEHICLE_RATE_COLS,
   pricing_time_rules: [
     { key: "rule_name", label: "Rule", type: "text", width: "160px" },
     { key: "day_of_week", label: "Day", type: "number", width: "55px" },
@@ -166,6 +163,7 @@ const COLS: Record<string, ColDef[]> = {
 
 const TABS = [
   { key: "organization_billing", label: "VAT & Commission", icon: Receipt },
+  { key: "organization_financial", label: "Financial Settings", icon: Wallet },
   { key: "pricing_vehicle_rates", label: "Vehicle Rates", icon: Car },
   { key: "pricing_time_rules", label: "Time Rules", icon: Clock },
   { key: "pricing_airport_fees", label: "Airport Fees", icon: Plane },
@@ -329,6 +327,8 @@ function PricingTable({
   onSave,
   onCreate,
   creating,
+  vatRatePercent = 0,
+  resolveHeaderCols,
 }: {
   table: string;
   rows: Row[];
@@ -336,6 +336,9 @@ function PricingTable({
   onSave: (table: string, id: string, updates: Row) => Promise<void>;
   onCreate?: () => Promise<void>;
   creating?: boolean;
+  vatRatePercent?: number;
+  /** e.g. vehicle rates: hide mileage cols when viewing daily/hourly rows */
+  resolveHeaderCols?: (visibleRows: Row[], baseCols: ColDef[]) => ColDef[];
 }) {
   const [localRows, setLocalRows] = useState<Row[]>(rows);
   const [dirty, setDirty] = useState<Set<string>>(new Set());
@@ -345,6 +348,14 @@ function PricingTable({
   const [draftValues, setDraftValues] = useState<Record<string, string>>({});
 
   const getDraftKey = (id: string, colKey: string) => `${id}:${colKey}`;
+  const headerCols = resolveHeaderCols ? resolveHeaderCols(localRows, cols) : cols;
+  const showVatPreview = VAT_PREVIEW_TABLES.has(table) && vatRatePercent > 0;
+
+  const colsForRow = (row: Row): ColDef[] => {
+    if (table !== "pricing_vehicle_rates") return headerCols;
+    const bt = String(row.booking_type ?? "");
+    return headerCols.filter((c) => isColApplicableToBookingType(c.key, bt));
+  };
 
   useEffect(() => {
     setLocalRows(rows);
@@ -398,7 +409,7 @@ function PricingTable({
     setSaveError(null);
     try {
       const updates: Row = {};
-      for (const col of cols) {
+      for (const col of colsForRow(row)) {
         if (col.type === "readonly") continue;
         const draftKey = getDraftKey(id, col.key);
         const raw =
@@ -415,7 +426,7 @@ function PricingTable({
       });
       setDraftValues((prev) => {
         const next = { ...prev };
-        for (const col of cols) {
+        for (const col of colsForRow(row)) {
           delete next[getDraftKey(id, col.key)];
         }
         return next;
@@ -464,7 +475,7 @@ function PricingTable({
     <div className="rounded-xl border border-border bg-card overflow-hidden">
       {/* header row */}
       <div className="flex items-center border-b border-border bg-muted/30">
-        {cols.map((col) => (
+        {headerCols.map((col) => (
           <div
             key={col.key}
             style={{ minWidth: col.width, width: col.width }}
@@ -492,8 +503,24 @@ function PricingTable({
                 isDirty ? "bg-amber-500/5" : "hover:bg-muted/20"
               }`}
             >
-              {cols.map((col) => {
+              {headerCols.map((col) => {
                 const raw = row[col.key];
+                const bookingType = String(row.booking_type ?? "");
+                const applicable =
+                  table !== "pricing_vehicle_rates" ||
+                  isColApplicableToBookingType(col.key, bookingType);
+
+                if (!applicable) {
+                  return (
+                    <div
+                      key={col.key}
+                      style={{ minWidth: col.width, width: col.width }}
+                      className="shrink-0 px-4 py-2.5 flex items-center"
+                    >
+                      <span className="text-sm text-muted-foreground/50">—</span>
+                    </div>
+                  );
+                }
 
                 if (col.type === "readonly") {
                   return (
@@ -547,6 +574,9 @@ function PricingTable({
                         className={`h-10 text-base font-mono bg-transparent border-border/50 focus:border-primary focus:bg-background transition-colors ${prefix ? "pl-8" : ""}`}
                       />
                     </div>
+                    {showVatPreview && col.type === "pence" && (
+                      <PenceWithVatPreview netInput={value} vatRatePercent={vatRatePercent} />
+                    )}
                   </div>
                 );
               })}
@@ -597,6 +627,19 @@ export default function PricesPage() {
   const [error, setError] = useState<string | null>(null);
   const [creatingTable, setCreatingTable] = useState<string | null>(null);
   const [activeVersionId, setActiveVersionId] = useState<string>("");
+  const [vatRatePercent, setVatRatePercent] = useState(20);
+
+  const fetchVatRate = useCallback(async () => {
+    try {
+      const res = await apiFetch("/api/admin/organization-settings");
+      const data = await res.json();
+      if (res.ok && typeof data.vat_rate_percent === "number") {
+        setVatRatePercent(data.vat_rate_percent);
+      }
+    } catch {
+      /* keep default */
+    }
+  }, []);
 
   const fetchPricing = useCallback(async () => {
     setLoading(true);
@@ -626,7 +669,8 @@ export default function PricesPage() {
 
   useEffect(() => {
     fetchPricing();
-  }, [fetchPricing]);
+    fetchVatRate();
+  }, [fetchPricing, fetchVatRate]);
 
   const handleSave = useCallback(async (table: string, id: string, updates: Row) => {
     const res = await apiFetch("/api/admin/pricing", {
@@ -772,6 +816,18 @@ export default function PricesPage() {
                 );
               }
 
+              if (key === "organization_financial") {
+                return (
+                  <TabsContent
+                    key={key}
+                    value={key}
+                    className="mt-0 focus-visible:outline-none"
+                  >
+                    <OrganizationFinancialSettingsPanel />
+                  </TabsContent>
+                );
+              }
+
               let rows = pricing[key] || [];
               if (key === "pricing_vehicle_rates") {
                 rows = rows.filter((row) => {
@@ -891,6 +947,17 @@ export default function PricesPage() {
                       Driver payout rounds up to the nearest £1 in the driver app (same as client rounding).
                     </p>
                   )}
+                  {key === "pricing_vehicle_rates" && (
+                    <DailyEngineNotice variant="vehicle" />
+                  )}
+                  {key === "pricing_hourly_rules" && <HourlyRatesNotice />}
+                  {key === "pricing_daily_rules" && <DailyEngineNotice variant="rules" />}
+                  {key === "pricing_fleet_discounts" && <FleetRatesNotice />}
+                  {VAT_PREVIEW_TABLES.has(key) && vatRatePercent > 0 && (
+                    <p className="text-xs text-muted-foreground mb-3 -mt-1">
+                      VAT preview ({vatRatePercent}%): NET → VAT → FINAL WEBSITE PRICE (UI only; from org billing settings).
+                    </p>
+                  )}
                   <PricingTable
                     table={key}
                     rows={rows}
@@ -898,6 +965,19 @@ export default function PricesPage() {
                     onSave={handleSave}
                     onCreate={CREATABLE_TABLES.has(key) ? () => handleCreate(key) : undefined}
                     creating={creatingTable === key}
+                    vatRatePercent={vatRatePercent}
+                    resolveHeaderCols={
+                      key === "pricing_vehicle_rates"
+                        ? (visibleRows, baseCols) => {
+                            if (bookingTypeFilter !== "all") {
+                              return baseCols.filter((c) =>
+                                isColApplicableToBookingType(c.key, bookingTypeFilter)
+                              );
+                            }
+                            return getColsForVehicleRateRows(visibleRows, baseCols);
+                          }
+                        : undefined
+                    }
                   />
                 </TabsContent>
               );
