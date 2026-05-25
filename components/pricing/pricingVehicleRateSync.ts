@@ -73,6 +73,11 @@ function fieldsToCopy(sourceBt: string, targetBt: string): string[] {
   );
 }
 
+function valuesDiffer(a: unknown, b: unknown): boolean {
+  if (a == null && b == null) return false;
+  return a !== b;
+}
+
 export function buildVehicleRateSyncUpdates(
   source: VehicleRateRow,
   target: VehicleRateRow,
@@ -82,11 +87,18 @@ export function buildVehicleRateSyncUpdates(
   const updates: Record<string, unknown> = {};
   for (const key of fieldsToCopy(sourceBookingType, targetBookingType)) {
     const next = source[key];
-    if (target[key] !== next) {
+    if (valuesDiffer(target[key], next)) {
       updates[key] = next;
     }
   }
   return updates;
+}
+
+/** Run all fleet copy pairs from one snapshot (safe to batch PATCH). */
+export function planAllFleetSyncs(allRows: VehicleRateRow[]): VehicleRateSyncPlan[] {
+  return FLEET_SYNC_PAIRS.flatMap((pair) =>
+    planVehicleRateSync(allRows, pair.sourceBookingType, pair.targetBookingType)
+  );
 }
 
 export type VehicleRateSyncPlan = {

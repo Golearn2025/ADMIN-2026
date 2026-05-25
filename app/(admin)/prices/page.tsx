@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { PageHeader } from "@/components/common/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -744,13 +744,17 @@ export default function PricesPage() {
     }));
   }, []);
 
+  const vehicleRowsRef = useRef<Row[]>([]);
+  vehicleRowsRef.current = (pricing["pricing_vehicle_rates"] || []) as Row[];
+
   const handleVehicleRateSyncPlans = useCallback(
     async (plans: Array<{ targetId: string; updates: Record<string, unknown> }>) => {
       for (const plan of plans) {
         await handleSave("pricing_vehicle_rates", plan.targetId, plan.updates);
       }
+      await fetchPricing();
     },
-    [handleSave]
+    [handleSave, fetchPricing]
   );
 
   const handleCreate = useCallback(
@@ -1001,7 +1005,7 @@ export default function PricesPage() {
                   {key === "pricing_vehicle_rates" && (
                     <>
                       <VehicleRatesSyncToolbar
-                        allVehicleRows={vehicleRowsAll}
+                        getVehicleRows={() => vehicleRowsRef.current}
                         onSyncPlans={handleVehicleRateSyncPlans}
                       />
                       {(bookingTypeFilter === "return" ||
