@@ -82,6 +82,11 @@ export const navConfig: NavGroup[] = [
         icon: RotateCcw,
       },
       {
+        title: "Financial Operations",
+        href: "/financial-operations",
+        icon: Calculator,
+      },
+      {
         title: "Financial Overview",
         href: "/financials",
         icon: TrendingUp,
