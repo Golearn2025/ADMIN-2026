@@ -5,8 +5,11 @@ import { Button } from "@/components/ui/button";
 import { Plus, RefreshCw } from "lucide-react";
 import {
   PAYOUT_TIER_GROUP_LABELS,
-  filterTiersByGroup,
+  VEHICLE_CATEGORY_LABELS,
+  VEHICLE_CATEGORY_OPTIONS,
+  filterTiersByGroupAndCategory,
   type PayoutTierGroup,
+  type VehicleCategoryId,
 } from "@/components/pricing/payoutTierGroups";
 import { DriverTierDurationPreview } from "@/components/pricing/DriverTierDurationPreview";
 import type { ColDef } from "@/components/pricing/pricingAdminColumns";
@@ -48,7 +51,7 @@ function TierSection({
   return (
     <section className="space-y-3">
       <div className="flex items-center justify-between gap-2">
-        <h3 className="text-sm font-semibold text-foreground">{PAYOUT_TIER_GROUP_LABELS[group]}</h3>
+        <h4 className="text-xs font-semibold text-foreground">{PAYOUT_TIER_GROUP_LABELS[group]}</h4>
         {onCreate && (
           <Button size="sm" variant="outline" className="h-8" disabled={creating} onClick={onCreate}>
             {creating ? (
@@ -78,7 +81,7 @@ export function DriverTiersTabContent({
   vatRatePercent,
   onSave,
   onCreateTier,
-  creatingGroup,
+  creatingTierKey,
   PricingTable,
 }: {
   tierRows: Row[];
@@ -86,44 +89,49 @@ export function DriverTiersTabContent({
   tierCols: ColDef[];
   vatRatePercent: number;
   onSave: PricingTableProps["onSave"];
-  onCreateTier: (group: PayoutTierGroup) => Promise<void>;
-  creatingGroup: PayoutTierGroup | null;
+  onCreateTier: (category: VehicleCategoryId, group: PayoutTierGroup) => Promise<void>;
+  creatingTierKey: string | null;
   PricingTable: ComponentType<PricingTableProps>;
 }) {
-  const tripRows = filterTiersByGroup(tierRows, "trip");
-  const durationRows = filterTiersByGroup(tierRows, "duration");
-
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <p className="text-xs text-muted-foreground">
-        Two independent tier schedules. Trip applies to one-way, return, and fleet assembly. Duration
-        applies to hourly, daily, and fleet booked by hours/days. Driver payout rounds up to the
-        nearest £1 in the driver app.
+        Each vehicle category has its own trip and duration tier schedules. Min/Max hours on a tier
+        mean hours before the job starts (urgency), not hours of driving. Driver payout rounds up
+        to the nearest £1 in the driver app.
       </p>
 
-      <TierSection
-        group="trip"
-        rows={tripRows}
-        cols={tierCols}
-        table="payout_escalation_tiers"
-        onSave={onSave}
-        onCreate={() => onCreateTier("trip")}
-        creating={creatingGroup === "trip"}
-        vatRatePercent={vatRatePercent}
-        PricingTable={PricingTable}
-      />
+      {VEHICLE_CATEGORY_OPTIONS.map((category) => (
+        <section key={category} className="space-y-4 rounded-lg border border-border p-4">
+          <h3 className="text-sm font-semibold capitalize text-foreground">
+            {VEHICLE_CATEGORY_LABELS[category]}
+          </h3>
 
-      <TierSection
-        group="duration"
-        rows={durationRows}
-        cols={tierCols}
-        table="payout_escalation_tiers"
-        onSave={onSave}
-        onCreate={() => onCreateTier("duration")}
-        creating={creatingGroup === "duration"}
-        vatRatePercent={vatRatePercent}
-        PricingTable={PricingTable}
-      />
+          <TierSection
+            group="trip"
+            rows={filterTiersByGroupAndCategory(tierRows, "trip", category)}
+            cols={tierCols}
+            table="payout_escalation_tiers"
+            onSave={onSave}
+            onCreate={() => onCreateTier(category, "trip")}
+            creating={creatingTierKey === `${category}:trip`}
+            vatRatePercent={vatRatePercent}
+            PricingTable={PricingTable}
+          />
+
+          <TierSection
+            group="duration"
+            rows={filterTiersByGroupAndCategory(tierRows, "duration", category)}
+            cols={tierCols}
+            table="payout_escalation_tiers"
+            onSave={onSave}
+            onCreate={() => onCreateTier(category, "duration")}
+            creating={creatingTierKey === `${category}:duration`}
+            vatRatePercent={vatRatePercent}
+            PricingTable={PricingTable}
+          />
+        </section>
+      ))}
 
       <DriverTierDurationPreview
         tierRows={tierRows as TierRow[]}

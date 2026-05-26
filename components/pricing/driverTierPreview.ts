@@ -2,7 +2,11 @@
  * Admin-only preview math (UI). Does not affect DB or pricing engine.
  */
 
-import type { PayoutTierGroup } from "@/components/pricing/payoutTierGroups";
+import type {
+  PayoutTierGroup,
+  VehicleCategoryId,
+} from "@/components/pricing/payoutTierGroups";
+import { normalizeVehicleCategory } from "@/components/pricing/payoutTierGroups";
 
 export type TierRow = {
   label?: unknown;
@@ -12,6 +16,7 @@ export type TierRow = {
   sort_order?: unknown;
   is_active?: unknown;
   tier_group?: unknown;
+  vehicle_category_id?: unknown;
 };
 
 export type VehicleRateRow = {
@@ -54,12 +59,18 @@ export function findActiveVehicleRate(
   );
 }
 
-export function activeTiersForGroup(tiers: TierRow[], group: PayoutTierGroup): TierRow[] {
+export function activeTiersForGroup(
+  tiers: TierRow[],
+  group: PayoutTierGroup,
+  category?: VehicleCategoryId
+): TierRow[] {
   return tiers
     .filter(
       (t) =>
         (t.is_active === true || t.is_active === "true") &&
-        String(t.tier_group ?? "trip") === group
+        String(t.tier_group ?? "trip") === group &&
+        (category == null ||
+          normalizeVehicleCategory(t.vehicle_category_id) === category)
     )
     .sort(
       (a, b) =>

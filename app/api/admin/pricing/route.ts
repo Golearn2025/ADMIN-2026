@@ -65,6 +65,7 @@ const IMMUTABLE_PATCH_COLUMNS = new Set([
   "updated_at",
   "pricing_version_id",
   "tier_group",
+  "vehicle_category_id",
 ]);
 
 function pickUpdates(updates: Record<string, unknown>): Record<string, unknown> {
@@ -440,9 +441,14 @@ export async function POST(request: NextRequest) {
         row.tier_group === "duration" || row.tier_group === "trip"
           ? row.tier_group
           : "trip";
+      const vehicleCategoryId =
+        typeof row.vehicle_category_id === "string" && row.vehicle_category_id.trim()
+          ? row.vehicle_category_id.trim()
+          : "executive";
       insertPayload = {
         pricing_version_id: versionId,
         tier_group: tierGroup,
+        vehicle_category_id: vehicleCategoryId,
         label: row.label ?? "New tier",
         min_hours_before_job: row.min_hours_before_job ?? 0,
         max_hours_before_job: row.max_hours_before_job ?? null,

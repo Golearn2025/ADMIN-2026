@@ -43,8 +43,8 @@ export function DriverTierDurationPreview({
   const [units, setUnits] = useState("3");
 
   const durationTiers = useMemo(
-    () => activeTiersForGroup(tierRows, "duration"),
-    [tierRows]
+    () => activeTiersForGroup(tierRows, "duration", category),
+    [tierRows, category]
   );
 
   const preview = useMemo(() => {

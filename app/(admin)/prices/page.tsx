@@ -50,7 +50,7 @@ import {
   PENCE_COLUMN_MIN_WIDTH,
 } from "@/components/pricing/pricingVatPreview";
 import { DriverTiersTabContent } from "@/components/pricing/DriverTiersTabContent";
-import type { PayoutTierGroup } from "@/components/pricing/payoutTierGroups";
+import type { PayoutTierGroup, VehicleCategoryId } from "@/components/pricing/payoutTierGroups";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -127,6 +127,7 @@ const COLS: Record<string, ColDef[]> = {
     { key: "active", label: "Active", type: "boolean", width: "72px" },
   ],
   payout_escalation_tiers: [
+    { key: "vehicle_category_id",    label: "Vehicle",        type: "readonly", width: "100px" },
     { key: "tier_group",             label: "Group",          type: "readonly", width: "100px" },
     { key: "label",                  label: "Label",          type: "text",    width: "200px" },
     { key: "min_hours_before_job",   label: "Min hours",      type: "number",  width: "110px" },
@@ -683,7 +684,7 @@ export default function PricesPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [creatingTable, setCreatingTable] = useState<string | null>(null);
-  const [creatingTierGroup, setCreatingTierGroup] = useState<PayoutTierGroup | null>(null);
+  const [creatingTierKey, setCreatingTierKey] = useState<string | null>(null);
   const [activeVersionId, setActiveVersionId] = useState<string>("");
   const [vatRatePercent, setVatRatePercent] = useState(20);
 
@@ -778,17 +779,18 @@ export default function PricesPage() {
         await fetchPricing();
       } finally {
         setCreatingTable(null);
-        setCreatingTierGroup(null);
+        setCreatingTierKey(null);
       }
     },
     [selectedVersionId, activeVersionId, fetchPricing]
   );
 
   const handleCreatePayoutTier = useCallback(
-    async (group: PayoutTierGroup) => {
-      setCreatingTierGroup(group);
+    async (category: VehicleCategoryId, group: PayoutTierGroup) => {
+      setCreatingTierKey(`${category}:${group}`);
       await handleCreate("payout_escalation_tiers", {
         tier_group: group,
+        vehicle_category_id: category,
         label: group === "duration" ? "New duration tier" : "New trip tier",
       });
     },
@@ -1043,7 +1045,7 @@ export default function PricesPage() {
                       vatRatePercent={vatRatePercent}
                       onSave={handleSave}
                       onCreateTier={handleCreatePayoutTier}
-                      creatingGroup={creatingTierGroup}
+                      creatingTierKey={creatingTierKey}
                       PricingTable={PricingTable}
                     />
                   ) : (
