@@ -49,6 +49,8 @@ import {
   hasPenceColumns,
   PENCE_COLUMN_MIN_WIDTH,
 } from "@/components/pricing/pricingVatPreview";
+import { DriverTiersTabContent } from "@/components/pricing/DriverTiersTabContent";
+import type { PayoutTierGroup } from "@/components/pricing/payoutTierGroups";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -125,6 +127,7 @@ const COLS: Record<string, ColDef[]> = {
     { key: "active", label: "Active", type: "boolean", width: "72px" },
   ],
   payout_escalation_tiers: [
+    { key: "tier_group",             label: "Group",          type: "readonly", width: "100px" },
     { key: "label",                  label: "Label",          type: "text",    width: "200px" },
     { key: "min_hours_before_job",   label: "Min hours",      type: "number",  width: "110px" },
     { key: "max_hours_before_job",   label: "Max hours",      type: "number",  width: "110px" },
@@ -680,6 +683,7 @@ export default function PricesPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [creatingTable, setCreatingTable] = useState<string | null>(null);
+  const [creatingTierGroup, setCreatingTierGroup] = useState<PayoutTierGroup | null>(null);
   const [activeVersionId, setActiveVersionId] = useState<string>("");
   const [vatRatePercent, setVatRatePercent] = useState(20);
 
@@ -758,7 +762,7 @@ export default function PricesPage() {
   );
 
   const handleCreate = useCallback(
-    async (table: string) => {
+    async (table: string, rowExtras?: Row) => {
       setCreatingTable(table);
       try {
         const res = await apiFetch("/api/admin/pricing", {
@@ -766,6 +770,7 @@ export default function PricesPage() {
           body: JSON.stringify({
             table,
             pricing_version_id: selectedVersionId || activeVersionId || undefined,
+            row: rowExtras,
           }),
         });
         const data = await res.json();
@@ -773,9 +778,21 @@ export default function PricesPage() {
         await fetchPricing();
       } finally {
         setCreatingTable(null);
+        setCreatingTierGroup(null);
       }
     },
     [selectedVersionId, activeVersionId, fetchPricing]
+  );
+
+  const handleCreatePayoutTier = useCallback(
+    async (group: PayoutTierGroup) => {
+      setCreatingTierGroup(group);
+      await handleCreate("payout_escalation_tiers", {
+        tier_group: group,
+        label: group === "duration" ? "New duration tier" : "New trip tier",
+      });
+    },
+    [handleCreate]
   );
 
   // count of visible (non-null) rows per tab
@@ -979,7 +996,7 @@ export default function PricesPage() {
                           {rows.filter((r) => r.active === true).length} active
                         </Badge>
                       )}
-                      {CREATABLE_TABLES.has(key) && (
+                      {CREATABLE_TABLES.has(key) && key !== "payout_escalation_tiers" && (
                         <Button
                           size="sm"
                           variant="outline"
@@ -997,11 +1014,6 @@ export default function PricesPage() {
                       )}
                     </div>
                   </div>
-                  {key === "payout_escalation_tiers" && (
-                    <p className="text-xs text-muted-foreground mb-3 -mt-2">
-                      Driver payout rounds up to the nearest £1 in the driver app (same as client rounding).
-                    </p>
-                  )}
                   {key === "pricing_vehicle_rates" && (
                     <>
                       <VehicleRatesSyncToolbar
@@ -1020,33 +1032,48 @@ export default function PricesPage() {
                   {key === "pricing_hourly_rules" && <HourlyRatesNotice />}
                   {key === "pricing_daily_rules" && <DailyEngineNotice variant="rules" />}
                   {key === "pricing_fleet_discounts" && <FleetRatesNotice />}
-                  {hasPenceColumns(cols) && <PricingVatBanner vatRatePercent={vatRatePercent} />}
-                  <PricingTable
-                    table={key}
-                    rows={rows}
-                    cols={cols}
-                    onSave={handleSave}
-                    onCreate={CREATABLE_TABLES.has(key) ? () => handleCreate(key) : undefined}
-                    creating={creatingTable === key}
-                    vatRatePercent={vatRatePercent}
-                    isDerivedRow={
-                      key === "pricing_vehicle_rates"
-                        ? (row) => isReturnDerivedBookingType(row.booking_type)
-                        : undefined
-                    }
-                    resolveHeaderCols={
-                      key === "pricing_vehicle_rates"
-                        ? (visibleRows, baseCols) => {
-                            if (bookingTypeFilter !== "all") {
-                              return baseCols.filter((c) =>
-                                isColApplicableToBookingType(c.key, bookingTypeFilter)
-                              );
+                  {hasPenceColumns(cols) && key !== "payout_escalation_tiers" && (
+                    <PricingVatBanner vatRatePercent={vatRatePercent} />
+                  )}
+                  {key === "payout_escalation_tiers" ? (
+                    <DriverTiersTabContent
+                      tierRows={rows}
+                      vehicleRateRows={vehicleRowsAll}
+                      tierCols={cols}
+                      vatRatePercent={vatRatePercent}
+                      onSave={handleSave}
+                      onCreateTier={handleCreatePayoutTier}
+                      creatingGroup={creatingTierGroup}
+                      PricingTable={PricingTable}
+                    />
+                  ) : (
+                    <PricingTable
+                      table={key}
+                      rows={rows}
+                      cols={cols}
+                      onSave={handleSave}
+                      onCreate={CREATABLE_TABLES.has(key) ? () => handleCreate(key) : undefined}
+                      creating={creatingTable === key}
+                      vatRatePercent={vatRatePercent}
+                      isDerivedRow={
+                        key === "pricing_vehicle_rates"
+                          ? (row) => isReturnDerivedBookingType(row.booking_type)
+                          : undefined
+                      }
+                      resolveHeaderCols={
+                        key === "pricing_vehicle_rates"
+                          ? (visibleRows, baseCols) => {
+                              if (bookingTypeFilter !== "all") {
+                                return baseCols.filter((c) =>
+                                  isColApplicableToBookingType(c.key, bookingTypeFilter)
+                                );
+                              }
+                              return getColsForVehicleRateRows(visibleRows, baseCols);
                             }
-                            return getColsForVehicleRateRows(visibleRows, baseCols);
-                          }
-                        : undefined
-                    }
-                  />
+                          : undefined
+                      }
+                    />
+                  )}
                 </TabsContent>
               );
             })}

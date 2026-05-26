@@ -64,6 +64,7 @@ const IMMUTABLE_PATCH_COLUMNS = new Set([
   "created_at",
   "updated_at",
   "pricing_version_id",
+  "tier_group",
 ]);
 
 function pickUpdates(updates: Record<string, unknown>): Record<string, unknown> {
@@ -435,8 +436,13 @@ export async function POST(request: NextRequest) {
       if (!versionId) {
         return NextResponse.json({ error: "No active pricing version" }, { status: 400 });
       }
+      const tierGroup =
+        row.tier_group === "duration" || row.tier_group === "trip"
+          ? row.tier_group
+          : "trip";
       insertPayload = {
         pricing_version_id: versionId,
+        tier_group: tierGroup,
         label: row.label ?? "New tier",
         min_hours_before_job: row.min_hours_before_job ?? 0,
         max_hours_before_job: row.max_hours_before_job ?? null,
