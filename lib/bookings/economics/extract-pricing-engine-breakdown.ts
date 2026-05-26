@@ -1,3 +1,5 @@
+import { filterPricingDisplayLines } from "./filter-pricing-lines";
+
 export type PricingEngineLine = {
   component: string;
   description: string;
@@ -9,6 +11,9 @@ export type PricingEngineLegBreakdown = {
   legKind: string | null;
   vehicleCategory: string | null;
   lines: PricingEngineLine[];
+  chargeLines: PricingEngineLine[];
+  freeExtrasCount: number;
+  paidExtrasCount: number;
   subtotalPence: number | null;
   discountPence: number | null;
   multipliers: Record<string, number>;
@@ -16,10 +21,21 @@ export type PricingEngineLegBreakdown = {
   totalPence: number | null;
 };
 
+export type PricingTripContext = {
+  bookingType: string | null;
+  pickupAddress: string | null;
+  dropoffAddress: string | null;
+  scheduledAt: string | null;
+  hours: number | null;
+  distanceMiles: number | null;
+  durationMinutes: number | null;
+};
+
 export type PricingEngineBreakdown = {
   source: "quote" | "ilf_snapshot" | null;
   calcSource: string | null;
   calcVersion: string | null;
+  tripContext: PricingTripContext | null;
   legs: PricingEngineLegBreakdown[];
   missingReason?: string;
 };
@@ -35,6 +51,34 @@ type RawComponent = {
   label?: string;
   amount_pence?: number;
 };
+
+function enrichLegLines(rawLines: PricingEngineLine[]) {
+  const filtered = filterPricingDisplayLines(rawLines);
+  return {
+    lines: rawLines,
+    chargeLines: filtered.chargeLines,
+    freeExtrasCount: filtered.freeExtrasCount,
+    paidExtrasCount: filtered.paidExtrasCount,
+  };
+}
+
+function readTripContext(meta: Record<string, unknown>): PricingTripContext | null {
+  const trip = meta.trip as Record<string, unknown> | undefined;
+  if (!trip || typeof trip !== "object") return null;
+
+  const pickup = trip.pickup as Record<string, unknown> | undefined;
+  const dropoff = trip.dropoff as Record<string, unknown> | undefined;
+
+  return {
+    bookingType: typeof trip.bookingType === "string" ? trip.bookingType : null,
+    pickupAddress: typeof pickup?.address === "string" ? pickup.address : null,
+    dropoffAddress: typeof dropoff?.address === "string" ? dropoff.address : null,
+    scheduledAt: typeof trip.dateTime === "string" ? trip.dateTime : null,
+    hours: typeof trip.hours === "number" ? trip.hours : null,
+    distanceMiles: typeof trip.distance === "number" ? trip.distance : null,
+    durationMinutes: typeof trip.duration === "number" ? trip.duration : null,
+  };
+}
 
 function mapDetails(details: unknown): PricingEngineLine[] {
   if (!Array.isArray(details)) return [];
@@ -78,12 +122,15 @@ export function extractPricingEngineFromQuote(lineItems: unknown): PricingEngine
         ? (pricing.multipliers as Record<string, number>)
         : {};
 
+    const rawLines = mapDetails(pricing.details);
+    const lineFields = enrichLegLines(rawLines);
+
     return {
       legNumber: typeof leg.leg_number === "number" ? leg.leg_number : index + 1,
       legKind: typeof leg.leg_kind === "string" ? leg.leg_kind : null,
       vehicleCategory:
         typeof leg.vehicle_category === "string" ? leg.vehicle_category : null,
-      lines: mapDetails(pricing.details),
+      ...lineFields,
       subtotalPence: typeof pricing.subtotal_pence === "number" ? pricing.subtotal_pence : null,
       discountPence: typeof pricing.discount_pence === "number" ? pricing.discount_pence : null,
       multipliers,
@@ -92,12 +139,15 @@ export function extractPricingEngineFromQuote(lineItems: unknown): PricingEngine
     };
   });
 
-  if (legs.every((leg) => leg.lines.length === 0)) return null;
+  if (legs.every((leg) => leg.chargeLines.length === 0 && leg.freeExtrasCount === 0)) {
+    return null;
+  }
 
   return {
     source: "quote",
     calcSource: typeof meta.calc_source === "string" ? meta.calc_source : null,
     calcVersion: typeof meta.calc_version === "string" ? meta.calc_version : null,
+    tripContext: readTripContext(meta),
     legs,
   };
 }
@@ -111,9 +161,10 @@ export function extractPricingEngineFromIlfLegs(
     .map((row) => {
       const lineItems = row.line_items as Record<string, unknown> | undefined;
       const pricing = (lineItems?.pricing ?? {}) as Record<string, unknown>;
-      const components = mapComponents(lineItems?.components);
       const details = mapDetails(pricing.details);
-      const lines = details.length > 0 ? details : components;
+      const components = mapComponents(lineItems?.components);
+      const rawLines = details.length > 0 ? details : components;
+      const lineFields = enrichLegLines(rawLines);
 
       return {
         legNumber: Number(row.leg_number) || 0,
@@ -122,7 +173,7 @@ export function extractPricingEngineFromIlfLegs(
           typeof lineItems?.vehicle_category_id === "string"
             ? lineItems.vehicle_category_id
             : null,
-        lines,
+        ...lineFields,
         subtotalPence:
           typeof pricing.subtotal_pence === "number" ? pricing.subtotal_pence : null,
         discountPence:
@@ -132,7 +183,7 @@ export function extractPricingEngineFromIlfLegs(
         totalPence: typeof pricing.total_pence === "number" ? pricing.total_pence : null,
       };
     })
-    .filter((leg) => leg.lines.length > 0);
+    .filter((leg) => leg.chargeLines.length > 0 || leg.freeExtrasCount > 0);
 
   if (legs.length === 0) return null;
 
@@ -140,6 +191,7 @@ export function extractPricingEngineFromIlfLegs(
     source: "ilf_snapshot",
     calcSource: "internal_leg_financials",
     calcVersion: null,
+    tripContext: null,
     legs,
     missingReason: "Quote pricing details unavailable — showing ILF booking snapshot.",
   };
@@ -161,6 +213,7 @@ export function buildPricingEngineBreakdown(input: {
     source: null,
     calcSource: null,
     calcVersion: null,
+    tripContext: null,
     legs: [],
     missingReason: "No pricing engine breakdown stored on quote or leg financials.",
   };
