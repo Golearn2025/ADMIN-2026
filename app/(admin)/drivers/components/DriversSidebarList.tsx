@@ -102,17 +102,15 @@ export function DriversSidebarList({
 
   const activeFiltersCount = filters.category.length + filters.make.length + filters.color.length + filters.year.length;
   const getStatusBadge = (driver: Driver) => {
-    // Show only PRIMARY status - driver.status is source of truth
-    if (driver.status === 'approved') {
-      return { label: 'Active', variant: 'default' as const, className: 'bg-green-500/10 text-green-600 border-green-500/20' };
-    }
     if (driver.status === 'suspended') {
       return { label: 'Suspended', variant: 'secondary' as const, className: 'bg-yellow-500/10 text-yellow-600 border-yellow-500/20' };
     }
     if (driver.status === 'inactive') {
       return { label: 'Inactive', variant: 'outline' as const, className: 'bg-gray-500/10 text-gray-600 border-gray-500/20' };
     }
-    // Pending = not yet approved
+    if (driver.is_approved && (driver.status === 'approved' || driver.status === 'active')) {
+      return { label: 'Active', variant: 'default' as const, className: 'bg-green-500/10 text-green-600 border-green-500/20' };
+    }
     return { label: 'Pending', variant: 'secondary' as const, className: 'bg-blue-500/10 text-blue-600 border-blue-500/20' };
   };
 
