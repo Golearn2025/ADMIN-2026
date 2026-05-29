@@ -167,7 +167,7 @@ export function DriverWorkspace({
       />
 
       {/* Tabs Section - Sticky */}
-      <div className="sticky top-0 z-10 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 -mx-8 px-8 py-4 border-b border-border">
+      <div className="sticky top-0 z-10 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 -mx-3 px-3 py-3 md:-mx-8 md:px-8 md:py-4 border-b border-border">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
           <TabsList className="h-auto w-full flex-wrap justify-start gap-1">
             <TabsTrigger value="details" className="data-[state=active]:font-bold">Details</TabsTrigger>
@@ -183,7 +183,12 @@ export function DriverWorkspace({
           </TabsContent>
 
           <TabsContent value="compliance">
-            <DriverComplianceTab driver={driver} />
+            <DriverComplianceTab
+              driver={driver}
+              driverDocuments={driverDocuments}
+              vehicleDocuments={vehicleDocuments}
+              vehicles={vehicles}
+            />
           </TabsContent>
 
           <TabsContent value="documents">

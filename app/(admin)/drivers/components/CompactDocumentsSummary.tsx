@@ -9,6 +9,35 @@ interface CompactDocumentsSummaryProps {
   missing: number;
 }
 
+function StatCard({
+  icon: Icon,
+  iconClass,
+  label,
+  value,
+  sub,
+}: {
+  icon: React.ComponentType<{ className?: string }>;
+  iconClass: string;
+  label: string;
+  value: number;
+  sub: string;
+}) {
+  return (
+    <div className="flex flex-col items-center justify-center gap-2 rounded-lg border border-border bg-muted/40 p-3 text-center min-w-0">
+      <div
+        className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${iconClass}`}
+      >
+        <Icon className="h-4 w-4" />
+      </div>
+      <div className="min-w-0 w-full">
+        <p className="text-xs text-muted-foreground leading-tight">{label}</p>
+        <p className="text-lg font-bold leading-tight">{value}</p>
+        <p className="text-[10px] text-muted-foreground leading-tight">{sub}</p>
+      </div>
+    </div>
+  );
+}
+
 export function CompactDocumentsSummary({
   approved,
   expired,
@@ -20,83 +49,54 @@ export function CompactDocumentsSummary({
 
   return (
     <div className="rounded-xl border border-border bg-card p-4 shadow-lg md:p-6">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex flex-col items-center gap-2 mb-4 text-center sm:flex-row sm:justify-between sm:text-left">
         <div className="flex items-center gap-2">
-          <FileText className="h-5 w-5 text-gray-400" />
-          <h3 className="text-sm font-semibold text-white">Documents Overview</h3>
+          <FileText className="h-5 w-5 text-muted-foreground shrink-0" />
+          <h3 className="text-sm font-semibold">Documents Overview</h3>
         </div>
         {isCompliant && (
-          <Badge variant="success" className="gap-1">
+          <Badge variant="success" className="gap-1 shrink-0">
             <CheckCircle className="h-3 w-3" />
             All Valid
           </Badge>
         )}
         {hasIssues && (
-          <Badge variant="destructive" className="gap-1">
+          <Badge variant="destructive" className="gap-1 shrink-0">
             <AlertTriangle className="h-3 w-3" />
             Action Required
           </Badge>
         )}
       </div>
 
-      {/* Stats Grid */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4">
-        {/* Total */}
-        <div className="flex items-center gap-3 p-3 rounded-lg bg-white/5 border border-white/10">
-          <div className="flex-shrink-0">
-            <div className="h-10 w-10 rounded-lg bg-blue-500/10 flex items-center justify-center">
-              <FileText className="h-5 w-5 text-blue-500" />
-            </div>
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-xs text-gray-400">Total</p>
-            <p className="text-lg font-bold text-white">{total}</p>
-            <p className="text-xs text-gray-500">documents</p>
-          </div>
-        </div>
-
-        {/* Approved */}
-        <div className="flex items-center gap-3 p-3 rounded-lg bg-white/5 border border-white/10">
-          <div className="flex-shrink-0">
-            <div className="h-10 w-10 rounded-lg bg-green-500/10 flex items-center justify-center">
-              <CheckCircle className="h-5 w-5 text-green-500" />
-            </div>
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-xs text-gray-400">Approved</p>
-            <p className="text-lg font-bold text-white">{approved}</p>
-            <p className="text-xs text-gray-500">valid</p>
-          </div>
-        </div>
-
-        {/* Expired */}
-        <div className="flex items-center gap-3 p-3 rounded-lg bg-white/5 border border-white/10">
-          <div className="flex-shrink-0">
-            <div className="h-10 w-10 rounded-lg bg-orange-500/10 flex items-center justify-center">
-              <AlertTriangle className="h-5 w-5 text-orange-500" />
-            </div>
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-xs text-gray-400">Expired</p>
-            <p className="text-lg font-bold text-white">{expired}</p>
-            <p className="text-xs text-gray-500">renew</p>
-          </div>
-        </div>
-
-        {/* Missing */}
-        <div className="flex items-center gap-3 p-3 rounded-lg bg-white/5 border border-white/10">
-          <div className="flex-shrink-0">
-            <div className="h-10 w-10 rounded-lg bg-red-500/10 flex items-center justify-center">
-              <XCircle className="h-5 w-5 text-red-500" />
-            </div>
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-xs text-gray-400">Missing</p>
-            <p className="text-lg font-bold text-white">{missing}</p>
-            <p className="text-xs text-gray-500">upload</p>
-          </div>
-        </div>
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-3">
+        <StatCard
+          icon={FileText}
+          iconClass="bg-blue-500/10 text-blue-500"
+          label="Total"
+          value={total}
+          sub="documents"
+        />
+        <StatCard
+          icon={CheckCircle}
+          iconClass="bg-green-500/10 text-green-500"
+          label="Approved"
+          value={approved}
+          sub="valid"
+        />
+        <StatCard
+          icon={AlertTriangle}
+          iconClass="bg-orange-500/10 text-orange-500"
+          label="Expired"
+          value={expired}
+          sub="renew"
+        />
+        <StatCard
+          icon={XCircle}
+          iconClass="bg-red-500/10 text-red-500"
+          label="Missing"
+          value={missing}
+          sub="upload"
+        />
       </div>
     </div>
   );

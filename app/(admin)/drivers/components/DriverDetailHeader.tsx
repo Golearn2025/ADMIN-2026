@@ -119,28 +119,27 @@ export function DriverDetailHeader({ driver, onRefresh }: DriverDetailHeaderProp
 
           <div className="flex w-full flex-row flex-wrap items-center justify-between gap-3 md:w-auto md:flex-col md:items-end">
             {/* Status Badge + Three-dot Menu (same line) */}
-            <div className="flex items-center gap-2">
-              {/* Status Badge */}
+            <div className="flex flex-wrap items-center justify-center gap-2 md:justify-end">
               {driver.status === 'approved' && (
-                <Badge variant="default" className="gap-1 bg-green-500/10 text-green-600 border-green-500/20 text-base px-4 py-2">
+                <Badge variant="default" className="gap-1 bg-green-500/10 text-green-600 border-green-500/20 text-xs sm:text-sm px-3 py-1.5 whitespace-nowrap">
                   <CheckCircle className="h-4 w-4" />
                   Active
                 </Badge>
               )}
               {driver.status === 'suspended' && (
-                <Badge variant="secondary" className="gap-1 bg-yellow-500/10 text-yellow-600 border-yellow-500/20 text-base px-4 py-2">
+                <Badge variant="secondary" className="gap-1 bg-yellow-500/10 text-yellow-600 border-yellow-500/20 text-xs sm:text-sm px-3 py-1.5 whitespace-nowrap">
                   <Ban className="h-4 w-4" />
                   Suspended
                 </Badge>
               )}
               {driver.status === 'inactive' && (
-                <Badge variant="outline" className="gap-1 bg-gray-500/10 text-gray-600 border-gray-500/20 text-base px-4 py-2">
+                <Badge variant="outline" className="gap-1 bg-gray-500/10 text-gray-600 border-gray-500/20 text-xs sm:text-sm px-3 py-1.5 whitespace-nowrap">
                   <XCircle className="h-4 w-4" />
                   Inactive
                 </Badge>
               )}
               {!driver.status || (driver.status !== 'approved' && driver.status !== 'suspended' && driver.status !== 'inactive') && (
-                <Badge variant="secondary" className="gap-1 bg-blue-500/10 text-blue-600 border-blue-500/20 text-base px-4 py-2">
+                <Badge variant="secondary" className="gap-1 bg-blue-500/10 text-blue-600 border-blue-500/20 text-xs sm:text-sm px-3 py-1.5 whitespace-nowrap">
                   <Clock className="h-4 w-4" />
                   Pending
                 </Badge>

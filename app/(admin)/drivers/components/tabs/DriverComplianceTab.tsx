@@ -1,386 +1,348 @@
 "use client";
 
+import type { ComponentType } from "react";
 import { Badge } from "@/components/ui/badge";
-import { 
-  Shield, 
-  CheckCircle, 
-  XCircle, 
+import {
+  Shield,
+  CheckCircle,
+  XCircle,
   AlertTriangle,
   FileText,
   Car,
   User,
   Clock,
-  ArrowRight
 } from "lucide-react";
-import type { Driver } from "@/lib/features/drivers/drivers.types";
+import type { Driver, DriverDocument, VehicleDocument } from "@/lib/features/drivers/drivers.types";
+import {
+  buildDriverComplianceRows,
+  buildVehicleComplianceRows,
+  getDriverComplianceBreakdown,
+} from "@/lib/features/drivers/compliance.utils";
+import { ComplianceDocumentList } from "../ComplianceDocumentList";
 
 interface DriverComplianceTabProps {
   driver: Driver;
+  driverDocuments: DriverDocument[];
+  vehicleDocuments: VehicleDocument[];
+  vehicles?: { id?: string; vehicle_id?: string; license_plate?: string; plate?: string }[];
 }
 
-export function DriverComplianceTab({ driver }: DriverComplianceTabProps) {
-  // Calculate valid documents (approved - expired)
-  const validDocs = (driver.documents_completed || 0) - (driver.documents_expired || 0);
-  const missingDocs = (driver.documents_required || 0) - validDocs;
-  const driverDocsProgress = (driver.documents_required || 0) > 0 
-    ? (validDocs / (driver.documents_required || 0)) * 100 
-    : 0;
+function StatCell({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: number | string;
+  tone?: "default" | "green" | "red" | "orange";
+}) {
+  const valueClass =
+    tone === "green"
+      ? "text-green-600"
+      : tone === "red"
+        ? "text-red-600"
+        : tone === "orange"
+          ? "text-orange-600"
+          : "text-foreground";
 
-  // Determine compliance requirements
+  return (
+    <div className="flex flex-col items-center justify-center rounded-lg border border-border bg-muted/30 p-3 text-center min-w-0">
+      <dt className="text-xs text-muted-foreground leading-tight">{label}</dt>
+      <dd className={`text-xl font-bold mt-1 ${valueClass}`}>{value}</dd>
+    </div>
+  );
+}
+
+function SummaryCard({
+  icon: Icon,
+  title,
+  children,
+}: {
+  icon: ComponentType<{ className?: string }>;
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="rounded-lg border border-border bg-card p-4 md:p-6 flex flex-col items-center text-center sm:items-start sm:text-left">
+      <div className="flex items-center justify-center gap-2 mb-3 w-full sm:justify-start">
+        <Icon className="h-5 w-5 shrink-0 text-primary" />
+        <h3 className="font-semibold text-sm md:text-base leading-snug">{title}</h3>
+      </div>
+      <div className="w-full flex flex-col items-center sm:items-start">{children}</div>
+    </div>
+  );
+}
+
+export function DriverComplianceTab({
+  driver,
+  driverDocuments,
+  vehicleDocuments,
+  vehicles = [],
+}: DriverComplianceTabProps) {
+  const breakdown = getDriverComplianceBreakdown(driver);
+  const driverRows = buildDriverComplianceRows(
+    driverDocuments,
+    breakdown.driver.required
+  );
+  const vehicleRows = buildVehicleComplianceRows(
+    vehicleDocuments,
+    vehicles,
+    breakdown.vehicle.perVehicle
+  );
+
+  const driverProgress =
+    breakdown.driver.required > 0
+      ? (breakdown.driver.approved / breakdown.driver.required) * 100
+      : 0;
+  const vehicleProgress =
+    breakdown.vehicle.required > 0
+      ? (breakdown.vehicle.approved / breakdown.vehicle.required) * 100
+      : 0;
+
   const requirements = [
+    { label: "Șofer activ", met: driver.is_active, icon: User },
+    { label: "Șofer aprobat", met: driver.is_approved, icon: Shield },
     {
-      label: "Driver is Active",
-      met: driver.is_active,
-      icon: User,
-    },
-    {
-      label: "Driver is Approved",
-      met: driver.is_approved,
-      icon: Shield,
-    },
-    {
-      label: "Has Vehicle",
+      label: "Are vehicul",
       met: driver.total_vehicles > 0,
       icon: Car,
-      detail: driver.total_vehicles > 0 ? `${driver.total_vehicles} vehicle${driver.total_vehicles > 1 ? 's' : ''}` : undefined,
+      detail:
+        driver.total_vehicles > 0
+          ? `${driver.total_vehicles} vehicul${driver.total_vehicles > 1 ? "e" : ""}`
+          : undefined,
     },
     {
-      label: "All Required Documents Valid",
-      met: validDocs === (driver.documents_required || 0) && (driver.documents_expired || 0) === 0,
+      label: "Documente șofer complete",
+      met: breakdown.driver.missing === 0 && breakdown.driver.expired === 0,
       icon: FileText,
-      detail: `${validDocs}/${driver.documents_required} valid`,
+      detail: `${breakdown.driver.approved}/${breakdown.driver.required} aprobate`,
     },
     {
-      label: "No Expired Documents",
-      met: (driver.documents_expired || 0) === 0,
+      label: "Documente vehicul complete",
+      met:
+        driver.total_vehicles > 0 &&
+        breakdown.vehicle.missing === 0 &&
+        breakdown.vehicle.expired === 0,
+      icon: Car,
+      detail:
+        driver.total_vehicles > 0
+          ? `${breakdown.vehicle.approved}/${breakdown.vehicle.required} aprobate`
+          : "Fără vehicul",
+    },
+    {
+      label: "Fără documente expirate",
+      met: breakdown.driver.expired + breakdown.vehicle.expired === 0,
       icon: Clock,
-      detail: (driver.documents_expired || 0) > 0 ? `${driver.documents_expired || 0} expired` : undefined,
+      detail:
+        breakdown.driver.expired + breakdown.vehicle.expired > 0
+          ? `${breakdown.driver.expired + breakdown.vehicle.expired} expirate`
+          : undefined,
     },
   ];
 
-  const allRequirementsMet = requirements.every(req => req.met);
-  const canReceiveJobs = driver.can_receive_jobs;
+  const issues: string[] = [];
+  if (!driver.is_active) issues.push("Contul șoferului nu e activ");
+  if (!driver.is_approved) issues.push("Șoferul nu e aprobat");
+  if (driver.total_vehicles === 0) issues.push("Nu are vehicul înregistrat");
+  if (breakdown.driver.missing > 0)
+    issues.push(`${breakdown.driver.missing} document(e) șofer lipsă/neaprobate`);
+  if (breakdown.vehicle.missing > 0)
+    issues.push(`${breakdown.vehicle.missing} document(e) vehicul lipsă/neaprobate`);
+  if (breakdown.driver.expired + breakdown.vehicle.expired > 0)
+    issues.push(
+      `${breakdown.driver.expired + breakdown.vehicle.expired} document(e) expirate`
+    );
 
-  // Determine issues
-  const issues = [];
-  if (!driver.is_active) issues.push("Driver account is inactive");
-  if (!driver.is_approved) issues.push("Driver is not approved");
-  if (driver.total_vehicles === 0) issues.push("No vehicle assigned");
-  if (missingDocs > 0) issues.push(`${missingDocs} document${missingDocs > 1 ? 's' : ''} not approved`);
-  if ((driver.documents_expired || 0) > 0) issues.push(`${driver.documents_expired || 0} document${(driver.documents_expired || 0) > 1 ? 's' : ''} expired`);
-
-  const getComplianceStatusBadge = (status: string) => {
+  const statusBadge = (status: string) => {
     switch (status) {
-      case 'ok':
-        return <Badge variant="success" className="text-lg px-4 py-2">✅ Compliant</Badge>;
-      case 'expired':
-        return <Badge variant="destructive" className="text-lg px-4 py-2">⚠️ Expired Documents</Badge>;
-      case 'missing':
-        return <Badge variant="destructive" className="text-lg px-4 py-2">❌ Missing Documents</Badge>;
-      case 'no_vehicle':
-        return <Badge variant="warning" className="text-lg px-4 py-2">⚠️ No Vehicle</Badge>;
+      case "ok":
+        return <Badge variant="success">Compliant</Badge>;
+      case "expired":
+        return <Badge variant="warning">Documente expirate</Badge>;
+      case "missing":
+        return <Badge variant="destructive">Documente lipsă</Badge>;
+      case "no_vehicle":
+        return <Badge variant="warning">Fără vehicul</Badge>;
       default:
-        return <Badge variant="secondary" className="text-lg px-4 py-2">{status}</Badge>;
+        return <Badge variant="secondary">{status}</Badge>;
     }
   };
 
   return (
     <div className="space-y-6">
-      {/* Summary Cards */}
-      <div className="grid gap-4 sm:grid-cols-3">
-        {/* Overall Status */}
-        <div className="rounded-lg border border-border bg-card p-6">
-          <div className="flex items-center gap-3 mb-3">
-            <Shield className="h-6 w-6 text-primary" />
-            <h3 className="font-semibold">Overall Status</h3>
-          </div>
-          <div className="mt-4">
-            {getComplianceStatusBadge(driver.compliance_status)}
-          </div>
-        </div>
-
-        {/* Can Receive Jobs */}
-        <div className="rounded-lg border border-border bg-card p-6">
-          <div className="flex items-center gap-3 mb-3">
-            <CheckCircle className="h-6 w-6 text-primary" />
-            <h3 className="font-semibold">Can Receive Jobs</h3>
-          </div>
-          <div className="mt-4">
-            <Badge variant={canReceiveJobs ? "success" : "destructive"} className="text-lg px-4 py-2">
-              {canReceiveJobs ? "✅ YES" : "❌ NO"}
-            </Badge>
-          </div>
-        </div>
-
-        {/* Driver Status */}
-        <div className="rounded-lg border border-border bg-card p-6">
-          <div className="flex items-center gap-3 mb-3">
-            <User className="h-6 w-6 text-primary" />
-            <h3 className="font-semibold">Driver Status</h3>
-          </div>
-          <div className="mt-4">
-            <Badge 
-              variant={
-                driver.is_active ? 'success' :
-                !driver.is_active ? 'secondary' :
-                'warning'
-              }
-              className="text-lg px-4 py-2 capitalize"
-            >
-              {driver.is_active && '✅ '}
-              {!driver.is_active && '⚠️ '}
-              {driver.is_active ? 'active' : 'inactive'}
-            </Badge>
-          </div>
-        </div>
+      <div className="grid gap-3 grid-cols-1 sm:grid-cols-3">
+        <SummaryCard icon={Shield} title="Status compliance">
+          {statusBadge(driver.compliance_status)}
+        </SummaryCard>
+        <SummaryCard icon={CheckCircle} title="Poate primi curse">
+          <Badge variant={driver.can_receive_jobs ? "success" : "destructive"}>
+            {driver.can_receive_jobs ? "DA" : "NU"}
+          </Badge>
+        </SummaryCard>
+        <SummaryCard icon={User} title="Status cont">
+          <Badge variant={driver.is_active ? "success" : "secondary"}>
+            {driver.is_active ? "Activ" : "Inactiv"}
+          </Badge>
+        </SummaryCard>
       </div>
 
-      {/* Driver Documents Breakdown */}
-      <div className="rounded-lg border border-border bg-card p-6">
-        <div className="flex items-center gap-3 mb-6">
-          <FileText className="h-6 w-6 text-primary" />
-          <h3 className="text-lg font-semibold">Driver Documents Compliance</h3>
-        </div>
-
-        <div className="space-y-4">
-          <div className="grid gap-4 sm:grid-cols-4">
-            <div>
-              <dt className="text-sm text-muted-foreground">Required</dt>
-              <dd className="text-2xl font-bold">{driver.documents_required || 0}</dd>
-            </div>
-            <div>
-              <dt className="text-sm text-muted-foreground">Valid</dt>
-              <dd className="text-2xl font-bold text-green-600">{validDocs}</dd>
-            </div>
-            <div>
-              <dt className="text-sm text-muted-foreground">Expired</dt>
-              <dd className="text-2xl font-bold text-red-600">{driver.documents_expired || 0}</dd>
-            </div>
-            <div>
-              <dt className="text-sm text-muted-foreground">Missing</dt>
-              <dd className="text-2xl font-bold text-orange-600">{missingDocs}</dd>
-            </div>
-          </div>
-
-          {/* Progress Bar */}
+      {/* Driver documents */}
+      <section className="rounded-lg border border-border bg-card p-4 md:p-6 space-y-4">
+        <div className="flex flex-col items-center gap-2 text-center sm:flex-row sm:items-center sm:text-left sm:gap-3">
+          <FileText className="h-6 w-6 text-primary shrink-0" />
           <div>
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-sm font-medium">Valid Documents Progress</span>
-              <span className="text-sm font-medium">{Math.round(driverDocsProgress)}%</span>
-            </div>
-            <div className="h-3 bg-muted rounded-full overflow-hidden">
-              <div 
-                className={`h-full transition-all ${
-                  (driver.documents_expired || 0) > 0 ? 'bg-yellow-500' :
-                  driverDocsProgress === 100 ? 'bg-green-500' :
-                  driverDocsProgress >= 75 ? 'bg-blue-500' :
-                  driverDocsProgress >= 50 ? 'bg-yellow-500' :
-                  'bg-red-500'
-                }`}
-                style={{ width: `${driverDocsProgress}%` }}
-              />
-            </div>
-          </div>
-
-          {/* Status */}
-          <div className="pt-2">
-            {(driver.documents_expired || 0) > 0 ? (
-              <Badge variant="destructive" className="gap-2">
-                <AlertTriangle className="h-4 w-4" />
-                {driver.documents_expired || 0} Expired - {validDocs}/{driver.documents_required || 0} Valid
-              </Badge>
-            ) : missingDocs > 0 ? (
-              <Badge variant="warning" className="gap-2">
-                <AlertTriangle className="h-4 w-4" />
-                {missingDocs} Missing - {validDocs}/{driver.documents_required || 0} Valid
-              </Badge>
-            ) : (
-              <Badge variant="success" className="gap-2">
-                <CheckCircle className="h-4 w-4" />
-                All Documents Valid ({validDocs}/{driver.documents_required || 0})
-              </Badge>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Vehicle Documents Breakdown */}
-      <div className="rounded-lg border border-border bg-card p-6">
-        <div className="flex items-center gap-3 mb-6">
-          <Car className="h-6 w-6 text-primary" />
-          <h3 className="text-lg font-semibold">Vehicle Documents Compliance</h3>
-        </div>
-
-        <div className="space-y-4">
-          <div className="grid gap-4 sm:grid-cols-3">
-            <div>
-              <dt className="text-sm text-muted-foreground">Vehicles</dt>
-              <dd className="text-2xl font-bold">{driver.total_vehicles}</dd>
-            </div>
-            <div>
-              <dt className="text-sm text-muted-foreground">Status</dt>
-              <dd className="mt-1">
-                {driver.total_vehicles === 0 ? (
-                  <Badge variant="warning">No Vehicle</Badge>
-                ) : (
-                  <Badge variant="success">Has Vehicle</Badge>
-                )}
-              </dd>
-            </div>
-            <div>
-              <dt className="text-sm text-muted-foreground">Compliance</dt>
-              <dd className="mt-1">
-                {driver.total_vehicles > 0 ? (
-                  driver.compliance_status === 'ok' || driver.compliance_status === 'expired' ? (
-                    <Badge variant="success">✅ Complete</Badge>
-                  ) : (
-                    <Badge variant="warning">⚠️ Incomplete</Badge>
-                  )
-                ) : (
-                  <Badge variant="secondary">N/A</Badge>
-                )}
-              </dd>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Requirements Checklist */}
-      <div className="rounded-lg border border-border bg-card p-6">
-        <div className="mb-6">
-          <div className="flex items-center gap-3">
-            <CheckCircle className="h-6 w-6 text-primary" />
-            <h3 className="text-lg font-semibold">Requirements Checklist</h3>
-          </div>
-          <p className="text-sm text-muted-foreground mt-2 ml-9">
-            All requirements must be met for driver to receive jobs
-          </p>
-        </div>
-
-        <div className="space-y-3">
-          {requirements.map((req, index) => {
-            const Icon = req.icon;
-            return (
-              <div 
-                key={index}
-                className={`flex items-center justify-between p-3 rounded-lg border-l-4 ${
-                  req.met ? 'border-l-green-500 bg-green-500/5' : 'border-l-red-500 bg-red-500/5'
-                }`}
-              >
-                <div className="flex items-center gap-3">
-                  <div className={`p-2 rounded-full ${req.met ? 'bg-green-500/10' : 'bg-red-500/10'}`}>
-                    <Icon className={`h-4 w-4 ${req.met ? 'text-green-500' : 'text-red-500'}`} />
-                  </div>
-                  <div>
-                    <p className="font-medium">{req.label}</p>
-                    {req.detail && (
-                      <p className="text-sm text-muted-foreground">{req.detail}</p>
-                    )}
-                  </div>
-                </div>
-                <div>
-                  {req.met ? (
-                    <CheckCircle className="h-5 w-5 text-green-500" />
-                  ) : (
-                    <XCircle className="h-5 w-5 text-red-500" />
-                  )}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-
-        {/* Final Result */}
-        <div className="mt-6 pt-6 border-t border-border">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="font-semibold text-lg">Final Result</p>
-              <p className="text-sm text-muted-foreground mt-1">
-                {canReceiveJobs 
-                  ? "Driver meets all requirements and can receive jobs"
-                  : "Driver does not meet all requirements"}
-              </p>
-            </div>
-            <Badge 
-              variant={canReceiveJobs ? "success" : "destructive"}
-              className="text-lg px-6 py-3"
-            >
-              {canReceiveJobs ? "✅ Can Receive Jobs" : "❌ Cannot Receive Jobs"}
-            </Badge>
-          </div>
-        </div>
-      </div>
-
-      {/* Issues & Actions */}
-      {issues.length > 0 && (
-        <div className="rounded-lg border border-red-500/30 bg-card p-6">
-          <div className="mb-6">
-            <div className="flex items-center gap-3">
-              <AlertTriangle className="h-6 w-6 text-red-500" />
-              <h3 className="text-lg font-semibold">Issues & Required Actions</h3>
-            </div>
-            <p className="text-sm text-muted-foreground mt-2 ml-9">
-              The following issues prevent this driver from receiving jobs
+            <h3 className="text-lg font-semibold">Documente șofer</h3>
+            <p className="text-sm text-muted-foreground">
+              Obligatorii per șofer (identitate, permis, PCO, etc.)
             </p>
           </div>
+        </div>
 
-          <div className="space-y-3">
-            {issues.map((issue, index) => (
-              <div key={index} className="flex items-start gap-3 p-3 rounded-lg border-l-4 border-l-red-500 bg-red-500/5">
-                <XCircle className="h-5 w-5 text-red-500 mt-0.5 shrink-0" />
-                <div className="flex-1">
-                  <p className="font-medium">{issue}</p>
-                </div>
-              </div>
-            ))}
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <StatCell label="Necesare" value={breakdown.driver.required} />
+          <StatCell label="Aprobate" value={breakdown.driver.approved} tone="green" />
+          <StatCell label="Expirate" value={breakdown.driver.expired} tone="red" />
+          <StatCell label="Lipsă" value={breakdown.driver.missing} tone="orange" />
+        </div>
+
+        <div>
+          <div className="flex justify-between text-sm mb-1">
+            <span>Progres documente șofer</span>
+            <span>{Math.round(driverProgress)}%</span>
           </div>
-
-          {/* Action Suggestions */}
-          <div className="mt-6 pt-6 border-t border-border">
-            <p className="font-semibold mb-3">Recommended Actions:</p>
-            <div className="space-y-2">
-              {!driver.is_active && (
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <ArrowRight className="h-4 w-4 text-red-500" />
-                  <span>Activate driver account in Details tab</span>
-                </div>
-              )}
-              {!driver.is_approved && (
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <ArrowRight className="h-4 w-4 text-red-500" />
-                  <span>Approve driver account</span>
-                </div>
-              )}
-              {driver.total_vehicles === 0 && (
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <ArrowRight className="h-4 w-4 text-red-500" />
-                  <span>Add a vehicle in Vehicles tab</span>
-                </div>
-              )}
-              {(missingDocs > 0 || (driver.documents_expired || 0) > 0) && (
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <ArrowRight className="h-4 w-4 text-red-500" />
-                  <span>Review and approve documents in Documents tab</span>
-                </div>
-              )}
-            </div>
+          <div className="h-2 rounded-full bg-muted overflow-hidden">
+            <div
+              className="h-full bg-primary transition-all"
+              style={{ width: `${Math.min(100, driverProgress)}%` }}
+            />
           </div>
         </div>
-      )}
 
-      {/* Success State */}
-      {issues.length === 0 && canReceiveJobs && (
-        <div className="rounded-lg border border-green-200 bg-green-50/50 p-6">
-          <div className="flex items-center gap-3">
-            <CheckCircle className="h-8 w-8 text-green-600" />
+        <ComplianceDocumentList
+          rows={driverRows.rows}
+          emptyMessage="Niciun document șofer încărcat"
+        />
+      </section>
+
+      {/* Vehicle documents */}
+      <section className="rounded-lg border border-border bg-card p-4 md:p-6 space-y-4">
+        <div className="flex flex-col items-center gap-2 text-center sm:flex-row sm:items-center sm:text-left sm:gap-3">
+          <Car className="h-6 w-6 text-primary shrink-0" />
+          <div>
+            <h3 className="text-lg font-semibold">Documente vehicul</h3>
+            <p className="text-sm text-muted-foreground">
+              {breakdown.vehicle.perVehicle} obligatorii × {breakdown.vehicle.vehicles}{" "}
+              vehicul(e) = {breakdown.vehicle.required} total
+            </p>
+          </div>
+        </div>
+
+        {driver.total_vehicles === 0 ? (
+          <p className="text-center text-sm text-muted-foreground py-4">
+            Șoferul nu are vehicul — documentele de mașină nu se aplică.
+          </p>
+        ) : (
+          <>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+              <StatCell label="Necesare" value={breakdown.vehicle.required} />
+              <StatCell label="Aprobate" value={breakdown.vehicle.approved} tone="green" />
+              <StatCell label="Expirate" value={breakdown.vehicle.expired} tone="red" />
+              <StatCell label="Lipsă" value={breakdown.vehicle.missing} tone="orange" />
+            </div>
+
             <div>
-              <h3 className="text-lg font-semibold text-green-900">All Requirements Met!</h3>
-              <p className="text-sm text-green-700 mt-1">
-                This driver is fully compliant and ready to receive jobs.
-              </p>
+              <div className="flex justify-between text-sm mb-1">
+                <span>Progres documente vehicul</span>
+                <span>{Math.round(vehicleProgress)}%</span>
+              </div>
+              <div className="h-2 rounded-full bg-muted overflow-hidden">
+                <div
+                  className="h-full bg-primary transition-all"
+                  style={{ width: `${Math.min(100, vehicleProgress)}%` }}
+                />
+              </div>
             </div>
+
+            <ComplianceDocumentList
+              rows={vehicleRows.rows}
+              emptyMessage="Niciun document vehicul încărcat"
+            />
+          </>
+        )}
+      </section>
+
+      {/* Checklist */}
+      <section className="rounded-lg border border-border bg-card p-4 md:p-6">
+        <h3 className="text-lg font-semibold text-center sm:text-left mb-4">
+          Checklist compliance
+        </h3>
+        <ul className="space-y-2">
+          {requirements.map((req, i) => {
+            const Icon = req.icon;
+            return (
+              <li
+                key={i}
+                className={`flex flex-col gap-2 rounded-lg border-l-4 p-3 sm:flex-row sm:items-center sm:justify-between ${
+                  req.met
+                    ? "border-l-green-500 bg-green-500/5"
+                    : "border-l-red-500 bg-red-500/5"
+                }`}
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <Icon
+                    className={`h-4 w-4 shrink-0 ${req.met ? "text-green-500" : "text-red-500"}`}
+                  />
+                  <div className="min-w-0 text-center sm:text-left">
+                    <p className="text-sm font-medium leading-snug">{req.label}</p>
+                    {req.detail ? (
+                      <p className="text-xs text-muted-foreground">{req.detail}</p>
+                    ) : null}
+                  </div>
+                </div>
+                {req.met ? (
+                  <CheckCircle className="h-5 w-5 text-green-500 mx-auto sm:mx-0 shrink-0" />
+                ) : (
+                  <XCircle className="h-5 w-5 text-red-500 mx-auto sm:mx-0 shrink-0" />
+                )}
+              </li>
+            );
+          })}
+        </ul>
+
+        <div className="mt-6 pt-4 border-t border-border flex flex-col items-center gap-3 text-center sm:flex-row sm:justify-between sm:text-left">
+          <div>
+            <p className="font-semibold">Rezultat final</p>
+            <p className="text-sm text-muted-foreground">
+              Total: {breakdown.total.approved}/{breakdown.total.required} documente
+              aprobate
+            </p>
           </div>
+          <Badge
+            variant={driver.can_receive_jobs ? "success" : "destructive"}
+            className="whitespace-normal text-center max-w-full"
+          >
+            {driver.can_receive_jobs ? "Poate primi curse" : "Nu poate primi curse"}
+          </Badge>
         </div>
+      </section>
+
+      {issues.length > 0 && (
+        <section className="rounded-lg border border-red-500/30 bg-card p-4 md:p-6">
+          <div className="flex items-center justify-center gap-2 mb-4 sm:justify-start">
+            <AlertTriangle className="h-5 w-5 text-red-500 shrink-0" />
+            <h3 className="font-semibold">Probleme de rezolvat</h3>
+          </div>
+          <ul className="space-y-2">
+            {issues.map((issue, i) => (
+              <li
+                key={i}
+                className="text-sm text-center sm:text-left py-2 px-3 rounded-md bg-red-500/5"
+              >
+                {issue}
+              </li>
+            ))}
+          </ul>
+        </section>
       )}
     </div>
   );
