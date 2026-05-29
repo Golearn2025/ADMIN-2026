@@ -1,6 +1,68 @@
 import { createClient } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentOrg } from "@/lib/auth/org";
+import { enrichDriversList } from "@/lib/features/drivers/enrichDriversList";
+
+function expiringSoonDateRange() {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const in30 = new Date(today);
+  in30.setDate(in30.getDate() + 30);
+  return {
+    from: today.toISOString().slice(0, 10),
+    to: in30.toISOString().slice(0, 10),
+  };
+}
+
+async function fetchDriverIdsWithExpiringSoon(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  driverIds: string[]
+): Promise<Set<string>> {
+  const expiring = new Set<string>();
+  if (driverIds.length === 0) return expiring;
+
+  const { from, to } = expiringSoonDateRange();
+
+  const { data: driverDocs } = await supabase
+    .from("driver_documents")
+    .select("driver_id")
+    .in("driver_id", driverIds)
+    .not("expiry_date", "is", null)
+    .gte("expiry_date", from)
+    .lte("expiry_date", to);
+
+  for (const row of driverDocs ?? []) {
+    if (row.driver_id) expiring.add(row.driver_id);
+  }
+
+  const { data: vehicles } = await supabase
+    .from("vehicles")
+    .select("id, driver_id")
+    .in("driver_id", driverIds)
+    .is("deleted_at", null);
+
+  const vehicleIds = (vehicles ?? []).map((v) => v.id);
+  const vehicleToDriver = new Map(
+    (vehicles ?? []).map((v) => [v.id, v.driver_id] as const)
+  );
+
+  if (vehicleIds.length === 0) return expiring;
+
+  const { data: vehicleDocs } = await supabase
+    .from("vehicle_documents")
+    .select("vehicle_id")
+    .in("vehicle_id", vehicleIds)
+    .not("expiry_date", "is", null)
+    .gte("expiry_date", from)
+    .lte("expiry_date", to);
+
+  for (const row of vehicleDocs ?? []) {
+    const driverId = vehicleToDriver.get(row.vehicle_id);
+    if (driverId) expiring.add(driverId);
+  }
+
+  return expiring;
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -46,11 +108,13 @@ export async function GET(request: NextRequest) {
 
     const { data: drivers, error } = await query;
 
-    // Add computed fields for UI compatibility
-    const enrichedDrivers = (drivers || []).map(driver => ({
-      ...driver,
-      full_name: `${driver.first_name} ${driver.last_name}`
-    }));
+    const driverIds = (drivers ?? []).map((d) => d.id);
+    const expiringSoonIds = await fetchDriverIdsWithExpiringSoon(
+      supabase,
+      driverIds
+    );
+
+    const enrichedDrivers = enrichDriversList(drivers ?? [], expiringSoonIds);
 
     console.log('👨‍💼 DRIVERS API DEBUG (Backend-Controlled):');
     console.log('   userId:', user.id);

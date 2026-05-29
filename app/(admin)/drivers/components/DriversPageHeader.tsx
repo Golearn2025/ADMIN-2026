@@ -1,6 +1,6 @@
 "use client";
 
-type FilterTab = 'all' | 'pending' | 'approved' | 'suspended' | 'inactive' | 'missing_docs' | 'expiring';
+import type { DriverFilterTab } from "@/lib/features/drivers/driverFilters";
 
 interface DriversPageHeaderProps {
   totalCount: number;
@@ -10,8 +10,8 @@ interface DriversPageHeaderProps {
   inactiveCount: number;
   missingDocsCount: number;
   expiringCount: number;
-  activeFilter: FilterTab;
-  onFilterChange: (filter: FilterTab) => void;
+  activeFilter: DriverFilterTab;
+  onFilterChange: (filter: DriverFilterTab) => void;
 }
 
 export function DriversPageHeader({
@@ -27,13 +27,11 @@ export function DriversPageHeader({
 }: DriversPageHeaderProps) {
   return (
     <div className="border-b border-border bg-card">
-      <div className="flex items-center justify-between px-6 py-4">
-        {/* Left: Title */}
-        <h1 className="text-2xl font-bold">Drivers</h1>
+      <div className="flex items-center justify-between px-4 py-3 md:px-6 md:py-4">
+        <h1 className="text-xl font-bold md:text-2xl">Drivers</h1>
       </div>
 
-      {/* Filter Tabs */}
-      <div className="px-6 pb-4">
+      <div className="px-4 pb-3 md:px-6 md:pb-4">
         <div className="flex gap-2 overflow-x-auto">
           <button
             onClick={() => onFilterChange('all')}

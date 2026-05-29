@@ -52,6 +52,7 @@ export type Driver = {
   documents_required?: number; // alias for total_required_docs
   documents_completed?: number; // alias for total_approved_docs
   documents_expired?: number; // computed: expired_driver_docs + expired_vehicle_docs
+  documents_expiring_soon?: number; // 1 dacă are doc. care expiră în ≤30 zile
   member_since?: string; // alias for created_at
 
   // Compliance (from view - NO derivation)

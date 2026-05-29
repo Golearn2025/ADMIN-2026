@@ -19,7 +19,7 @@ export function CompactDocumentsSummary({
   const hasIssues = expired > 0 || missing > 0;
 
   return (
-    <div className="rounded-xl border border-white/5 bg-[#0B0F14] p-6 shadow-lg">
+    <div className="rounded-xl border border-border bg-card p-4 shadow-lg md:p-6">
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
@@ -41,7 +41,7 @@ export function CompactDocumentsSummary({
       </div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4">
         {/* Total */}
         <div className="flex items-center gap-3 p-3 rounded-lg bg-white/5 border border-white/10">
           <div className="flex-shrink-0">

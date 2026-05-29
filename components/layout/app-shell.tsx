@@ -10,7 +10,7 @@ export function AppShell({ children, topbar, sidebar }: AppShellProps) {
   return (
     <div className="flex h-screen w-full overflow-hidden bg-background">
       {sidebar && (
-        <aside className="flex-shrink-0 border-r border-border">
+        <aside className="hidden shrink-0 border-r border-border lg:flex">
           {sidebar}
         </aside>
       )}

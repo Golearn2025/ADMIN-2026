@@ -12,6 +12,7 @@ import type {
   DocumentStatusLog,
   DocumentUpdatePayload,
 } from "./drivers.types";
+import { enrichDriversList } from "./enrichDriversList";
 
 // ============================================================================
 // DRIVERS LIST
@@ -33,17 +34,7 @@ export async function getDrivers(
     throw new Error(error.message);
   }
 
-  // Add computed fields for backward compatibility with old v2 view
-  const driversWithComputedFields = data.map((driver: any) => ({
-    ...driver,
-    full_name: `${driver.first_name} ${driver.last_name}`,
-    documents_completed: driver.total_approved_docs || 0,
-    documents_expired: (driver.expired_driver_docs || 0) + (driver.expired_vehicle_docs || 0),
-    documents_required: driver.total_required_docs || 0,
-    member_since: driver.created_at,
-  }));
-
-  return driversWithComputedFields as Driver[];
+  return enrichDriversList(data ?? []) as Driver[];
 }
 
 // ============================================================================

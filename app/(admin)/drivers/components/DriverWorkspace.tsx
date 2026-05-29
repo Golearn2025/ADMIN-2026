@@ -8,7 +8,9 @@ import { DriverDocumentsTab } from "@/app/(admin)/drivers/components/tabs/Driver
 import { DriverDetailsTab } from "./tabs/DriverDetailsTab";
 import { DriverVehiclesTab } from "./tabs/DriverVehiclesTab";
 import { DriverActivityTab } from "./tabs/DriverActivityTab";
+import { DriverComplianceTab } from "./tabs/DriverComplianceTab";
 import { DriverDetailHeader } from "./DriverDetailHeader";
+import { DriverHeaderActions } from "./DriverHeaderActions";
 import { CompactDocumentsSummary } from "./CompactDocumentsSummary";
 import { DriverActionDialog } from "./DriverActionDialog";
 import { useToast } from "@/hooks/use-toast";
@@ -153,7 +155,7 @@ export function DriverWorkspace({
 
   return (
     <div className="h-full overflow-y-auto">
-      <div className="flex flex-col gap-8 p-8">
+      <div className="flex flex-col gap-4 p-3 md:gap-8 md:p-8">
         {/* Hero Section */}
         <DriverDetailHeader driver={driver} onRefresh={onRefresh} />
 
@@ -167,16 +169,21 @@ export function DriverWorkspace({
       {/* Tabs Section - Sticky */}
       <div className="sticky top-0 z-10 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 -mx-8 px-8 py-4 border-b border-border">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="h-12">
+          <TabsList className="h-auto w-full flex-wrap justify-start gap-1">
             <TabsTrigger value="details" className="data-[state=active]:font-bold">Details</TabsTrigger>
+            <TabsTrigger value="compliance" className="data-[state=active]:font-bold">Compliance</TabsTrigger>
             <TabsTrigger value="documents" className="data-[state=active]:font-bold">Documents</TabsTrigger>
             <TabsTrigger value="vehicles" className="data-[state=active]:font-bold">Vehicles</TabsTrigger>
-            <TabsTrigger value="activity" className="data-[state=active]:font-bold">Activity Log</TabsTrigger>
+            <TabsTrigger value="activity" className="data-[state=active]:font-bold">Activity</TabsTrigger>
             <TabsTrigger value="notes" className="data-[state=active]:font-bold">Notes</TabsTrigger>
           </TabsList>
 
           <TabsContent value="details">
             <DriverDetailsTab driver={driver} />
+          </TabsContent>
+
+          <TabsContent value="compliance">
+            <DriverComplianceTab driver={driver} />
           </TabsContent>
 
           <TabsContent value="documents">
@@ -220,6 +227,10 @@ export function DriverWorkspace({
         onConfirm={handleConfirmAction}
         isProcessing={isProcessing}
       />
+
+      {onRefresh && (
+        <DriverHeaderActions driver={driver} onRefresh={onRefresh} mobileSticky />
+      )}
     </div>
   );
 }

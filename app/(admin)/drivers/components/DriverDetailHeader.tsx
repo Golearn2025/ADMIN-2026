@@ -46,14 +46,13 @@ export function DriverDetailHeader({ driver, onRefresh }: DriverDetailHeaderProp
   };
 
   return (
-    <div className="rounded-2xl border border-white/5 bg-[#0B0F14] p-8 shadow-2xl relative overflow-hidden">
+    <div className="relative overflow-hidden rounded-2xl border border-border bg-card p-4 shadow-lg md:p-8">
       {/* Subtle gradient glow */}
       <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 via-transparent to-purple-500/5 pointer-events-none" />
       
       <div className="relative">
-        <div className="flex items-start justify-between gap-8 mb-8">
-          {/* Left: Avatar + Info */}
-          <div className="flex items-start gap-6">
+        <div className="mb-6 flex flex-col gap-4 md:mb-8 md:flex-row md:items-start md:justify-between md:gap-8">
+          <div className="flex items-start gap-4 md:gap-6">
             <DriverAvatar
               src={driver.profile_photo_url}
               alt={driver.full_name || 'Driver'}
@@ -64,7 +63,7 @@ export function DriverDetailHeader({ driver, onRefresh }: DriverDetailHeaderProp
             <div className="flex-1 space-y-3">
               {/* Name */}
               <div>
-                <h1 className="text-4xl font-bold text-white mb-1">
+                <h1 className="mb-1 text-2xl font-bold text-foreground md:text-4xl">
                   {driver.full_name || 'Driver'}
                 </h1>
                 <p className="text-sm text-gray-400">
@@ -73,56 +72,52 @@ export function DriverDetailHeader({ driver, onRefresh }: DriverDetailHeaderProp
               </div>
 
               {/* Contact Info - Single Row */}
-              <div className="flex items-center gap-6 text-sm">
+              <div className="flex flex-col gap-2 text-sm sm:flex-row sm:flex-wrap sm:items-center sm:gap-4">
                 {driver.email && (
-                  <a 
+                  <a
                     href={`mailto:${driver.email}`}
-                    className="flex items-center gap-2 text-gray-300 hover:text-white transition-colors"
+                    className="flex items-center gap-2 text-muted-foreground hover:text-foreground"
                   >
-                    <Mail className="h-4 w-4" />
-                    <span>{driver.email}</span>
+                    <Mail className="h-4 w-4 shrink-0" />
+                    <span className="break-all">{driver.email}</span>
                   </a>
                 )}
-                <a 
-                  href={`tel:${driver.phone}`}
-                  className="flex items-center gap-2 text-gray-300 hover:text-white transition-colors"
-                >
-                  <Phone className="h-4 w-4" />
-                  <span>{driver.phone}</span>
-                </a>
+                {driver.phone && (
+                  <a
+                    href={`tel:${driver.phone}`}
+                    className="flex items-center gap-2 text-muted-foreground hover:text-foreground"
+                  >
+                    <Phone className="h-4 w-4 shrink-0" />
+                    <span>{driver.phone}</span>
+                  </a>
+                )}
                 {driver.organization_name && (
-                  <div className="flex items-center gap-2 text-gray-400">
-                    <Building2 className="h-4 w-4" />
-                    <span>{driver.organization_name}</span>
+                  <div className="flex items-center gap-2 text-muted-foreground">
+                    <Building2 className="h-4 w-4 shrink-0" />
+                    <span className="truncate">{driver.organization_name}</span>
                   </div>
                 )}
               </div>
 
-              {/* Compact KPI Stats - Between Name and Status */}
-              <div className="flex items-center gap-4 mt-4">
+              <div className="mt-4 flex flex-wrap gap-2">
                 {/* Rating */}
-                <div className="flex items-center gap-2.5 px-5 py-2.5 rounded-lg bg-white/5 border border-white/10">
-                  <Star className="h-5 w-5 text-yellow-500" />
-                  <span className="text-lg font-semibold text-white">0.0</span>
+                <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/40 px-3 py-2">
+                  <Star className="h-4 w-4 text-yellow-500" />
+                  <span className="text-sm font-semibold">0.0</span>
                 </div>
-
-                {/* Trips */}
-                <div className="flex items-center gap-2.5 px-5 py-2.5 rounded-lg bg-white/5 border border-white/10">
-                  <Car className="h-5 w-5 text-blue-500" />
-                  <span className="text-lg font-semibold text-white">0</span>
+                <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/40 px-3 py-2">
+                  <Car className="h-4 w-4 text-blue-500" />
+                  <span className="text-sm font-semibold">0</span>
                 </div>
-
-                {/* Earnings */}
-                <div className="flex items-center gap-2.5 px-5 py-2.5 rounded-lg bg-white/5 border border-white/10">
-                  <PoundSterling className="h-5 w-5 text-green-500" />
-                  <span className="text-lg font-semibold text-white">0</span>
+                <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/40 px-3 py-2">
+                  <PoundSterling className="h-4 w-4 text-green-500" />
+                  <span className="text-sm font-semibold">0</span>
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Right: Status Badge + Action Buttons */}
-          <div className="flex flex-col items-end gap-3">
+          <div className="flex w-full flex-row flex-wrap items-center justify-between gap-3 md:w-auto md:flex-col md:items-end">
             {/* Status Badge + Three-dot Menu (same line) */}
             <div className="flex items-center gap-2">
               {/* Status Badge */}
