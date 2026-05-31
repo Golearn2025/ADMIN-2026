@@ -4,6 +4,14 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { PageHeader } from "@/components/common/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -27,6 +35,7 @@ import {
   Sparkles,
   Building2,
   BadgeDollarSign,
+  Zap,
 } from "lucide-react";
 import { OrganizationBillingPanel } from "@/components/pricing/OrganizationBillingPanel";
 import { PenceWithVatPreview } from "@/components/pricing/PenceWithVatPreview";
@@ -686,7 +695,19 @@ export default function PricesPage() {
   const [creatingTable, setCreatingTable] = useState<string | null>(null);
   const [creatingTierKey, setCreatingTierKey] = useState<string | null>(null);
   const [activeVersionId, setActiveVersionId] = useState<string>("");
+  const [activateDialogOpen, setActivateDialogOpen] = useState(false);
+  const [activatingVersion, setActivatingVersion] = useState(false);
+  const [activateError, setActivateError] = useState<string | null>(null);
   const [vatRatePercent, setVatRatePercent] = useState(20);
+
+  const viewedVersionId = selectedVersionId || activeVersionId;
+  const viewedVersion = versions.find((v) => v.id === viewedVersionId) ?? null;
+  const activeVersion = versions.find((v) => v.id === activeVersionId) ?? null;
+  const canActivateViewedVersion = Boolean(
+    viewedVersion && !viewedVersion.is_active && viewedVersion.is_published
+  );
+  const isTestPaymentVersion =
+    viewedVersion?.version_name.toLowerCase().includes("test") ?? false;
 
   const fetchVatRate = useCallback(async () => {
     try {
@@ -797,6 +818,27 @@ export default function PricesPage() {
     [handleCreate]
   );
 
+  const handleActivateVersion = useCallback(async () => {
+    if (!viewedVersion) return;
+    setActivatingVersion(true);
+    setActivateError(null);
+    try {
+      const res = await apiFetch("/api/admin/pricing/activate-version", {
+        method: "POST",
+        body: JSON.stringify({ version_id: viewedVersion.id }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || "Activarea a eșuat");
+      setActivateDialogOpen(false);
+      setSelectedVersionId("");
+      await fetchPricing();
+    } catch (e: unknown) {
+      setActivateError(e instanceof Error ? e.message : "Activarea a eșuat");
+    } finally {
+      setActivatingVersion(false);
+    }
+  }, [viewedVersion, fetchPricing]);
+
   // count of visible (non-null) rows per tab
   const rowCount = (key: string) => (pricing[key] || []).length;
   const vehicleRowsAll = (pricing["pricing_vehicle_rates"] || []) as Row[];
@@ -838,6 +880,20 @@ export default function PricesPage() {
                 </SelectContent>
               </Select>
             </div>
+            {viewedVersion && (
+              <Button
+                size="sm"
+                variant={canActivateViewedVersion ? (isTestPaymentVersion ? "destructive" : "default") : "outline"}
+                disabled={!canActivateViewedVersion || loading || activatingVersion}
+                onClick={() => {
+                  setActivateError(null);
+                  setActivateDialogOpen(true);
+                }}
+              >
+                <Zap className="h-4 w-4 mr-2" />
+                {viewedVersion.is_active ? "Versiune live" : "Activează versiunea"}
+              </Button>
+            )}
             <Button variant="outline" size="sm" onClick={fetchPricing} disabled={loading}>
               <RefreshCw className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`} />
               Refresh
@@ -845,6 +901,65 @@ export default function PricesPage() {
           </div>
         }
       />
+
+      <Dialog open={activateDialogOpen} onOpenChange={setActivateDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Activezi versiunea de preț?</DialogTitle>
+            <DialogDescription asChild>
+              <div className="space-y-3 text-sm text-muted-foreground">
+                <p>
+                  Versiunea{" "}
+                  <strong className="text-foreground">
+                    v{viewedVersion?.version_number} — {viewedVersion?.version_name}
+                  </strong>{" "}
+                  va deveni versiunea folosită de booking engine și site-ul public.
+                </p>
+                {activeVersion && activeVersion.id !== viewedVersion?.id && (
+                  <p>
+                    Versiunea curentă live{" "}
+                    <strong className="text-foreground">
+                      v{activeVersion.version_number} — {activeVersion.version_name}
+                    </strong>{" "}
+                    va fi dezactivată automat.
+                  </p>
+                )}
+                {isTestPaymentVersion && (
+                  <p className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-destructive">
+                    Atenție: versiune de test cu prețuri mici. Clienții reali vor vedea aceste
+                    sume până revii la versiunea de producție (ex. v2).
+                  </p>
+                )}
+                {viewedVersion && !viewedVersion.is_published && (
+                  <p className="text-destructive">
+                    Versiunea nu e publicată. Setează Published = ON în tab Versions înainte de
+                    activare.
+                  </p>
+                )}
+                {activateError && (
+                  <p className="text-destructive">{activateError}</p>
+                )}
+              </div>
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setActivateDialogOpen(false)}
+              disabled={activatingVersion}
+            >
+              Anulează
+            </Button>
+            <Button
+              variant={isTestPaymentVersion ? "destructive" : "default"}
+              onClick={handleActivateVersion}
+              disabled={activatingVersion || !canActivateViewedVersion}
+            >
+              {activatingVersion ? "Se activează…" : "Da, activează"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {loading ? (
         <div className="flex items-center justify-center flex-1 gap-2 text-sm text-muted-foreground py-24">
@@ -966,31 +1081,47 @@ export default function PricesPage() {
                         </>
                       )}
                       {key === "pricing_versions" && (
-                        <div className="flex items-center gap-1 rounded-md border border-border p-0.5">
-                          <Button
-                            size="sm"
-                            variant={versionsFilter === "active" ? "default" : "ghost"}
-                            className="h-7 px-2 text-xs"
-                            onClick={() => setVersionsFilter("active")}
-                          >
-                            Active
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant={versionsFilter === "inactive" ? "default" : "ghost"}
-                            className="h-7 px-2 text-xs"
-                            onClick={() => setVersionsFilter("inactive")}
-                          >
-                            Inactive
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant={versionsFilter === "all" ? "default" : "ghost"}
-                            className="h-7 px-2 text-xs"
-                            onClick={() => setVersionsFilter("all")}
-                          >
-                            All
-                          </Button>
+                        <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-1 rounded-md border border-border p-0.5">
+                            <Button
+                              size="sm"
+                              variant={versionsFilter === "active" ? "default" : "ghost"}
+                              className="h-7 px-2 text-xs"
+                              onClick={() => setVersionsFilter("active")}
+                            >
+                              Active
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant={versionsFilter === "inactive" ? "default" : "ghost"}
+                              className="h-7 px-2 text-xs"
+                              onClick={() => setVersionsFilter("inactive")}
+                            >
+                              Inactive
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant={versionsFilter === "all" ? "default" : "ghost"}
+                              className="h-7 px-2 text-xs"
+                              onClick={() => setVersionsFilter("all")}
+                            >
+                              All
+                            </Button>
+                          </div>
+                          {canActivateViewedVersion && viewedVersion && (
+                            <Button
+                              size="sm"
+                              variant={isTestPaymentVersion ? "destructive" : "default"}
+                              className="h-8"
+                              onClick={() => {
+                                setActivateError(null);
+                                setActivateDialogOpen(true);
+                              }}
+                            >
+                              <Zap className="h-3.5 w-3.5 mr-1.5" />
+                              Activează v{viewedVersion.version_number}
+                            </Button>
+                          )}
                         </div>
                       )}
                       {rows.filter((r) => r.active === true).length > 0 && (
