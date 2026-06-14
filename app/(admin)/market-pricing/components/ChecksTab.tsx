@@ -151,6 +151,20 @@ function CheckGrid({ checkId, competitors }: { checkId: string; competitors: Mar
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<Record<string, boolean>>({});
   const [filterCat, setFilterCat] = useState<VehicleCategory | "all">("all");
+  const [visibleCompIds, setVisibleCompIds] = useState<Set<string>>(
+    () => new Set(competitors.map(c => c.id))
+  );
+  const [showCompFilter, setShowCompFilter] = useState(false);
+
+  function toggleComp(id: string) {
+    setVisibleCompIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) { next.delete(id); } else { next.add(id); }
+      return next;
+    });
+  }
+
+  const visibleCompetitors = competitors.filter(c => visibleCompIds.has(c.id));
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -249,7 +263,7 @@ function CheckGrid({ checkId, competitors }: { checkId: string; competitors: Mar
             · {allScenarios.length} scenario{allScenarios.length !== 1 ? "s" : ""}
           </p>
         </div>
-        <div className="flex gap-1.5 flex-wrap">
+        <div className="flex gap-1.5 flex-wrap items-center">
           {cats.map(c => (
             <button
               key={c}
@@ -263,8 +277,63 @@ function CheckGrid({ checkId, competitors }: { checkId: string; competitors: Mar
               {c === "all" ? "All" : VEHICLE_CATEGORY_LABELS[c]}
             </button>
           ))}
+          {/* Competitor visibility toggle */}
+          <button
+            onClick={() => setShowCompFilter(v => !v)}
+            className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-medium border transition-colors ${
+              showCompFilter
+                ? "border-primary bg-primary/15 text-primary"
+                : "border-border bg-card text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+            Competitors ({visibleCompIds.size}/{competitors.length})
+          </button>
         </div>
       </div>
+
+      {/* Competitor filter panel */}
+      {showCompFilter && (
+        <div className="rounded-xl border border-border bg-card p-4 space-y-2">
+          <div className="flex items-center justify-between mb-1">
+            <p className="text-xs font-semibold text-foreground">Show / hide competitors in grid</p>
+            <div className="flex gap-2">
+              <button
+                className="text-xs text-primary hover:underline"
+                onClick={() => setVisibleCompIds(new Set(competitors.map(c => c.id)))}
+              >
+                Show all
+              </button>
+              <button
+                className="text-xs text-muted-foreground hover:underline"
+                onClick={() => setVisibleCompIds(new Set())}
+              >
+                Hide all
+              </button>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {competitors.map(c => (
+              <button
+                key={c.id}
+                onClick={() => toggleComp(c.id)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
+                  visibleCompIds.has(c.id)
+                    ? "border-primary bg-primary/15 text-primary"
+                    : "border-border bg-card text-muted-foreground line-through opacity-50"
+                }`}
+              >
+                {visibleCompIds.has(c.id)
+                  ? <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                  : <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                }
+                {c.name}
+              </button>
+            ))}
+          </div>
+          <p className="text-[11px] text-muted-foreground pt-1">Prețurile ascunse rămân salvate în baza de date — doar nu se afișează în grilă.</p>
+        </div>
+      )}
 
       {allScenarios.length === 0 ? (
         <div className="py-12 text-center text-sm text-muted-foreground">
@@ -276,10 +345,13 @@ function CheckGrid({ checkId, competitors }: { checkId: string; competitors: Mar
             const route = scenario.route_template!;
             const vlPence = getPrice(scenario.id, "vl_actual");
             const targetPence = getPrice(scenario.id, "vl_target");
-            const compPrices = competitors.map(comp => ({
+            // Stats calculated from ALL competitors (even hidden ones) so numbers are always accurate
+            const compPricesAll = competitors.map(comp => ({
               competitor: comp,
               amount_pence: priceMap.get(`${scenario.id}::competitor::${comp.id}`) ?? null,
             })).filter(c => c.amount_pence != null) as Array<{ competitor: MarketCompetitor; amount_pence: number }>;
+            // Only visible competitors shown in columns
+            const compPrices = compPricesAll;
 
             const stats = computeStats(compPrices.map(c => c.amount_pence));
             const gaps = computeGaps(vlPence, compPrices);
@@ -323,14 +395,14 @@ function CheckGrid({ checkId, competitors }: { checkId: string; competitors: Mar
                         isSaving={saving[`${scenario.id}::vl_actual`]}
                         onSave={p => savePrice(scenario.id, "vl_actual", undefined, p)}
                         onNext={() => {
-                          const nextEl = document.querySelector<HTMLInputElement>(`[data-cell="${scenario.id}::comp::${competitors[0]?.id}"]`);
+                          const nextEl = document.querySelector<HTMLInputElement>(`[data-cell="${scenario.id}::comp::${visibleCompetitors[0]?.id}"]`);
                           nextEl?.focus();
                         }}
                       />
                     </div>
 
-                    {/* Competitors */}
-                    {competitors.map((comp, ci) => {
+                    {/* Competitors — only visible ones */}
+                    {visibleCompetitors.map((comp, ci) => {
                       const compPence = priceMap.get(`${scenario.id}::competitor::${comp.id}`) ?? null;
                       const gap = gaps.find(g => g.competitor.id === comp.id);
                       return (
@@ -354,8 +426,8 @@ function CheckGrid({ checkId, competitors }: { checkId: string; competitors: Mar
                             isSaving={saving[`${scenario.id}::competitor::${comp.id}`]}
                             onSave={p => savePrice(scenario.id, "competitor", comp.id, p)}
                             onNext={() => {
-                              const nextId = ci < competitors.length - 1
-                                ? `${scenario.id}::comp::${competitors[ci + 1].id}`
+                              const nextId = ci < visibleCompetitors.length - 1
+                                ? `${scenario.id}::comp::${visibleCompetitors[ci + 1].id}`
                                 : `${scenario.id}::vl_target`;
                               document.querySelector<HTMLInputElement>(`[data-cell="${nextId}"]`)?.focus();
                             }}
