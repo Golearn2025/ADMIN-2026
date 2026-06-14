@@ -18,6 +18,7 @@ import {
     Truck,
     UserCircle,
     Users,
+    BarChart3,
     type LucideIcon
 } from "lucide-react";
 
@@ -164,6 +165,11 @@ export const navConfig: NavGroup[] = [
         title: "Prices",
         href: "/prices",
         icon: Calculator,
+      },
+      {
+        title: "Market Pricing",
+        href: "/market-pricing",
+        icon: BarChart3,
       },
     ],
   },
