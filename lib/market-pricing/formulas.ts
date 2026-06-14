@@ -54,21 +54,27 @@ export function computeGaps(
     }));
 }
 
-/** Recommendations vs MIN */
+/**
+ * Recommendations:
+ *  - Aggressive : Min × 0.95  (5% sub cel mai ieftin competitor)
+ *  - Match market: Median      (media pieței — te poziționezi la mijloc)
+ *  - Premium     : Median × 1.15 (15% peste media pieței)
+ */
 export function computeRecommendations(
   stats: MarketStats,
   aggressivePct: number = 0.95,
-  premiumPct: number = 1.10
+  premiumPct: number = 1.15
 ): PriceRecommendations {
   if (stats.min_pence == null) {
     return { match_min_pence: null, match_median_pence: null, match_max_pence: null, aggressive_pence: null, premium_pence: null };
   }
+  const median = stats.median_pence ?? stats.min_pence;
   return {
     match_min_pence: stats.min_pence,
-    match_median_pence: stats.median_pence,
+    match_median_pence: median,
     match_max_pence: stats.max_pence,
     aggressive_pence: Math.round(stats.min_pence * aggressivePct),
-    premium_pence: Math.round(stats.min_pence * premiumPct),
+    premium_pence: Math.round(median * premiumPct),
   };
 }
 

@@ -390,17 +390,17 @@ function CheckGrid({ checkId, competitors }: { checkId: string; competitors: Mar
                     {stats.max_pence != null && <span>Max: <strong className="text-foreground">{formatGbp(stats.max_pence)}</strong></span>}
                     {recs.aggressive_pence != null && (
                       <span className="ml-auto text-green-400">
-                        Aggressive (−5%): <strong>{formatGbp(recs.aggressive_pence)}</strong>
+                        Aggressive (−5% sub min): <strong>{formatGbp(recs.aggressive_pence)}</strong>
                       </span>
                     )}
-                    {recs.match_min_pence != null && (
+                    {recs.match_median_pence != null && (
                       <span className="text-blue-400">
-                        Match min: <strong>{formatGbp(recs.match_min_pence)}</strong>
+                        Match market (median): <strong>{formatGbp(recs.match_median_pence)}</strong>
                       </span>
                     )}
                     {recs.premium_pence != null && (
                       <span className="text-amber-400">
-                        Premium (+10%): <strong>{formatGbp(recs.premium_pence)}</strong>
+                        Premium (+15% median): <strong>{formatGbp(recs.premium_pence)}</strong>
                       </span>
                     )}
                   </div>
