@@ -155,22 +155,22 @@ function CheckGrid({ checkId, competitors }: { checkId: string; competitors: Mar
     () => new Set(competitors.map(c => c.id))
   );
   const [showCompFilter, setShowCompFilter] = useState(false);
-  const [collapsedIds, setCollapsedIds] = useState<Set<string>>(new Set());
+  const [collapsedRoutes, setCollapsedRoutes] = useState<Set<string>>(new Set());
 
-  function toggleCollapse(id: string) {
-    setCollapsedIds(prev => {
+  function toggleRoute(routeId: string) {
+    setCollapsedRoutes(prev => {
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
+      if (next.has(routeId)) next.delete(routeId); else next.add(routeId);
       return next;
     });
   }
 
-  function collapseAll(ids: string[]) {
-    setCollapsedIds(new Set(ids));
+  function collapseAll(routeIds: string[]) {
+    setCollapsedRoutes(new Set(routeIds));
   }
 
   function expandAll() {
-    setCollapsedIds(new Set());
+    setCollapsedRoutes(new Set());
   }
 
   function toggleComp(id: string) {
@@ -297,7 +297,7 @@ function CheckGrid({ checkId, competitors }: { checkId: string; competitors: Mar
           {/* Collapse all / Expand all */}
           <div className="flex gap-1 border-l border-border/60 pl-2">
             <button
-              onClick={() => collapseAll(allScenarios.map(s => s.id))}
+              onClick={() => collapseAll(routes.map(r => r.id))}
               className="px-2.5 py-1 rounded-lg text-xs font-medium border border-border bg-card text-muted-foreground hover:text-foreground transition-colors"
               title="Collapse all scenarios"
             >
@@ -374,10 +374,42 @@ function CheckGrid({ checkId, competitors }: { checkId: string; competitors: Mar
           No routes / scenarios found. Go to the <strong>Routes</strong> tab and add some route templates first.
         </div>
       ) : (
-        <div className="space-y-2">
-          {allScenarios.map((scenario, si) => {
-            const isCollapsed = collapsedIds.has(scenario.id);
-            const route = scenario.route_template!;
+        <div className="space-y-5">
+          {/* Group scenarios by route */}
+          {routes.filter(r => r.is_active && (r.scenarios ?? []).some(s => s.is_active && (filterCat === "all" || s.vehicle_category_id === filterCat))).map(route => {
+            const routeScenarios = (route.scenarios ?? [])
+              .filter(s => s.is_active && (filterCat === "all" || s.vehicle_category_id === filterCat))
+              .sort((a, b) => (CAT_ORDER[a.vehicle_category_id] ?? 9) - (CAT_ORDER[b.vehicle_category_id] ?? 9))
+              .map(s => ({ ...s, route_template: route }));
+
+            if (routeScenarios.length === 0) return null;
+            const isRouteCollapsed = collapsedRoutes.has(route.id);
+
+            return (
+              <div key={route.id} className="space-y-1.5">
+                {/* ── Route group header ── */}
+                <button
+                  type="button"
+                  onClick={() => toggleRoute(route.id)}
+                  className="w-full flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-muted/40 transition-colors text-left group"
+                >
+                  <span className="text-muted-foreground text-xs w-3 shrink-0">
+                    {isRouteCollapsed ? "▶" : "▼"}
+                  </span>
+                  <span className="text-sm font-bold text-foreground">{route.name}</span>
+                  <span className="text-xs text-muted-foreground">
+                    {route.distance_miles ? `${route.distance_miles} mi · ` : ""}
+                    {route.duration_minutes ? `${route.duration_minutes} min · ` : ""}
+                    {route.hourly_billed_hours ? `${route.hourly_billed_hours}h · ` : ""}
+                    {TRIP_TYPE_LABELS[route.trip_type]}
+                  </span>
+                  <span className="text-xs text-muted-foreground ml-auto opacity-0 group-hover:opacity-100 transition-opacity">
+                    {isRouteCollapsed ? "click to expand" : "click to collapse"}
+                  </span>
+                </button>
+
+                {/* ── Scenarios in this route ── */}
+                {!isRouteCollapsed && routeScenarios.map((scenario, si) => {
             const vlPence = getPrice(scenario.id, "vl_actual");
             const targetPence = getPrice(scenario.id, "vl_target");
             // Stats calculated from ALL competitors (even hidden ones) so numbers are always accurate
@@ -398,48 +430,23 @@ function CheckGrid({ checkId, competitors }: { checkId: string; competitors: Mar
             const totalCells = cells.length;
 
             return (
-              <div key={scenario.id} className={`rounded-xl border bg-card overflow-hidden transition-colors ${isCollapsed ? "border-border/40" : "border-border"}`}>
-                {/* Scenario header — click to collapse/expand */}
-                <button
-                  type="button"
-                  onClick={() => toggleCollapse(scenario.id)}
-                  className="w-full flex items-center gap-3 px-4 py-2.5 bg-card hover:bg-muted/30 transition-colors border-b border-border/60 text-left"
-                >
-                  {/* Collapse indicator */}
-                  <span className="text-muted-foreground shrink-0 text-xs">
-                    {isCollapsed ? "▶" : "▼"}
-                  </span>
+              <div key={scenario.id} className="rounded-xl border border-border bg-card overflow-hidden">
+                {/* Scenario header */}
+                <div className="flex items-center gap-3 px-4 py-2.5 bg-card border-b border-border/60">
                   <div className="flex items-center gap-2 flex-1 min-w-0">
-                    <span className="text-xs font-semibold text-foreground truncate">{route.name}</span>
-                    <span className="text-xs px-1.5 py-0.5 rounded bg-primary/10 text-primary shrink-0">
+                    <span className="text-xs px-1.5 py-0.5 rounded bg-primary/10 text-primary shrink-0 font-semibold">
                       {VEHICLE_CATEGORY_LABELS[scenario.vehicle_category_id]}
                     </span>
-                    {route.trip_type && (
-                      <span className="text-xs text-muted-foreground shrink-0">{TRIP_TYPE_LABELS[route.trip_type]}</span>
-                    )}
-                    {route.distance_miles && <span className="text-xs text-muted-foreground shrink-0">{route.distance_miles} mi</span>}
-                    {route.duration_minutes && <span className="text-xs text-muted-foreground shrink-0">{route.duration_minutes} min</span>}
-                    {route.hourly_billed_hours && <span className="text-xs text-muted-foreground shrink-0">{route.hourly_billed_hours}h</span>}
-                    {route.daily_days && route.daily_included_hours && <span className="text-xs text-muted-foreground shrink-0">{route.daily_days}d · {route.daily_included_hours}h incl.</span>}
                   </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    {/* Mini summary when collapsed */}
-                    {isCollapsed && vlPence != null && (
-                      <span className="text-xs text-muted-foreground">VL {formatGbp(vlPence)}</span>
-                    )}
-                    {isCollapsed && stats.min_pence != null && (
-                      <span className="text-xs text-muted-foreground">· Min {formatGbp(stats.min_pence)}</span>
-                    )}
-                    {posConfig && (
-                      <Badge variant={posConfig.badge as any} className="text-xs">
-                        {posConfig.label}
-                      </Badge>
-                    )}
-                  </div>
-                </button>
+                  {posConfig && (
+                    <Badge variant={posConfig.badge as any} className="text-xs shrink-0">
+                      {posConfig.label}
+                    </Badge>
+                  )}
+                </div>
 
-                {/* Price inputs + stats — hidden when collapsed */}
-                {!isCollapsed && <div className="px-4 py-3 overflow-x-auto">
+                {/* Price inputs */}
+                <div className="px-4 py-3 overflow-x-auto">
                   <div className="flex gap-4 min-w-max">
                     {/* VL Actual */}
                     <div className="flex flex-col gap-1">
@@ -506,10 +513,10 @@ function CheckGrid({ checkId, competitors }: { checkId: string; competitors: Mar
                       />
                     </div>
                   </div>
-                </div>}
+                </div>
 
                 {/* Stats row */}
-                {!isCollapsed && (stats.min_pence != null || recs.aggressive_pence != null) && (
+                {(stats.min_pence != null || recs.aggressive_pence != null) && (
                   <div className="px-4 py-2 bg-muted/20 border-t border-border/40 flex gap-4 flex-wrap text-xs text-muted-foreground">
                     {stats.min_pence != null && <span>Min: <strong className="text-foreground">{formatGbp(stats.min_pence)}</strong></span>}
                     {stats.median_pence != null && <span>Median: <strong className="text-foreground">{formatGbp(stats.median_pence)}</strong></span>}
@@ -531,6 +538,9 @@ function CheckGrid({ checkId, competitors }: { checkId: string; competitors: Mar
                     )}
                   </div>
                 )}
+              </div>
+            );
+          })}
               </div>
             );
           })}
