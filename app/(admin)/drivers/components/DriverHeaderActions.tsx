@@ -2,13 +2,22 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Ban, XCircle, MoreVertical, CheckCircle } from "lucide-react";
+import { Ban, XCircle, MoreVertical, CheckCircle, LogOut } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import type { Driver } from "@/lib/features/drivers/drivers.types";
 import { DriverActionDialog } from "./DriverActionDialog";
@@ -28,6 +37,7 @@ export function DriverHeaderActions({
 }: DriverHeaderActionsProps) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [dialogAction, setDialogAction] = useState<"suspend" | "deactivate">("suspend");
+  const [signOutOpen, setSignOutOpen] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const { toast } = useToast();
 
@@ -98,7 +108,7 @@ export function DriverHeaderActions({
 
       if (!response.ok) {
         const error = await response.json();
-        throw new Error(error.message || `Failed to ${dialogAction} driver`);
+        throw new Error(error.message || error.error || `Failed to ${dialogAction} driver`);
       }
 
       toast({
@@ -117,10 +127,61 @@ export function DriverHeaderActions({
     }
   };
 
+  const handleSignOut = async () => {
+    setIsProcessing(true);
+    try {
+      const response = await fetch(`/api/admin/drivers/${driver.id}/sign-out`, {
+        method: "POST",
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || error.error || "Failed to sign out driver");
+      }
+
+      toast({
+        title: "Sign out reușit",
+        description: "Șoferul a fost deconectat de pe toate dispozitivele.",
+      });
+      onRefresh();
+    } catch (error) {
+      toast({
+        title: "Eroare",
+        description: error instanceof Error ? error.message : "Sign out a eșuat",
+        variant: "destructive",
+      });
+    } finally {
+      setIsProcessing(false);
+      setSignOutOpen(false);
+    }
+  };
+
   const canApprove =
     driver.status !== "approved" && driver.status !== "active";
   const canSuspend = driver.status === "approved" || driver.status === "active";
   const canDeactivate = driver.status !== "inactive";
+
+  const signOutDialog = (
+    <Dialog open={signOutOpen} onOpenChange={setSignOutOpen}>
+      <DialogContent className="sm:max-w-[440px]">
+        <DialogHeader>
+          <DialogTitle>Sign out șofer?</DialogTitle>
+          <DialogDescription>
+            {driver.full_name || "Acest șofer"} va fi deconectat instant de pe toate telefoanele.
+            Sesiunile Supabase și push-urile active vor fi revocate.
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter>
+          <Button variant="outline" disabled={isProcessing} onClick={() => setSignOutOpen(false)}>
+            Anulează
+          </Button>
+          <Button disabled={isProcessing} onClick={handleSignOut}>
+            {isProcessing ? "Se procesează..." : "Sign out"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
 
   const menu = (
     <DropdownMenu>
@@ -133,21 +194,26 @@ export function DriverHeaderActions({
         {canApprove && (
           <DropdownMenuItem onClick={handleApprove} className="md:hidden">
             <CheckCircle className="mr-2 h-4 w-4" />
-            Set Active
+            Activează
           </DropdownMenuItem>
         )}
         {canSuspend && (
           <DropdownMenuItem onClick={handleSuspend}>
             <Ban className="mr-2 h-4 w-4" />
-            Suspend
+            Suspendă
           </DropdownMenuItem>
         )}
         {canDeactivate && (
           <DropdownMenuItem onClick={handleDeactivate}>
             <XCircle className="mr-2 h-4 w-4" />
-            Deactivate
+            Dezactivează
           </DropdownMenuItem>
         )}
+        {(canSuspend || canDeactivate || canApprove) && <DropdownMenuSeparator />}
+        <DropdownMenuItem onClick={() => setSignOutOpen(true)}>
+          <LogOut className="mr-2 h-4 w-4" />
+          Sign out (toate device-urile)
+        </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   );
@@ -169,14 +235,33 @@ export function DriverHeaderActions({
                 onClick={handleApprove}
               >
                 <CheckCircle className="h-4 w-4" />
-                Activează șofer
+                Activează
               </Button>
             )}
-            {(canSuspend || canDeactivate || canApprove) && (
-              <div className="shrink-0">{menu}</div>
+            {canDeactivate && (
+              <Button
+                className="min-h-11 flex-1 gap-2"
+                variant="secondary"
+                disabled={isProcessing}
+                onClick={handleDeactivate}
+              >
+                <XCircle className="h-4 w-4" />
+                Dezactivează
+              </Button>
             )}
+            <Button
+              className="min-h-11 shrink-0 gap-2"
+              variant="outline"
+              disabled={isProcessing}
+              onClick={() => setSignOutOpen(true)}
+            >
+              <LogOut className="h-4 w-4" />
+              Sign out
+            </Button>
+            {(canSuspend || canApprove) && <div className="shrink-0">{menu}</div>}
           </div>
         </div>
+        {signOutDialog}
         <DriverActionDialog
           open={dialogOpen}
           onOpenChange={setDialogOpen}
@@ -191,17 +276,56 @@ export function DriverHeaderActions({
 
   return (
     <>
-      <div className="hidden items-center gap-2 md:flex">
+      <div className="hidden flex-wrap items-center justify-end gap-2 md:flex">
         {canApprove && (
           <Button size="sm" disabled={isProcessing} onClick={handleApprove}>
             <CheckCircle className="mr-2 h-4 w-4" />
-            Set Active
+            Activează
           </Button>
         )}
+        {canSuspend && (
+          <Button size="sm" variant="secondary" disabled={isProcessing} onClick={handleSuspend}>
+            <Ban className="mr-2 h-4 w-4" />
+            Suspendă
+          </Button>
+        )}
+        {canDeactivate && (
+          <Button size="sm" variant="outline" disabled={isProcessing} onClick={handleDeactivate}>
+            <XCircle className="mr-2 h-4 w-4" />
+            Dezactivează
+          </Button>
+        )}
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={isProcessing}
+          onClick={() => setSignOutOpen(true)}
+        >
+          <LogOut className="mr-2 h-4 w-4" />
+          Sign out
+        </Button>
         {menu}
       </div>
-      <div className="md:hidden">{menu}</div>
+      <div className="flex flex-wrap items-center gap-2 md:hidden">
+        {canApprove && (
+          <Button size="sm" className="min-h-10 flex-1" disabled={isProcessing} onClick={handleApprove}>
+            <CheckCircle className="mr-2 h-4 w-4" />
+            Activează
+          </Button>
+        )}
+        {canDeactivate && (
+          <Button size="sm" className="min-h-10 flex-1" variant="secondary" disabled={isProcessing} onClick={handleDeactivate}>
+            <XCircle className="mr-2 h-4 w-4" />
+            Dezactiv.
+          </Button>
+        )}
+        <Button size="sm" className="min-h-10" variant="outline" disabled={isProcessing} onClick={() => setSignOutOpen(true)}>
+          <LogOut className="h-4 w-4" />
+        </Button>
+        {menu}
+      </div>
 
+      {signOutDialog}
       <DriverActionDialog
         open={dialogOpen}
         onOpenChange={setDialogOpen}
