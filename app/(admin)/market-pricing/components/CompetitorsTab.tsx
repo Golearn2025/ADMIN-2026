@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import type { MarketCompetitor } from "@/lib/market-pricing/types";
+import { toFullUrl, displayUrl } from "@/lib/market-pricing/format";
 
 const PRELOADED: Array<Omit<MarketCompetitor, "id" | "organization_id" | "created_at" | "updated_at">> = [
   { name: "Blacklane", website_url: "blacklane.com", runs_google_ads: true, sort_order: 0, is_active: true },
@@ -194,12 +195,12 @@ export function CompetitorsTab() {
                   )}
                 </div>
                 <a
-                  href={`https://${c.website_url}`}
+                  href={toFullUrl(c.website_url)}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-xs text-muted-foreground hover:text-primary flex items-center gap-1 mt-0.5"
                 >
-                  {c.website_url}
+                  {displayUrl(c.website_url)}
                   <ExternalLink className="h-3 w-3" />
                 </a>
               </div>

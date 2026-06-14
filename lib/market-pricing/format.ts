@@ -57,6 +57,17 @@ export const TRIP_TYPE_LABELS: Record<string, string> = {
   daily: "Daily",
 };
 
+/** Normalize a website URL to a full https:// URL for use in href */
+export function toFullUrl(raw: string): string {
+  const trimmed = raw.trim().replace(/^(https?:\/\/)+/, "");
+  return `https://${trimmed}`;
+}
+
+/** Strip protocol for display (e.g. "blacklane.com") */
+export function displayUrl(raw: string): string {
+  return raw.trim().replace(/^https?:\/\//, "").replace(/\/$/, "");
+}
+
 export const BAND_LABELS: Record<string, string> = {
   short: "Short",
   medium: "Medium",

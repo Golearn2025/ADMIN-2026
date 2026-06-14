@@ -14,6 +14,7 @@ import type {
 import {
   formatGbp, gbpToPence, penceToGbp,
   VEHICLE_CATEGORY_LABELS, TRIP_TYPE_LABELS, BAND_LABELS,
+  toFullUrl, displayUrl,
 } from "@/lib/market-pricing/format";
 import {
   computeStats, computeGaps, computeRecommendations, computePosition, POSITION_CONFIG,
@@ -336,11 +337,11 @@ function CheckGrid({ checkId, competitors }: { checkId: string; competitors: Mar
                               {comp.name}
                             </span>
                             <a
-                              href={`https://${comp.website_url}`}
+                              href={toFullUrl(comp.website_url)}
                               target="_blank"
                               rel="noopener noreferrer"
                               className="text-muted-foreground/50 hover:text-primary"
-                              title={`Open ${comp.website_url}`}
+                              title={`Open ${displayUrl(comp.website_url)}`}
                             >
                               <svg className="h-2.5 w-2.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
                             </a>
