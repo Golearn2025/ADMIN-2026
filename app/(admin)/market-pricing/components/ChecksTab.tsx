@@ -155,6 +155,23 @@ function CheckGrid({ checkId, competitors }: { checkId: string; competitors: Mar
     () => new Set(competitors.map(c => c.id))
   );
   const [showCompFilter, setShowCompFilter] = useState(false);
+  const [collapsedRoutes, setCollapsedRoutes] = useState<Set<string>>(new Set());
+
+  function toggleRoute(routeId: string) {
+    setCollapsedRoutes(prev => {
+      const next = new Set(prev);
+      if (next.has(routeId)) next.delete(routeId); else next.add(routeId);
+      return next;
+    });
+  }
+
+  function collapseAll(routeIds: string[]) {
+    setCollapsedRoutes(new Set(routeIds));
+  }
+
+  function expandAll() {
+    setCollapsedRoutes(new Set());
+  }
 
   function toggleComp(id: string) {
     setVisibleCompIds(prev => {
@@ -277,6 +294,23 @@ function CheckGrid({ checkId, competitors }: { checkId: string; competitors: Mar
               {c === "all" ? "All" : VEHICLE_CATEGORY_LABELS[c]}
             </button>
           ))}
+          {/* Collapse all / Expand all */}
+          <div className="flex gap-1 border-l border-border/60 pl-2">
+            <button
+              onClick={() => collapseAll(routes.map(r => r.id))}
+              className="px-2.5 py-1 rounded-lg text-xs font-medium border border-border bg-card text-muted-foreground hover:text-foreground transition-colors"
+              title="Collapse all scenarios"
+            >
+              − All
+            </button>
+            <button
+              onClick={expandAll}
+              className="px-2.5 py-1 rounded-lg text-xs font-medium border border-border bg-card text-muted-foreground hover:text-foreground transition-colors"
+              title="Expand all scenarios"
+            >
+              + All
+            </button>
+          </div>
           {/* Competitor visibility toggle */}
           <button
             onClick={() => setShowCompFilter(v => !v)}
@@ -340,9 +374,42 @@ function CheckGrid({ checkId, competitors }: { checkId: string; competitors: Mar
           No routes / scenarios found. Go to the <strong>Routes</strong> tab and add some route templates first.
         </div>
       ) : (
-        <div className="space-y-3">
-          {allScenarios.map((scenario, si) => {
-            const route = scenario.route_template!;
+        <div className="space-y-5">
+          {/* Group scenarios by route */}
+          {routes.filter(r => r.is_active && (r.scenarios ?? []).some(s => s.is_active && (filterCat === "all" || s.vehicle_category_id === filterCat))).map(route => {
+            const routeScenarios = (route.scenarios ?? [])
+              .filter(s => s.is_active && (filterCat === "all" || s.vehicle_category_id === filterCat))
+              .sort((a, b) => (CAT_ORDER[a.vehicle_category_id] ?? 9) - (CAT_ORDER[b.vehicle_category_id] ?? 9))
+              .map(s => ({ ...s, route_template: route }));
+
+            if (routeScenarios.length === 0) return null;
+            const isRouteCollapsed = collapsedRoutes.has(route.id);
+
+            return (
+              <div key={route.id} className="space-y-1.5">
+                {/* ── Route group header ── */}
+                <button
+                  type="button"
+                  onClick={() => toggleRoute(route.id)}
+                  className="w-full flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-muted/40 transition-colors text-left group"
+                >
+                  <span className="text-muted-foreground text-xs w-3 shrink-0">
+                    {isRouteCollapsed ? "▶" : "▼"}
+                  </span>
+                  <span className="text-sm font-bold text-foreground">{route.name}</span>
+                  <span className="text-xs text-muted-foreground">
+                    {route.distance_miles ? `${route.distance_miles} mi · ` : ""}
+                    {route.duration_minutes ? `${route.duration_minutes} min · ` : ""}
+                    {route.hourly_billed_hours ? `${route.hourly_billed_hours}h · ` : ""}
+                    {TRIP_TYPE_LABELS[route.trip_type]}
+                  </span>
+                  <span className="text-xs text-muted-foreground ml-auto opacity-0 group-hover:opacity-100 transition-opacity">
+                    {isRouteCollapsed ? "click to expand" : "click to collapse"}
+                  </span>
+                </button>
+
+                {/* ── Scenarios in this route ── */}
+                {!isRouteCollapsed && routeScenarios.map((scenario, si) => {
             const vlPence = getPrice(scenario.id, "vl_actual");
             const targetPence = getPrice(scenario.id, "vl_target");
             // Stats calculated from ALL competitors (even hidden ones) so numbers are always accurate
@@ -367,15 +434,9 @@ function CheckGrid({ checkId, competitors }: { checkId: string; competitors: Mar
                 {/* Scenario header */}
                 <div className="flex items-center gap-3 px-4 py-2.5 bg-card border-b border-border/60">
                   <div className="flex items-center gap-2 flex-1 min-w-0">
-                    <span className="text-xs font-semibold text-foreground truncate">{route.name}</span>
-                    <span className="text-xs px-1.5 py-0.5 rounded bg-primary/10 text-primary shrink-0">
+                    <span className="text-xs px-1.5 py-0.5 rounded bg-primary/10 text-primary shrink-0 font-semibold">
                       {VEHICLE_CATEGORY_LABELS[scenario.vehicle_category_id]}
                     </span>
-                    {route.trip_type && (
-                      <span className="text-xs text-muted-foreground shrink-0">{TRIP_TYPE_LABELS[route.trip_type]}</span>
-                    )}
-                    {route.distance_miles && <span className="text-xs text-muted-foreground shrink-0">{route.distance_miles} mi</span>}
-                    {route.duration_minutes && <span className="text-xs text-muted-foreground shrink-0">{route.duration_minutes} min</span>}
                   </div>
                   {posConfig && (
                     <Badge variant={posConfig.badge as any} className="text-xs shrink-0">
@@ -477,6 +538,9 @@ function CheckGrid({ checkId, competitors }: { checkId: string; competitors: Mar
                     )}
                   </div>
                 )}
+              </div>
+            );
+          })}
               </div>
             );
           })}
