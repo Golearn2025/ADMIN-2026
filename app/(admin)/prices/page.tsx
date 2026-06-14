@@ -494,9 +494,9 @@ function PricingTable({
           {saveError}
         </div>
       )}
-    <div className="rounded-xl border border-border bg-card overflow-hidden">
+    <div className="rounded-xl border border-border bg-card overflow-x-auto">
       {/* header row */}
-      <div className="flex items-center border-b border-border bg-muted/30">
+      <div className="flex items-center border-b border-border bg-muted/30 min-w-max">
         {headerCols.map((col) => {
           const headerWidth =
             hasPenceColumns(headerCols) && col.type === "pence" ? PENCE_COLUMN_MIN_WIDTH : col.width;
@@ -515,7 +515,7 @@ function PricingTable({
       </div>
 
       {/* data rows */}
-      <div className="divide-y divide-border/60">
+      <div className="divide-y divide-border/60 min-w-max">
         {localRows.map((row, rowIdx) => {
           const id = String(row.id ?? rowIdx);
           const rowDerived = isDerivedRow?.(row) ?? false;
