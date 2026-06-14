@@ -34,6 +34,7 @@ export function CompetitorsTab() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const nameRef = useRef<HTMLInputElement>(null);
+  const prevEditNull = useRef(true);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -45,9 +46,14 @@ export function CompetitorsTab() {
 
   useEffect(() => { load(); }, [load]);
 
+  // Focus name only when form first opens (null → non-null), not on every keystroke
   useEffect(() => {
-    if (edit !== null) setTimeout(() => nameRef.current?.focus(), 50);
-  }, [edit]);
+    const isOpen = edit !== null;
+    if (isOpen && prevEditNull.current) {
+      setTimeout(() => nameRef.current?.focus(), 50);
+    }
+    prevEditNull.current = !isOpen;
+  }, [edit !== null]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function save() {
     if (!edit) return;

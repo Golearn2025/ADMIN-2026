@@ -224,14 +224,17 @@ function CheckGrid({ checkId, competitors }: { checkId: string; competitors: Mar
   if (loading) return <div className="p-8 space-y-2">{[...Array(6)].map((_, i) => <div key={i} className="h-12 rounded-xl bg-card animate-pulse" />)}</div>;
   if (!data) return <div className="p-8 text-sm text-muted-foreground">Failed to load check data.</div>;
 
-  // All scenarios from all routes
+  const CAT_ORDER: Record<string, number> = { executive: 0, luxury: 1, mpv: 2, suv: 3 };
+
+  // All scenarios from all routes, sorted: Executive → Luxury → MPV → SUV
   const allScenarios = routes.flatMap(r =>
-    (r.scenarios ?? []).filter(s =>
-      s.is_active && (filterCat === "all" || s.vehicle_category_id === filterCat)
-    ).map(s => ({ ...s, route_template: r }))
+    (r.scenarios ?? [])
+      .filter(s => s.is_active && (filterCat === "all" || s.vehicle_category_id === filterCat))
+      .sort((a, b) => (CAT_ORDER[a.vehicle_category_id] ?? 9) - (CAT_ORDER[b.vehicle_category_id] ?? 9))
+      .map(s => ({ ...s, route_template: r }))
   );
 
-  const cats: Array<VehicleCategory | "all"> = ["all", "executive", "luxury", "suv", "mpv"];
+  const cats: Array<VehicleCategory | "all"> = ["all", "executive", "luxury", "mpv", "suv"];
 
   return (
     <div className="p-6 space-y-4">
