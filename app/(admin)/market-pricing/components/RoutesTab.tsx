@@ -14,7 +14,7 @@ import {
 import type { MarketRouteTemplate, TripType, VehicleCategory } from "@/lib/market-pricing/types";
 import { TRIP_TYPE_LABELS, VEHICLE_CATEGORY_LABELS, BAND_LABELS } from "@/lib/market-pricing/format";
 
-const ALL_CATEGORIES: VehicleCategory[] = ["executive", "luxury", "suv", "mpv"];
+const ALL_CATEGORIES: VehicleCategory[] = ["executive", "luxury", "mpv", "suv"];
 const TRIP_TYPES: TripType[] = ["airport_pickup", "airport_dropoff", "distance", "hourly", "daily"];
 
 interface RouteForm {
@@ -71,6 +71,7 @@ export function RoutesTab() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const nameRef = useRef<HTMLInputElement>(null);
+  const prevFormNull = useRef(true);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -81,7 +82,15 @@ export function RoutesTab() {
   }, []);
 
   useEffect(() => { load(); }, [load]);
-  useEffect(() => { if (form !== null) setTimeout(() => nameRef.current?.focus(), 50); }, [form]);
+
+  // Focus name only when form first opens (null → non-null), not on every keystroke
+  useEffect(() => {
+    const isOpen = form !== null;
+    if (isOpen && prevFormNull.current) {
+      setTimeout(() => nameRef.current?.focus(), 50);
+    }
+    prevFormNull.current = !isOpen;
+  }, [form !== null]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function set(field: keyof RouteForm, value: string | VehicleCategory[]) {
     setForm(f => f ? { ...f, [field]: value } : f);
