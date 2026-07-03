@@ -45,7 +45,14 @@ export function ComplianceDocumentList({
           className="flex flex-col gap-2 px-3 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4 bg-card"
         >
           <div className="min-w-0 flex-1 text-center sm:text-left">
-            <p className="text-sm font-medium leading-snug break-words">{row.label}</p>
+            <div className="flex flex-wrap items-center justify-center gap-2 sm:justify-start">
+              <p className="text-sm font-medium leading-snug break-words">{row.label}</p>
+              {row.optional ? (
+                <Badge variant="outline" className="text-xs">
+                  Optional
+                </Badge>
+              ) : null}
+            </div>
             {row.vehicleLabel ? (
               <p className="text-xs text-muted-foreground mt-0.5 break-words">
                 {row.vehicleLabel}

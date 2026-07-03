@@ -6,20 +6,15 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Check, X, FileText, User } from "lucide-react";
 import { DocumentActions } from "./actions/DocumentActions";
 import type { DriverDocument, VehicleDocument } from "@/lib/features/drivers/drivers.types";
+import {
+  DRIVER_DOC_LABELS,
+  VEHICLE_DOC_LABELS,
+} from "@/lib/features/drivers/compliance.utils";
 
 const DOCUMENT_LABELS: Record<string, string> = {
   profile_photo: "Profile Photo",
-  driving_licence: "Driving Licence",
-  electronic_counterpart: "Electronic Counterpart",
-  pco_licence: "PCO Licence",
-  bank_statement: "Bank Statement",
-  proof_of_identity: "Proof of Identity",
-  proof_of_address: "Proof of Address",
-  phv_licence: "PHV Licence",
-  mot_certificate: "MOT Certificate",
-  insurance_certificate: "Insurance Certificate",
-  v5c_logbook: "V5C Logbook",
-  hire_agreement: "Hire Agreement",
+  ...DRIVER_DOC_LABELS,
+  ...VEHICLE_DOC_LABELS,
 };
 
 interface DocumentTableProps {

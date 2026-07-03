@@ -17,6 +17,9 @@ export const VEHICLE_DOC_LABELS: Record<string, string> = {
   hire_agreement: "Hire Agreement (optional)",
 };
 
+/** Vehicle document types that do not block driver approval / compliance */
+export const OPTIONAL_VEHICLE_DOCUMENT_TYPES = new Set(["hire_agreement"]);
+
 export type ComplianceDocRow = {
   key: string;
   label: string;
@@ -24,6 +27,7 @@ export type ComplianceDocRow = {
   expiryDate?: string | null;
   entity: "driver" | "vehicle";
   vehicleLabel?: string;
+  optional?: boolean;
 };
 
 function docStatus(
@@ -58,15 +62,19 @@ export function buildDriverComplianceRows(
     };
   });
 
+  return countComplianceRows(rows);
+}
+
+function countComplianceRows(rows: ComplianceDocRow[]) {
   let approved = 0;
   let missing = 0;
   let expired = 0;
   for (const row of rows) {
+    if (row.optional) continue;
     if (row.status === "approved") approved++;
     else if (row.status === "expired") expired++;
     else if (row.status === "missing" || row.status === "rejected") missing++;
   }
-
   return { rows, approved, missing, expired };
 }
 
@@ -123,20 +131,12 @@ export function buildVehicleComplianceRows(
         expiryDate: optional.expiry_date,
         entity: "vehicle",
         vehicleLabel: vLabel,
+        optional: true,
       });
     }
   }
 
-  let approved = 0;
-  let missing = 0;
-  let expired = 0;
-  for (const row of rows) {
-    if (row.status === "approved") approved++;
-    else if (row.status === "expired") expired++;
-    else if (row.status === "missing" || row.status === "rejected") missing++;
-  }
-
-  return { rows, approved, missing, expired };
+  return countComplianceRows(rows);
 }
 
 export function getDriverComplianceBreakdown(driver: Driver) {

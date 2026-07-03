@@ -232,7 +232,7 @@ export function DriverComplianceTab({
             <h3 className="text-lg font-semibold">Documente vehicul</h3>
             <p className="text-sm text-muted-foreground">
               {breakdown.vehicle.perVehicle} obligatorii × {breakdown.vehicle.vehicles}{" "}
-              vehicul(e) = {breakdown.vehicle.required} total
+              vehicul(e) = {breakdown.vehicle.required} total. Hire Agreement este opțional.
             </p>
           </div>
         </div>

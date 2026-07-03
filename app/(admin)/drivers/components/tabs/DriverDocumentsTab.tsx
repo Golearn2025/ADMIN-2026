@@ -9,6 +9,12 @@ import { InlineRejectPanel } from "../InlineRejectPanel";
 import { DocumentTable } from "../DocumentTable";
 import { downloadFile } from "@/lib/utils/downloadFile";
 import type { DriverDocument, VehicleDocument } from "@/lib/features/drivers/drivers.types";
+import {
+  DRIVER_DOC_LABELS,
+  VEHICLE_DOC_LABELS,
+} from "@/lib/features/drivers/compliance.utils";
+import { EditExpiryDialog } from "../EditExpiryDialog";
+import { useToast } from "@/hooks/use-toast";
 
 interface DriverDocumentsTabProps {
   driverId: string;
@@ -36,7 +42,14 @@ export function DriverDocumentsTab({
   const [userId, setUserId] = useState<string>("");
   const [isPhotoProcessing, setIsPhotoProcessing] = useState(false);
   const [isDownloading, setIsDownloading] = useState<string | null>(null);
+  const [expiryEdit, setExpiryEdit] = useState<{
+    docId: string;
+    label: string;
+    currentExpiry: string | null;
+    entityType: "driver" | "vehicle";
+  } | null>(null);
   
+  const { toast } = useToast();
   const actions = useDriverActions({ onSuccess: onRefresh });
   
   const bulkActions = useDocumentBulkActions({
@@ -249,9 +262,51 @@ export function DriverDocumentsTab({
   };
 
   const handleEditExpiry = (docId: string) => {
-    console.log('📅 Edit expiry:', docId);
-    // TODO: Open date picker modal to update expiry date
-    // Example: setExpiryModalOpen({ docId, currentExpiry: doc.expiry_date });
+    const doc = [...driverDocuments, ...vehicleDocuments].find((d) => d.id === docId);
+    if (!doc) {
+      toast({
+        title: "Document not found",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const isDriverDoc = driverDocuments.some((d) => d.id === docId);
+    const label =
+      (isDriverDoc ? DRIVER_DOC_LABELS[doc.document_type] : VEHICLE_DOC_LABELS[doc.document_type]) ||
+      doc.document_type.replace(/_/g, " ");
+
+    setExpiryEdit({
+      docId,
+      label,
+      currentExpiry: doc.expiry_date,
+      entityType: isDriverDoc ? "driver" : "vehicle",
+    });
+  };
+
+  const handleSaveExpiry = async (expiryDate: string | null) => {
+    if (!expiryEdit) return;
+
+    try {
+      await actions.updateDocumentExpiry(
+        expiryEdit.docId,
+        expiryEdit.entityType,
+        expiryDate
+      );
+      toast({
+        title: "Expiry date updated",
+        description: expiryDate
+          ? `New expiry: ${new Date(expiryDate).toLocaleDateString("en-GB")}`
+          : "Expiry date cleared",
+      });
+      onRefresh();
+    } catch (error) {
+      toast({
+        title: "Failed to update expiry date",
+        description: error instanceof Error ? error.message : "Unknown error",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleDeleteDocument = (docId: string) => {
@@ -355,6 +410,17 @@ export function DriverDocumentsTab({
           {actions.error}
         </div>
       )}
+
+      <EditExpiryDialog
+        open={expiryEdit !== null}
+        onOpenChange={(open) => {
+          if (!open) setExpiryEdit(null);
+        }}
+        documentLabel={expiryEdit?.label ?? "Document"}
+        currentExpiry={expiryEdit?.currentExpiry ?? null}
+        onSave={handleSaveExpiry}
+        isProcessing={actions.isProcessing}
+      />
     </div>
   );
 }

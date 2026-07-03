@@ -117,6 +117,41 @@ export function useDriverActions({ onSuccess }: UseDriverActionsProps = {}) {
     }
   };
 
+  const updateDocumentExpiry = async (
+    documentId: string,
+    entityType: "driver" | "vehicle",
+    expiryDate: string | null
+  ) => {
+    setIsProcessing(true);
+    setError(null);
+
+    try {
+      const response = await fetch(
+        `/api/admin/drivers/documents/${entityType}/${documentId}/expiry`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ expiry_date: expiryDate }),
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to update expiry date");
+      }
+
+      onSuccess?.();
+      return await response.json();
+    } catch (err) {
+      const errorMessage =
+        err instanceof Error ? err.message : "Unknown error";
+      setError(errorMessage);
+      throw err;
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
   const rejectVehicleDocument = async (
     documentId: string,
     reviewedBy: string,
@@ -157,6 +192,7 @@ export function useDriverActions({ onSuccess }: UseDriverActionsProps = {}) {
     rejectDriverDocument,
     approveVehicleDocument,
     rejectVehicleDocument,
+    updateDocumentExpiry,
     isProcessing,
     error,
   };
