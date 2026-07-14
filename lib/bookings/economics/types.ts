@@ -58,6 +58,9 @@ export type BookingEconomicsResponse = {
     operationalReservePence: number | null;
     estimatedProcessorFeePence: number | null;
     estimatedOperatingProfitPence: number | null;
+    partnerSharePence: number | null;
+    vantageLaneRetainedPence: number | null;
+    contributionMarginPence: number | null;
     missingReason?: string;
   };
   pricingEngine: PricingEngineBreakdown;

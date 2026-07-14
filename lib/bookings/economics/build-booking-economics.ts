@@ -15,6 +15,12 @@ type EconomicsSnapshot = {
   estimated_processor_fee_pence?: number;
   operational_reserve_pence?: number;
   retained_net_pence?: number;
+  estimated_partner_share_pence?: number;
+  estimated_vantage_lane_retained_pence?: number;
+  contribution_margin_pence?: number;
+  partner_share_rate_bp?: number;
+  partner_tier_booking_count?: number;
+  estimated_driver_marketplace_payout_pence?: number;
 };
 
 type QuoteLegPricing = {
@@ -254,12 +260,18 @@ export function buildBookingEconomics(input: {
         operationalReservePence: economicsSnapshot.operational_reserve_pence ?? null,
         estimatedProcessorFeePence: economicsSnapshot.estimated_processor_fee_pence ?? null,
         estimatedOperatingProfitPence: economicsSnapshot.retained_net_pence ?? null,
+        partnerSharePence: economicsSnapshot.estimated_partner_share_pence ?? null,
+        vantageLaneRetainedPence: economicsSnapshot.estimated_vantage_lane_retained_pence ?? null,
+        contributionMarginPence: economicsSnapshot.contribution_margin_pence ?? null,
       }
     : {
         source: null,
         operationalReservePence: null,
         estimatedProcessorFeePence: null,
         estimatedOperatingProfitPence: null,
+        partnerSharePence: null,
+        vantageLaneRetainedPence: null,
+        contributionMarginPence: null,
         missingReason:
           "economics_snapshot not persisted on quote yet (Phase 1C). Operational estimate unavailable.",
       };

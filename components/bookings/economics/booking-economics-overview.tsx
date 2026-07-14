@@ -138,6 +138,13 @@ export function BookingEconomicsOverview({ data }: BookingEconomicsOverviewProps
           pence={operationalEstimate.estimatedOperatingProfitPence}
           emphasize
         />
+        <EconomicsField label="Contribution margin" pence={operationalEstimate.contributionMarginPence} />
+        <EconomicsField label="Partner share" pence={operationalEstimate.partnerSharePence} />
+        <EconomicsField
+          label="Vantage Lane retained"
+          pence={operationalEstimate.vantageLaneRetainedPence}
+          emphasize
+        />
       </EconomicsSection>
     </div>
   );

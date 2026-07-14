@@ -36,8 +36,10 @@ import {
   Building2,
   BadgeDollarSign,
   Zap,
+  Handshake,
 } from "lucide-react";
 import { OrganizationBillingPanel } from "@/components/pricing/OrganizationBillingPanel";
+import { PartnerRevenueSharePanel } from "@/components/pricing/PartnerRevenueSharePanel";
 import { PenceWithVatPreview } from "@/components/pricing/PenceWithVatPreview";
 import { PricingVatBanner } from "@/components/pricing/PricingVatBanner";
 import {
@@ -183,6 +185,7 @@ const COLS: Record<string, ColDef[]> = {
 
 const TABS = [
   { key: "organization_billing", label: "VAT & Commission", icon: Receipt },
+  { key: "partner_revenue_share", label: "Partner Share", icon: Handshake },
   { key: "pricing_vehicle_rates", label: "Vehicle Rates", icon: Car },
   { key: "pricing_time_rules", label: "Time Rules", icon: Clock },
   { key: "pricing_airport_fees", label: "Airport Fees", icon: Plane },
@@ -1013,6 +1016,18 @@ export default function PricesPage() {
                     className="mt-0 focus-visible:outline-none"
                   >
                     <OrganizationBillingPanel />
+                  </TabsContent>
+                );
+              }
+
+              if (key === "partner_revenue_share") {
+                return (
+                  <TabsContent
+                    key={key}
+                    value={key}
+                    className="mt-0 focus-visible:outline-none"
+                  >
+                    <PartnerRevenueSharePanel />
                   </TabsContent>
                 );
               }

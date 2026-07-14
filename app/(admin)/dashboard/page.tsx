@@ -4,6 +4,7 @@ import { PageHeader } from "@/components/common";
 import { BookingTypesChart } from "@/components/dashboard/booking-types-chart";
 import { RevenueChart } from "@/components/dashboard/revenue-chart";
 import { StatCard } from "@/components/dashboard/stat-card";
+import { DashboardEarningsPanel } from "@/components/dashboard/dashboard-earnings-panel";
 import { VehicleCategoriesChart } from "@/components/dashboard/vehicle-categories-chart";
 import { Button } from "@/components/ui/button";
 import { Calendar, CheckCircle, Clock, DollarSign, TrendingUp } from "lucide-react";
@@ -126,6 +127,11 @@ export default function DashboardPage() {
           icon={Calendar}
           loading={loading}
         />
+      </div>
+
+      <div className="mt-6">
+        <h3 className="text-lg font-semibold mb-3">Earnings (this month)</h3>
+        <DashboardEarningsPanel />
       </div>
 
       {/* Revenue Chart - Full Width */}
