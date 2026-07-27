@@ -38,8 +38,7 @@ export function LiveMap({ className = "" }: LiveMapProps) {
   });
 
   return (
-    <div className={`w-full h-full flex flex-col bg-[#0B0F14] ${className}`}>
-      {/* Top Bar */}
+    <div className={`flex h-full min-h-0 w-full flex-col overflow-hidden bg-[#0B0F14] ${className}`}>
       <TopBar
         drivers={filteredDrivers}
         autoRefresh={autoRefresh}
@@ -48,9 +47,7 @@ export function LiveMap({ className = "" }: LiveMapProps) {
         onFocusChange={setFocusFilter}
       />
 
-      {/* Main Content: Sidebar + Map + Details Panel */}
-      <div className="flex-1 flex overflow-hidden">
-        {/* Left Sidebar */}
+      <div className="flex min-h-0 flex-1 overflow-hidden">
         <Sidebar
           drivers={filteredDrivers}
           searchQuery={searchQuery}
@@ -59,8 +56,7 @@ export function LiveMap({ className = "" }: LiveMapProps) {
           onDriverSelect={setSelectedDriver}
         />
 
-        {/* Center: Map */}
-        <div className="flex-1 relative">
+        <div className="relative min-h-0 min-w-0 flex-1">
           <Map
             mapboxAccessToken={process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN}
             initialViewState={{
@@ -68,13 +64,13 @@ export function LiveMap({ className = "" }: LiveMapProps) {
               latitude: 51.5074,
               zoom: 10,
             }}
-            style={{ width: "100%", height: "100%" }}
+            style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }}
             mapStyle="mapbox://styles/mapbox/dark-v11"
             attributionControl={false}
           >
             {filteredDrivers.map((driver) => (
-              <DriverMarker 
-                key={driver.driver_id} 
+              <DriverMarker
+                key={driver.driver_id}
                 driver={driver}
                 onClick={() => setSelectedDriver(driver)}
                 isSelected={selectedDriver?.driver_id === driver.driver_id}
@@ -83,7 +79,6 @@ export function LiveMap({ className = "" }: LiveMapProps) {
           </Map>
         </div>
 
-        {/* Right Panel: Driver Details */}
         {selectedDriver && (
           <DriverDetailsPanel
             driver={selectedDriver}

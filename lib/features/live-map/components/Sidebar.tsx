@@ -75,7 +75,7 @@ export function Sidebar({
   };
 
   return (
-    <div className="w-80 border-r border-gray-800 bg-[#0B0F14] flex flex-col h-full">
+    <div className="flex h-full w-72 shrink-0 flex-col overflow-hidden border-r border-gray-800 bg-[#0B0F14] lg:w-80">
       {/* Advanced Filters */}
       <AdvancedFilters
         searchQuery={searchQuery}
