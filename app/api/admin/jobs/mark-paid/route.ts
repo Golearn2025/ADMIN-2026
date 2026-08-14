@@ -47,7 +47,7 @@ export async function POST(req: NextRequest) {
         currency: "GBP",
         status: "succeeded",
         organization_id: booking.organization_id,
-        payment_kind: "admin_cash",
+        payment_kind: "manual",
         metadata: {
           created_by: "admin",
           note: note || "Marked paid by admin",
