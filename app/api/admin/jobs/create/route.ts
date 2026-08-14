@@ -18,6 +18,7 @@ export async function POST(req: NextRequest) {
       quoteId,
       customer,       // { email, phone, firstName, lastName } OR { customerId }
       priceOverride,  // number | null — manual price in GBP (not used in RPC, stored separately)
+      legDetails,     // Array<{ legNumber, distance, duration }> — from quote response
     } = await req.json();
 
     if (!quoteId) {
@@ -116,7 +117,25 @@ export async function POST(req: NextRequest) {
       .eq("id", bookingId)
       .single();
 
-    // ── Step 4: If price override — update billing_snapshot ──────────────────
+    // ── Step 4: Patch distance_miles + duration_min on booking_legs ─────────
+    // Critical: driver_offer_base_payout_for_leg() returns 0 without distance
+    if (Array.isArray(legDetails) && legDetails.length > 0) {
+      for (const leg of legDetails) {
+        if (leg.distance != null || leg.duration != null) {
+          await admin
+            .from("booking_legs")
+            .update({
+              distance_miles: leg.distance ?? null,
+              duration_min: leg.duration != null ? Math.round(leg.duration) : null,
+              updated_at: new Date().toISOString(),
+            })
+            .eq("booking_id", bookingId)
+            .eq("leg_number", leg.legNumber ?? 1);
+        }
+      }
+    }
+
+    // ── Step 5: If price override — update billing_snapshot ──────────────────
     if (priceOverride != null) {
       const overridePence = Math.round(priceOverride * 100);
       await admin

@@ -163,6 +163,7 @@ export function useNewJob() {
             lastName: customer.lastName,
           },
           priceOverride: price.priceOverride,
+          legDetails: price.legDetails, // distance + duration per leg → driver payout calc
         }),
       });
       const data = await res.json();
