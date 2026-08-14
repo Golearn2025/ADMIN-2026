@@ -6,12 +6,15 @@
  */
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 const BACKEND = (process.env.BACKEND_PROXY_TARGET || "https://pricing.vantage-lane.com").replace(/\/$/, "");
 const DEFAULT_ORG_ID = "9a5caade-4791-4860-93b5-12b1c4fa9830";
 
+type SupabaseAdmin = NonNullable<ReturnType<typeof createAdminClient>>;
+
 async function findOrCreateGuestCustomer(
-  supabase: ReturnType<typeof createClient> extends Promise<infer T> ? T : never,
+  supabase: SupabaseAdmin,
   email: string,
   phone: string,
   firstName: string,
@@ -62,13 +65,22 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: "customer email or customerId required" }, { status: 400 });
     }
 
+    // Auth check (anon client — só para verificar sessão admin)
     const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
+
+    // Use service role to bypass RLS for customer + booking operations
+    const admin = createAdminClient();
+    if (!admin) {
+      return NextResponse.json({ success: false, error: "Server misconfiguration: service role key missing" }, { status: 500 });
+    }
 
     // Resolve customer
     let customerId = customer.customerId;
     if (!customerId) {
       customerId = await findOrCreateGuestCustomer(
-        supabase,
+        admin,
         customer.email,
         customer.phone || "",
         customer.firstName || "Guest",
@@ -77,7 +89,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Get customer email for backend call
-    const { data: customerRow } = await supabase
+    const { data: customerRow } = await admin
       .from("customers")
       .select("email, first_name, last_name")
       .eq("id", customerId)

@@ -7,6 +7,7 @@
  */
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 export async function POST(req: NextRequest) {
   try {
@@ -20,9 +21,14 @@ export async function POST(req: NextRequest) {
     }
 
     const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
+
+    const admin = createAdminClient();
+    if (!admin) return NextResponse.json({ success: false, error: "Server misconfiguration" }, { status: 500 });
 
     // Verify booking exists and get org
-    const { data: booking, error: bookingErr } = await supabase
+    const { data: booking, error: bookingErr } = await admin
       .from("bookings")
       .select("id, status, organization_id, customer_id")
       .eq("id", bookingId)
@@ -33,7 +39,7 @@ export async function POST(req: NextRequest) {
     }
 
     // 1. Insert payment record with status = succeeded (cash / admin bypass)
-    const { data: payment, error: payErr } = await supabase
+    const { data: payment, error: payErr } = await admin
       .from("booking_payments")
       .insert({
         booking_id: bookingId,
@@ -60,7 +66,7 @@ export async function POST(req: NextRequest) {
     }
 
     // 2. Update booking status → CONFIRMED
-    const { error: updateErr } = await supabase
+    const { error: updateErr } = await admin
       .from("bookings")
       .update({ status: "CONFIRMED", updated_at: new Date().toISOString() })
       .eq("id", bookingId);

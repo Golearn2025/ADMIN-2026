@@ -7,6 +7,7 @@
  */
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 const BACKEND = (process.env.BACKEND_PROXY_TARGET || "https://pricing.vantage-lane.com").replace(/\/$/, "");
 
@@ -19,9 +20,14 @@ export async function POST(req: NextRequest) {
     }
 
     const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
+
+    const admin = createAdminClient();
+    if (!admin) return NextResponse.json({ success: false, error: "Server misconfiguration" }, { status: 500 });
 
     // Verify booking exists
-    const { data: booking, error: bookingErr } = await supabase
+    const { data: booking, error: bookingErr } = await admin
       .from("bookings")
       .select("id, status, reference")
       .eq("id", bookingId)
@@ -55,7 +61,7 @@ export async function POST(req: NextRequest) {
 
     // Persist hosted URL in booking_payments if available (for sending to customer)
     if (data.hostedInvoiceUrl || data.hosted_invoice_url) {
-      await supabase
+      await admin
         .from("booking_payments")
         .update({
           hosted_invoice_url: data.hostedInvoiceUrl || data.hosted_invoice_url,
