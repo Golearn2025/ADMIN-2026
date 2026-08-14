@@ -17,7 +17,8 @@ export async function POST(req: NextRequest) {
     const {
       quoteId,
       customer,       // { email, phone, firstName, lastName } OR { customerId }
-      priceOverride,  // number | null — manual price in GBP (not used in RPC, stored separately)
+      priceOverride,  // number | null — manual client price in GBP
+      driverPayout,   // number | null — manual driver payout in GBP (what driver sees)
       legDetails,     // Array<{ legNumber, distance, duration }> — from quote response
     } = await req.json();
 
@@ -135,7 +136,39 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // ── Step 5: If price override — update billing_snapshot ──────────────────
+    // ── Step 5: Insert internal_leg_financials so driver sees correct payout ──
+    // driver_offer_base_payout_for_leg() reads from this table
+    if (driverPayout != null) {
+      const driverPayoutPence = Math.round(driverPayout * 100);
+      const { data: legs } = await admin
+        .from("booking_legs")
+        .select("id, vehicle_category_id")
+        .eq("booking_id", bookingId);
+
+      if (legs && legs.length > 0) {
+        for (const leg of legs) {
+          await admin.from("internal_leg_financials").insert({
+            booking_leg_id: leg.id,
+            booking_id: bookingId,
+            version: 1,
+            currency: "GBP",
+            driver_payout_pence: driverPayoutPence,
+            driver_final_payout_pence: driverPayoutPence,
+            driver_estimated_payout_pence: driverPayoutPence,
+            driver_base_payout_pence: driverPayoutPence,
+            driver_target_payout_pence: driverPayoutPence,
+            driver_pricing_factor_used: 1.0,
+            platform_fee_pence: 0,
+            operator_fee_pence: 0,
+            vendor_cost_pence: 0,
+            vehicle_category_id: leg.vehicle_category_id,
+            line_items: { admin_override: true, driver_payout_gbp: driverPayout },
+          });
+        }
+      }
+    }
+
+    // ── Step 6: If client price override — update billing_snapshot ────────────
     if (priceOverride != null) {
       const overridePence = Math.round(priceOverride * 100);
       await admin

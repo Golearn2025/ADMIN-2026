@@ -35,6 +35,7 @@ export function StepPrice({
 }: StepPriceProps) {
   const [showBreakdown, setShowBreakdown] = useState(false);
   const [manualMode, setManualMode] = useState(value.priceOverride != null);
+  const [driverMode, setDriverMode] = useState(value.driverPayout != null);
 
   const displayPrice = value.priceOverride ?? value.quotedPrice;
   const canProceed = displayPrice != null && displayPrice > 0;
@@ -42,6 +43,11 @@ export function StepPrice({
   function handleOverride(v: string) {
     const n = parseFloat(v);
     onChange({ ...value, priceOverride: isNaN(n) ? null : n });
+  }
+
+  function handleDriverPayout(v: string) {
+    const n = parseFloat(v);
+    onChange({ ...value, driverPayout: isNaN(n) ? null : n });
   }
 
   return (
@@ -149,6 +155,49 @@ export function StepPrice({
         {manualMode && value.priceOverride != null && value.quotedPrice != null && (
           <p className="text-xs text-amber-600 mt-1">
             Prețul engine: {fmt(value.quotedPrice)} → Override: {fmt(value.priceOverride)}
+          </p>
+        )}
+      </div>
+
+      {/* Driver payout override */}
+      <div className="border border-border rounded-lg p-3 space-y-2">
+        <div className="flex items-center gap-2">
+          <input
+            type="checkbox"
+            id="driver-payout"
+            checked={driverMode}
+            onChange={(e) => {
+              setDriverMode(e.target.checked);
+              if (!e.target.checked) onChange({ ...value, driverPayout: null });
+            }}
+            className="rounded"
+          />
+          <Label htmlFor="driver-payout" className="cursor-pointer text-sm font-medium">
+            Setează prețul șoferului manual
+          </Label>
+        </div>
+        <p className="text-[11px] text-muted-foreground">
+          Cât vede șoferul în app (driver payout). Dacă nu setezi, se calculează automat din rate cards.
+        </p>
+
+        {driverMode && (
+          <div className="relative mt-1">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">£</span>
+            <Input
+              type="number"
+              min={0}
+              step={0.01}
+              placeholder="0.00"
+              value={value.driverPayout ?? ""}
+              onChange={(e) => handleDriverPayout(e.target.value)}
+              className="pl-7"
+            />
+          </div>
+        )}
+
+        {driverMode && value.driverPayout != null && (
+          <p className="text-xs text-blue-600">
+            Șoferul va vedea: {fmt(value.driverPayout)}
           </p>
         )}
       </div>

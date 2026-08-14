@@ -42,8 +42,9 @@ export interface VehicleForm {
 
 export interface PriceForm {
   quoteId: string | null;
-  quotedPrice: number | null;      // from engine (GBP)
-  priceOverride: number | null;    // manual (GBP), null = use quoted
+  quotedPrice: number | null;      // from engine (GBP) — client price
+  priceOverride: number | null;    // manual client price override (GBP)
+  driverPayout: number | null;     // manual driver payout (GBP) — what driver sees
   currency: string;
   breakdown: Record<string, number> | null;
   legDetails: Array<{ legNumber: number; pickup: string; dropoff: string; distance: number; duration: number }> | null;
@@ -83,6 +84,7 @@ export function useNewJob() {
     quoteId: null,
     quotedPrice: null,
     priceOverride: null,
+    driverPayout: null,
     currency: "GBP",
     breakdown: null,
     legDetails: null,
@@ -130,6 +132,7 @@ export function useNewJob() {
         quoteId: q.quoteId,
         quotedPrice: q.pricing?.finalPrice ?? null,
         priceOverride: null,
+        driverPayout: null,
         currency: q.pricing?.currency || "GBP",
         breakdown: q.pricing?.breakdown || null,
         legDetails: q.legs || null,
@@ -163,6 +166,7 @@ export function useNewJob() {
             lastName: customer.lastName,
           },
           priceOverride: price.priceOverride,
+          driverPayout: price.driverPayout,
           legDetails: price.legDetails, // distance + duration per leg → driver payout calc
         }),
       });
