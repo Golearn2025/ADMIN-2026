@@ -12,6 +12,7 @@ import {
     LayoutDashboard,
     LogOut,
     Map,
+    Plus,
     RotateCcw,
     Settings,
     TrendingUp,
@@ -60,6 +61,12 @@ export const navConfig: NavGroup[] = [
         title: "Jobs",
         href: "/jobs",
         icon: Briefcase,
+      },
+      {
+        title: "Job nou",
+        href: "/jobs/new",
+        icon: Plus,
+        badge: "New",
       },
       {
         title: "Live Map",

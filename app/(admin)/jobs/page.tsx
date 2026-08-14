@@ -1,4 +1,5 @@
-import { Briefcase } from "lucide-react";
+import Link from "next/link";
+import { Briefcase, Plus } from "lucide-react";
 import { PageHeader, EmptyState } from "@/components/common";
 import { Button } from "@/components/ui/button";
 
@@ -9,7 +10,11 @@ export default function JobsPage() {
         title="Jobs"
         subtitle="Track and manage job assignments"
         actions={
-          <Button size="sm">Create Job</Button>
+          <Button size="sm" asChild>
+            <Link href="/jobs/new">
+              <Plus className="w-4 h-4 mr-1.5" /> Job nou
+            </Link>
+          </Button>
         }
       />
       <EmptyState

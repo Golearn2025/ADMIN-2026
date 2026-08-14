@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { PageHeader } from "@/components/common/page-header";
 import { DataTableShell } from "@/components/table";
 import { Button } from "@/components/ui/button";
@@ -55,9 +56,11 @@ export default function BookingsPage() {
         title="Bookings"
         subtitle="Manage all transportation bookings"
         actions={
-          <Button>
-            <Plus className="h-4 w-4" />
-            New Booking
+          <Button asChild>
+            <Link href="/jobs/new">
+              <Plus className="h-4 w-4" />
+              New Booking
+            </Link>
           </Button>
         }
       />
