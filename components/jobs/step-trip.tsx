@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Plus, X } from "lucide-react";
 import type { TripForm, BookingType, LocationPoint } from "@/hooks/use-new-job";
+import { PlacesAutocomplete } from "@/components/jobs/places-autocomplete";
 import { cn } from "@/lib/utils";
 
 interface StepTripProps {
@@ -22,41 +23,6 @@ const BOOKING_TYPES: { id: BookingType; label: string; desc: string }[] = [
   { id: "fleet", label: "Fleet", desc: "Multi-mașini" },
 ];
 
-function AddressInput({
-  label,
-  value,
-  onChange,
-  placeholder,
-  required,
-}: {
-  label: string;
-  value: LocationPoint | null;
-  onChange: (v: LocationPoint) => void;
-  placeholder: string;
-  required?: boolean;
-}) {
-  return (
-    <div>
-      <Label>
-        {label} {required && <span className="text-destructive">*</span>}
-      </Label>
-      <Input
-        placeholder={placeholder}
-        value={value?.address || ""}
-        onChange={(e) =>
-          onChange({
-            address: e.target.value,
-            lat: value?.lat ?? 51.5074,
-            lng: value?.lng ?? -0.1278,
-            placeId: value?.placeId,
-          })
-        }
-        className="mt-1"
-      />
-      <p className="text-[10px] text-muted-foreground mt-0.5">Adresă completă (lat/lng va fi calculat la quote)</p>
-    </div>
-  );
-}
 
 export function StepTrip({ value, onChange, onNext, onPrev }: StepTripProps) {
   const needsDropoff = value.bookingType === "oneway" || value.bookingType === "return";
@@ -66,23 +32,26 @@ export function StepTrip({ value, onChange, onNext, onPrev }: StepTripProps) {
   const isFleet = value.bookingType === "fleet";
 
   function addStop() {
-    onChange({ ...value, stops: [...value.stops, { address: "", lat: 51.5074, lng: -0.1278 }] });
+    onChange({ ...value, stops: [...value.stops, null as unknown as LocationPoint] });
   }
 
   function removeStop(idx: number) {
     onChange({ ...value, stops: value.stops.filter((_, i) => i !== idx) });
   }
 
-  function updateStop(idx: number, address: string) {
+  function updateStop(idx: number, loc: LocationPoint | null) {
     const stops = [...value.stops];
-    stops[idx] = { ...stops[idx], address };
+    stops[idx] = loc as LocationPoint;
     onChange({ ...value, stops });
   }
 
+  const pickupOk = !!value.pickup?.address && value.pickup.lat !== 0;
+  const dropoffOk = !!value.dropoff?.address && value.dropoff.lat !== 0;
+
   const canProceed =
     !!value.scheduledAt &&
-    !!value.pickup?.address &&
-    (isHourly || isDaily || isFleet || !!value.dropoff?.address);
+    pickupOk &&
+    (isHourly || isDaily || isFleet || dropoffOk);
 
   return (
     <div className="space-y-5">
@@ -110,7 +79,7 @@ export function StepTrip({ value, onChange, onNext, onPrev }: StepTripProps) {
       </div>
 
       {/* Pickup */}
-      <AddressInput
+      <PlacesAutocomplete
         label="Pickup"
         value={value.pickup}
         onChange={(v) => onChange({ ...value, pickup: v })}
@@ -120,16 +89,17 @@ export function StepTrip({ value, onChange, onNext, onPrev }: StepTripProps) {
 
       {/* Stops (not for hourly/daily) */}
       {!isHourly && !isDaily && (
-        <div>
+        <div className="space-y-2">
           {value.stops.map((stop, idx) => (
-            <div key={idx} className="flex gap-2 mt-2">
-              <Input
-                placeholder={`Stop ${idx + 1}`}
-                value={stop.address}
-                onChange={(e) => updateStop(idx, e.target.value)}
+            <div key={idx} className="flex gap-2 items-end">
+              <PlacesAutocomplete
+                label={`Stop ${idx + 1}`}
+                value={stop || null}
+                onChange={(loc) => updateStop(idx, loc)}
+                placeholder="ex: Paddington Station, London"
                 className="flex-1"
               />
-              <Button type="button" variant="ghost" size="icon" onClick={() => removeStop(idx)}>
+              <Button type="button" variant="ghost" size="icon" className="mb-0.5 shrink-0" onClick={() => removeStop(idx)}>
                 <X className="w-4 h-4" />
               </Button>
             </div>
@@ -139,7 +109,7 @@ export function StepTrip({ value, onChange, onNext, onPrev }: StepTripProps) {
             variant="outline"
             size="sm"
             onClick={addStop}
-            className="mt-2 w-full text-xs"
+            className="w-full text-xs"
           >
             <Plus className="w-3 h-3 mr-1" /> Adaugă stop
           </Button>
@@ -148,7 +118,7 @@ export function StepTrip({ value, onChange, onNext, onPrev }: StepTripProps) {
 
       {/* Dropoff */}
       {needsDropoff && (
-        <AddressInput
+        <PlacesAutocomplete
           label="Dropoff"
           value={value.dropoff}
           onChange={(v) => onChange({ ...value, dropoff: v })}
