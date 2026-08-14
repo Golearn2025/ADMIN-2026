@@ -1,61 +1,23 @@
 /**
  * POST /api/admin/jobs/create
- * 1. Find or create customer (email+phone, no auth required)
- * 2. Convert quote to booking via pricing backend
+ * 1. Find or create guest customer (email+phone, no auth required)
+ * 2. Call convert_quote_to_booking_atomic RPC directly (bypass backend Node.js)
+ *    — the Node.js backend's findOrCreateCustomer tries to insert customer_type/status
+ *      columns that don't exist in our schema, so we skip it entirely.
  * Returns { bookingId, reference, customerId }
  */
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 
-const BACKEND = (process.env.BACKEND_PROXY_TARGET || "https://pricing.vantage-lane.com").replace(/\/$/, "");
 const DEFAULT_ORG_ID = "9a5caade-4791-4860-93b5-12b1c4fa9830";
-
-type SupabaseAdmin = NonNullable<ReturnType<typeof createAdminClient>>;
-
-async function findOrCreateGuestCustomer(
-  supabase: SupabaseAdmin,
-  email: string,
-  phone: string,
-  firstName: string,
-  lastName: string
-): Promise<string> {
-  // 1. Search by email
-  const { data: existing } = await supabase
-    .from("customers")
-    .select("id")
-    .eq("email", email)
-    .maybeSingle();
-
-  if (existing) return existing.id;
-
-  // 2. Create guest customer (no auth_user_id needed after migration)
-  const { data: created, error } = await supabase
-    .from("customers")
-    .insert({
-      email,
-      phone,
-      first_name: firstName || "Guest",
-      last_name: lastName || "",
-      organization_id: DEFAULT_ORG_ID,
-      is_active: true,
-    })
-    .select("id")
-    .single();
-
-  if (error || !created) {
-    throw new Error(`Failed to create customer: ${error?.message}`);
-  }
-
-  return created.id;
-}
 
 export async function POST(req: NextRequest) {
   try {
     const {
       quoteId,
-      customer,           // { email, phone, firstName, lastName } OR { customerId }
-      priceOverride,      // number | null — manual price in pence
+      customer,       // { email, phone, firstName, lastName } OR { customerId }
+      priceOverride,  // number | null — manual price in GBP (not used in RPC, stored separately)
     } = await req.json();
 
     if (!quoteId) {
@@ -65,70 +27,117 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: "customer email or customerId required" }, { status: 400 });
     }
 
-    // Auth check (anon client — só para verificar sessão admin)
+    // Auth check
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
 
-    // Use service role to bypass RLS for customer + booking operations
+    // Service role client — bypasses RLS
     const admin = createAdminClient();
     if (!admin) {
-      return NextResponse.json({ success: false, error: "Server misconfiguration: service role key missing" }, { status: 500 });
+      return NextResponse.json({ success: false, error: "Server misconfiguration: SUPABASE_SERVICE_ROLE_KEY missing" }, { status: 500 });
     }
 
-    // Resolve customer
-    let customerId = customer.customerId;
+    // ── Step 1: Resolve customer ──────────────────────────────────────────────
+    let customerId: string = customer.customerId;
+
     if (!customerId) {
-      customerId = await findOrCreateGuestCustomer(
-        admin,
-        customer.email,
-        customer.phone || "",
-        customer.firstName || "Guest",
-        customer.lastName || ""
+      // Search existing by email
+      const { data: existing } = await admin
+        .from("customers")
+        .select("id")
+        .eq("email", customer.email)
+        .maybeSingle();
+
+      if (existing) {
+        customerId = existing.id;
+      } else {
+        // Create guest customer (auth_user_id is nullable after migration)
+        const { data: created, error: createErr } = await admin
+          .from("customers")
+          .insert({
+            email: customer.email,
+            phone: customer.phone || "",
+            first_name: customer.firstName || "Guest",
+            last_name: customer.lastName || "",
+            organization_id: DEFAULT_ORG_ID,
+            is_active: true,
+          })
+          .select("id")
+          .single();
+
+        if (createErr || !created) {
+          return NextResponse.json(
+            { success: false, error: `Failed to create customer: ${createErr?.message}` },
+            { status: 500 }
+          );
+        }
+        customerId = created.id;
+      }
+    }
+
+    // ── Step 2: Call RPC directly (no Node.js backend) ───────────────────────
+    const { data: rpcResult, error: rpcError } = await admin.rpc(
+      "convert_quote_to_booking_atomic",
+      {
+        p_quote_id: quoteId,
+        p_organization_id: DEFAULT_ORG_ID,
+        p_customer_id: customerId,
+        p_passenger_count: 1,
+        p_bag_count: 0,
+        p_notes_internal: priceOverride != null
+          ? `Admin override price: £${priceOverride}`
+          : "Created via admin panel",
+      }
+    );
+
+    if (rpcError) {
+      return NextResponse.json(
+        { success: false, error: rpcError.message },
+        { status: 500 }
       );
     }
 
-    // Get customer email for backend call
-    const { data: customerRow } = await admin
-      .from("customers")
-      .select("email, first_name, last_name")
-      .eq("id", customerId)
+    const result = typeof rpcResult === "object" ? rpcResult : JSON.parse(rpcResult as string);
+
+    if (!result.success) {
+      return NextResponse.json(
+        { success: false, error: result.error_message || "RPC failed" },
+        { status: 500 }
+      );
+    }
+
+    const bookingId: string = result.booking_id;
+
+    // ── Step 3: Fetch reference from booking ─────────────────────────────────
+    const { data: booking } = await admin
+      .from("bookings")
+      .select("reference, status")
+      .eq("id", bookingId)
       .single();
 
-    // Convert quote to booking via pricing backend
-    const upstream = await fetch(`${BACKEND}/api/pricing/convert-quote-to-booking`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        quoteId,
-        customerData: {
-          customerId,
-          email: customerRow?.email || customer.email,
-          firstName: customerRow?.first_name,
-          lastName: customerRow?.last_name,
-        },
-        ...(priceOverride != null && { priceOverridePence: Math.round(priceOverride * 100) }),
-        source: "admin",
-      }),
-    });
-
-    const result = await upstream.json().catch(() => ({}));
-
-    if (!upstream.ok) {
-      return NextResponse.json(
-        { success: false, error: result?.error || "Booking creation failed", details: result },
-        { status: upstream.status }
-      );
+    // ── Step 4: If price override — update billing_snapshot ──────────────────
+    if (priceOverride != null) {
+      const overridePence = Math.round(priceOverride * 100);
+      await admin
+        .from("bookings")
+        .update({
+          billing_snapshot: {
+            price_override_pence: overridePence,
+            price_override_gbp: priceOverride,
+            overridden_by: "admin",
+          },
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", bookingId);
     }
-
-    const bookingData = result.success && result.data ? result.data : result;
 
     return NextResponse.json({
       success: true,
-      bookingId: bookingData.bookingId,
-      reference: bookingData.reference,
+      bookingId,
+      reference: booking?.reference || null,
       customerId,
-      status: bookingData.status,
+      status: booking?.status || result.booking_status,
     });
   } catch (err) {
     console.error("[admin/jobs/create] error:", err);
