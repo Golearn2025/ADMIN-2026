@@ -60,7 +60,12 @@ export function StepConfirm({
   }
 
   const scheduledFormatted = trip.scheduledAt
-    ? new Date(trip.scheduledAt).toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" })
+    ? new Date(trip.scheduledAt).toLocaleString("en-GB", {
+        timeZone: "Europe/London",
+        dateStyle: "medium",
+        timeStyle: "short",
+        hour12: false,
+      })
     : "—";
 
   return (
@@ -82,7 +87,12 @@ export function StepConfirm({
           {trip.returnAt && (
             <SummaryRow
               label="Data retur"
-              value={new Date(trip.returnAt).toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" })}
+              value={new Date(trip.returnAt).toLocaleString("en-GB", {
+                timeZone: "Europe/London",
+                dateStyle: "medium",
+                timeStyle: "short",
+                hour12: false,
+              })}
             />
           )}
           {trip.bookingType === "hourly" && <SummaryRow label="Ore" value={`${trip.hours}h`} />}

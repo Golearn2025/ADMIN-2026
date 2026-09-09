@@ -12,11 +12,16 @@ interface BookingExtras {
  */
 function formatDateTime(dateString: string): string {
   const date = new Date(dateString);
-  const day = date.getDate();
-  const month = date.toLocaleString('en-GB', { month: 'short' });
-  const year = date.getFullYear();
-  const time = date.toLocaleString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false });
-  return `${day} ${month} ${year}, ${time}`;
+  const day = date.toLocaleString('en-GB', { timeZone: 'Europe/London', day: 'numeric' });
+  const month = date.toLocaleString('en-GB', { timeZone: 'Europe/London', month: 'short' });
+  const year = date.toLocaleString('en-GB', { timeZone: 'Europe/London', year: 'numeric' });
+  const time = date.toLocaleString('en-GB', {
+    timeZone: 'Europe/London',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  });
+  return `${day} ${month} ${year}, ${time} UK time`;
 }
 
 /**
