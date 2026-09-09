@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Plus, X } from "lucide-react";
 import type { TripForm, BookingType, LocationPoint } from "@/hooks/use-new-job";
 import { PlacesAutocomplete } from "@/components/jobs/places-autocomplete";
+import { DateTimeField } from "@/components/jobs/datetime-field";
 import { cn } from "@/lib/utils";
 
 interface StepTripProps {
@@ -129,15 +130,16 @@ export function StepTrip({ value, onChange, onNext, onPrev }: StepTripProps) {
 
       {/* Return date */}
       {isReturn && (
-        <div>
-          <Label>Return date & time <span className="text-destructive">*</span></Label>
-          <Input
-            type="datetime-local"
-            value={value.returnAt}
-            onChange={(e) => onChange({ ...value, returnAt: e.target.value })}
-            className="mt-1"
-          />
-        </div>
+        <DateTimeField
+          label={
+            <>
+              Return date & time <span className="text-destructive">*</span>
+            </>
+          }
+          value={value.returnAt}
+          onChange={(v) => onChange({ ...value, returnAt: v })}
+          required
+        />
       )}
 
       {/* Hours / Days */}
@@ -176,17 +178,16 @@ export function StepTrip({ value, onChange, onNext, onPrev }: StepTripProps) {
       )}
 
       {/* Date / time */}
-      <div>
-        <Label>
-          Date & time {isReturn ? "(outbound)" : ""} <span className="text-destructive">*</span>
-        </Label>
-        <Input
-          type="datetime-local"
-          value={value.scheduledAt}
-          onChange={(e) => onChange({ ...value, scheduledAt: e.target.value })}
-          className="mt-1"
-        />
-      </div>
+      <DateTimeField
+        label={
+          <>
+            Date & time {isReturn ? "(outbound)" : ""} <span className="text-destructive">*</span>
+          </>
+        }
+        value={value.scheduledAt}
+        onChange={(v) => onChange({ ...value, scheduledAt: v })}
+        required
+      />
 
       {/* Passengers & bags */}
       <div className="grid grid-cols-2 gap-3">
