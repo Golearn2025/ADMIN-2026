@@ -21,7 +21,7 @@ interface RecentBookingsTableProps {
 export function RecentBookingsTable({ bookings }: RecentBookingsTableProps) {
   const formatDate = (dateStr: string) => {
     if (!dateStr) return "—";
-    return new Date(dateStr).toLocaleString("en-GB", {
+    const formatted = new Date(dateStr).toLocaleString("en-GB", {
       timeZone: "Europe/London",
       day: "2-digit",
       month: "short",
@@ -29,6 +29,7 @@ export function RecentBookingsTable({ bookings }: RecentBookingsTableProps) {
       minute: "2-digit",
       hour12: false,
     });
+    return `${formatted} UK`;
   };
 
   const formatPrice = (pence: number) => {
@@ -54,7 +55,7 @@ export function RecentBookingsTable({ bookings }: RecentBookingsTableProps) {
             <th className="text-left p-3 font-medium text-muted-foreground">Reference</th>
             <th className="text-left p-3 font-medium text-muted-foreground">Customer</th>
             <th className="text-left p-3 font-medium text-muted-foreground">Type</th>
-            <th className="text-left p-3 font-medium text-muted-foreground">Scheduled</th>
+            <th className="text-left p-3 font-medium text-muted-foreground">Pickup (UK)</th>
             <th className="text-left p-3 font-medium text-muted-foreground">Status</th>
             <th className="text-right p-3 font-medium text-muted-foreground">Amount</th>
           </tr>

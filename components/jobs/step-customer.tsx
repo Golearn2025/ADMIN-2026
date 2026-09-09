@@ -67,7 +67,6 @@ export function StepCustomer({ value, onChange, onNext }: StepCustomerProps) {
 
   return (
     <div className="space-y-6">
-      {/* Tabs: existing vs new */}
       <div className="flex gap-2">
         <button
           type="button"
@@ -79,7 +78,7 @@ export function StepCustomer({ value, onChange, onNext }: StepCustomerProps) {
               : "border-border text-muted-foreground hover:border-primary/50"
           )}
         >
-          <Search className="inline-block w-4 h-4 mr-1" /> Client existent
+          <Search className="inline-block w-4 h-4 mr-1" /> Existing customer
         </button>
         <button
           type="button"
@@ -91,11 +90,10 @@ export function StepCustomer({ value, onChange, onNext }: StepCustomerProps) {
               : "border-border text-muted-foreground hover:border-primary/50"
           )}
         >
-          <UserPlus className="inline-block w-4 h-4 mr-1" /> Client nou
+          <UserPlus className="inline-block w-4 h-4 mr-1" /> New customer
         </button>
       </div>
 
-      {/* EXISTING CLIENT */}
       {value.mode === "existing" && (
         <div className="space-y-3">
           {value.customerId ? (
@@ -113,16 +111,16 @@ export function StepCustomer({ value, onChange, onNext }: StepCustomerProps) {
           ) : (
             <>
               <div>
-                <Label>Caută după email, telefon sau nume</Label>
+                <Label>Search by email, phone or name</Label>
                 <Input
-                  placeholder="ex: john@example.com sau 07..."
+                  placeholder="e.g. john@example.com or 07..."
                   value={searchQ}
                   onChange={e => setSearchQ(e.target.value)}
                   className="mt-1"
                 />
               </div>
 
-              {searching && <p className="text-xs text-muted-foreground">Caută...</p>}
+              {searching && <p className="text-xs text-muted-foreground">Searching...</p>}
 
               {results.length > 0 && (
                 <div className="border border-border rounded-lg divide-y overflow-hidden">
@@ -143,19 +141,18 @@ export function StepCustomer({ value, onChange, onNext }: StepCustomerProps) {
               )}
 
               {!searching && searchQ.length >= 2 && results.length === 0 && (
-                <p className="text-xs text-muted-foreground">Niciun client găsit.</p>
+                <p className="text-xs text-muted-foreground">No customers found.</p>
               )}
             </>
           )}
         </div>
       )}
 
-      {/* NEW CLIENT */}
       {value.mode === "new" && (
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <Label>Prenume</Label>
+              <Label>First name</Label>
               <Input
                 placeholder="John"
                 value={value.firstName}
@@ -164,7 +161,7 @@ export function StepCustomer({ value, onChange, onNext }: StepCustomerProps) {
               />
             </div>
             <div>
-              <Label>Nume</Label>
+              <Label>Last name</Label>
               <Input
                 placeholder="Doe"
                 value={value.lastName}
@@ -177,14 +174,14 @@ export function StepCustomer({ value, onChange, onNext }: StepCustomerProps) {
             <Label>Email <span className="text-destructive">*</span></Label>
             <Input
               type="email"
-              placeholder="client@example.com"
+              placeholder="customer@example.com"
               value={value.email}
               onChange={e => onChange({ ...value, email: e.target.value })}
               className="mt-1"
             />
           </div>
           <div>
-            <Label>Telefon <span className="text-destructive">*</span></Label>
+            <Label>Phone <span className="text-destructive">*</span></Label>
             <Input
               type="tel"
               placeholder="+44 7..."
@@ -197,7 +194,7 @@ export function StepCustomer({ value, onChange, onNext }: StepCustomerProps) {
       )}
 
       <Button className="w-full" disabled={!canProceed} onClick={onNext}>
-        Continuă →
+        Continue →
       </Button>
     </div>
   );

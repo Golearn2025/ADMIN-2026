@@ -60,6 +60,12 @@ export const formatDate = (dateString: string) => {
   });
 };
 
+/** UK operational time with explicit timezone label. */
+export const formatUkDateTime = (dateString: string | null | undefined) => {
+  if (!dateString) return "—";
+  return `${formatDate(dateString)} UK`;
+};
+
 export const formatDuration = (minutes: number | null) => {
   if (!minutes) return "";
   const hours = Math.floor(minutes / 60);

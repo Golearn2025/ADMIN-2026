@@ -63,7 +63,7 @@ export const navConfig: NavGroup[] = [
         icon: Briefcase,
       },
       {
-        title: "Job nou",
+        title: "New Job",
         href: "/jobs/new",
         icon: Plus,
         badge: "New",

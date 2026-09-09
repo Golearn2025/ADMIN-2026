@@ -56,7 +56,7 @@ export function StepPrice({
       <Card className="border-dashed">
         <CardContent className="p-4 space-y-3">
           <div className="flex items-center justify-between">
-            <p className="text-sm font-medium">Preț calculat de engine</p>
+            <p className="text-sm font-medium">Price from pricing engine</p>
             <Button
               size="sm"
               variant="outline"
@@ -65,7 +65,7 @@ export function StepPrice({
               className="gap-1.5"
             >
               <RefreshCw className={cn("w-3.5 h-3.5", quoteLoading && "animate-spin")} />
-              {quoteLoading ? "Calculez..." : value.quoteId ? "Recalculez" : "Calculează"}
+              {quoteLoading ? "Calculating..." : value.quoteId ? "Recalculate" : "Calculate"}
             </Button>
           </div>
 
@@ -90,7 +90,7 @@ export function StepPrice({
                   className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
                 >
                   {showBreakdown ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-                  Detalii breakdown
+                  Breakdown details
                 </button>
               )}
 
@@ -133,7 +133,7 @@ export function StepPrice({
             className="rounded"
           />
           <Label htmlFor="manual-price" className="cursor-pointer text-sm">
-            Override manual de preț
+            Manual price override
           </Label>
         </div>
 
@@ -154,7 +154,7 @@ export function StepPrice({
 
         {manualMode && value.priceOverride != null && value.quotedPrice != null && (
           <p className="text-xs text-amber-600 mt-1">
-            Prețul engine: {fmt(value.quotedPrice)} → Override: {fmt(value.priceOverride)}
+            Engine price: {fmt(value.quotedPrice)} → Override: {fmt(value.priceOverride)}
           </p>
         )}
       </div>
@@ -173,11 +173,11 @@ export function StepPrice({
             className="rounded"
           />
           <Label htmlFor="driver-payout" className="cursor-pointer text-sm font-medium">
-            Setează prețul șoferului manual
+            Set driver payout manually
           </Label>
         </div>
         <p className="text-[11px] text-muted-foreground">
-          Cât vede șoferul în app (driver payout). Dacă nu setezi, se calculează automat din rate cards.
+          What the driver sees in the app. If left empty, payout is calculated from rate cards.
         </p>
 
         {driverMode && (
@@ -197,7 +197,7 @@ export function StepPrice({
 
         {driverMode && value.driverPayout != null && (
           <p className="text-xs text-blue-600">
-            Șoferul va vedea: {fmt(value.driverPayout)}
+            Driver will see: {fmt(value.driverPayout)}
           </p>
         )}
       </div>
@@ -207,19 +207,19 @@ export function StepPrice({
         <Card className="bg-primary/5 border-primary/20">
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
-              <span className="text-sm font-medium">Total de facturat</span>
+              <span className="text-sm font-medium">Amount to charge</span>
               <span className="text-xl font-bold text-primary">{fmt(displayPrice)}</span>
             </div>
             {manualMode && value.priceOverride != null && (
-              <p className="text-xs text-muted-foreground mt-1">Override manual activ</p>
+              <p className="text-xs text-muted-foreground mt-1">Manual override active</p>
             )}
           </CardContent>
         </Card>
       )}
 
       <div className="flex gap-3">
-        <Button variant="outline" className="flex-1" onClick={onPrev}>← Înapoi</Button>
-        <Button className="flex-1" disabled={!canProceed} onClick={onNext}>Continuă →</Button>
+        <Button variant="outline" className="flex-1" onClick={onPrev}>← Back</Button>
+        <Button className="flex-1" disabled={!canProceed} onClick={onNext}>Continue →</Button>
       </div>
     </div>
   );

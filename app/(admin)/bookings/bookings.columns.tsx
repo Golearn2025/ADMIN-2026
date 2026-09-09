@@ -3,10 +3,10 @@ import { Badge } from "@/components/common/badge";
 import { DataTableColumn } from "@/components/table";
 import {
     formatBookingType,
-    formatDate,
     formatDuration,
     formatPrice,
     formatText,
+    formatUkDateTime,
     getBookingTypeColor,
     getPaymentBadgeVariant,
     getTripStatusBadgeVariant,
@@ -22,11 +22,12 @@ export const columns: DataTableColumn<Booking>[] = [
       <div className="space-y-1">
         <div className="font-mono text-xs">{row.reference}</div>
         <div className="text-xs text-muted-foreground">
-          {formatDate(row.created_at)}
+          <span className="text-[10px] uppercase tracking-wide text-muted-foreground/80">Booked</span>{" "}
+          {formatUkDateTime(row.created_at)}
         </div>
       </div>
     ),
-    width: "140px",
+    width: "160px",
   },
   {
     key: "type",
@@ -34,14 +35,15 @@ export const columns: DataTableColumn<Booking>[] = [
     cell: (row) => (
       <div className="space-y-1">
         <div className="text-xs font-semibold text-amber-500">
-          {formatDate(row.scheduled_at)}
+          <span className="text-[10px] uppercase tracking-wide font-medium text-amber-600/80">Pickup</span>{" "}
+          {formatUkDateTime(row.scheduled_at)}
         </div>
         <div className={`text-xs font-medium ${getBookingTypeColor(row.booking_type)}`}>
           {formatBookingType(row.booking_type)}
         </div>
       </div>
     ),
-    width: "140px",
+    width: "160px",
   },
   {
     key: "customer",

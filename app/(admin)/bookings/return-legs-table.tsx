@@ -1,5 +1,5 @@
 import { Badge } from "@/components/common/badge";
-import { formatDate } from "./bookings.utils";
+import { formatUkDateTime } from "./bookings.utils";
 
 interface BookingLeg {
   leg_number: number;
@@ -28,7 +28,7 @@ export function ReturnLegsTable({ legs }: ReturnLegsTableProps) {
           <thead>
             <tr className="border-b border-border">
               <th className="px-4 py-2 text-left text-xs font-medium text-muted-foreground">Leg</th>
-              <th className="px-4 py-2 text-left text-xs font-medium text-muted-foreground">Scheduled</th>
+              <th className="px-4 py-2 text-left text-xs font-medium text-muted-foreground">Pickup (UK)</th>
               <th className="px-4 py-2 text-left text-xs font-medium text-muted-foreground">Route</th>
               <th className="px-4 py-2 text-left text-xs font-medium text-muted-foreground">Driver</th>
               <th className="px-4 py-2 text-left text-xs font-medium text-muted-foreground">Vehicle</th>
@@ -43,7 +43,7 @@ export function ReturnLegsTable({ legs }: ReturnLegsTableProps) {
                   </Badge>
                 </td>
                 <td className="px-4 py-3 text-xs text-muted-foreground">
-                  {formatDate(leg.scheduled_at)}
+                  {formatUkDateTime(leg.scheduled_at)}
                 </td>
                 <td className="px-4 py-3">
                   <div className="space-y-1 text-xs">

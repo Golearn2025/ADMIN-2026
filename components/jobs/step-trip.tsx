@@ -18,9 +18,9 @@ interface StepTripProps {
 const BOOKING_TYPES: { id: BookingType; label: string; desc: string }[] = [
   { id: "oneway", label: "One-way", desc: "A → B" },
   { id: "return", label: "Return", desc: "A → B → A" },
-  { id: "hourly", label: "Hourly", desc: "Ore" },
-  { id: "daily", label: "Daily", desc: "Zile" },
-  { id: "fleet", label: "Fleet", desc: "Multi-mașini" },
+  { id: "hourly", label: "Hourly", desc: "Hours" },
+  { id: "daily", label: "Daily", desc: "Days" },
+  { id: "fleet", label: "Fleet", desc: "Multi-vehicle" },
 ];
 
 
@@ -57,7 +57,7 @@ export function StepTrip({ value, onChange, onNext, onPrev }: StepTripProps) {
     <div className="space-y-5">
       {/* Booking type selector */}
       <div>
-        <Label>Tip cursă</Label>
+        <Label>Trip type</Label>
         <div className="flex flex-wrap gap-2 mt-2">
           {BOOKING_TYPES.map((t) => (
             <button
@@ -111,7 +111,7 @@ export function StepTrip({ value, onChange, onNext, onPrev }: StepTripProps) {
             onClick={addStop}
             className="w-full text-xs"
           >
-            <Plus className="w-3 h-3 mr-1" /> Adaugă stop
+            <Plus className="w-3 h-3 mr-1" /> Add stop
           </Button>
         </div>
       )}
@@ -130,7 +130,7 @@ export function StepTrip({ value, onChange, onNext, onPrev }: StepTripProps) {
       {/* Return date */}
       {isReturn && (
         <div>
-          <Label>Data retur <span className="text-destructive">*</span></Label>
+          <Label>Return date & time <span className="text-destructive">*</span></Label>
           <Input
             type="datetime-local"
             value={value.returnAt}
@@ -143,7 +143,7 @@ export function StepTrip({ value, onChange, onNext, onPrev }: StepTripProps) {
       {/* Hours / Days */}
       {isHourly && (
         <div>
-          <Label>Ore solicitate</Label>
+          <Label>Hours requested</Label>
           <Input
             type="number"
             min={1}
@@ -156,7 +156,7 @@ export function StepTrip({ value, onChange, onNext, onPrev }: StepTripProps) {
       )}
       {isDaily && (
         <div>
-          <Label>Zile solicitate</Label>
+          <Label>Days requested</Label>
           <Input
             type="number"
             min={1}
@@ -171,14 +171,14 @@ export function StepTrip({ value, onChange, onNext, onPrev }: StepTripProps) {
       {/* Fleet note */}
       {isFleet && (
         <p className="text-xs text-muted-foreground bg-muted rounded-lg p-3">
-          Fleet mode: selectați vehiculul în pasul următor. Fiecare vehicul va primi un leg separat.
+          Fleet mode: select the vehicle in the next step. Each vehicle gets a separate leg.
         </p>
       )}
 
       {/* Date / time */}
       <div>
         <Label>
-          Data & ora {isReturn ? "dus" : ""} <span className="text-destructive">*</span>
+          Date & time {isReturn ? "(outbound)" : ""} <span className="text-destructive">*</span>
         </Label>
         <Input
           type="datetime-local"
@@ -191,7 +191,7 @@ export function StepTrip({ value, onChange, onNext, onPrev }: StepTripProps) {
       {/* Passengers & bags */}
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <Label>Pasageri</Label>
+          <Label>Passengers</Label>
           <Input
             type="number"
             min={1}
@@ -202,7 +202,7 @@ export function StepTrip({ value, onChange, onNext, onPrev }: StepTripProps) {
           />
         </div>
         <div>
-          <Label>Bagaje</Label>
+          <Label>Bags</Label>
           <Input
             type="number"
             min={0}
@@ -216,7 +216,7 @@ export function StepTrip({ value, onChange, onNext, onPrev }: StepTripProps) {
 
       {/* Flight number */}
       <div>
-        <Label>Nr. zbor (opțional)</Label>
+        <Label>Flight number (optional)</Label>
         <Input
           placeholder="ex: BA256"
           value={value.flightNumber}
@@ -227,9 +227,9 @@ export function StepTrip({ value, onChange, onNext, onPrev }: StepTripProps) {
 
       {/* Notes */}
       <div>
-        <Label>Cerințe speciale (opțional)</Label>
+        <Label>Special requirements (optional)</Label>
         <Input
-          placeholder="ex: scaun copil, întâmpinare semn..."
+          placeholder="e.g. child seat, meet & greet sign..."
           value={value.notes}
           onChange={(e) => onChange({ ...value, notes: e.target.value })}
           className="mt-1"
@@ -237,8 +237,8 @@ export function StepTrip({ value, onChange, onNext, onPrev }: StepTripProps) {
       </div>
 
       <div className="flex gap-3">
-        <Button variant="outline" className="flex-1" onClick={onPrev}>← Înapoi</Button>
-        <Button className="flex-1" disabled={!canProceed} onClick={onNext}>Continuă →</Button>
+        <Button variant="outline" className="flex-1" onClick={onPrev}>← Back</Button>
+        <Button className="flex-1" disabled={!canProceed} onClick={onNext}>Continue →</Button>
       </div>
     </div>
   );

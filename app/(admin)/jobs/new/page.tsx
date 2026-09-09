@@ -29,29 +29,28 @@ export default function NewJobPage() {
   } = useNewJob();
 
   const STEP_TITLES: Record<string, string> = {
-    customer: "1. Client",
-    trip: "2. Detalii cursă",
-    vehicle: "3. Vehicul",
-    price: "4. Preț",
-    confirm: "5. Confirmare",
+    customer: "1. Customer",
+    trip: "2. Trip details",
+    vehicle: "3. Vehicle",
+    price: "4. Price",
+    confirm: "5. Confirm",
   };
 
   return (
     <div className="min-h-screen bg-background">
       <PageHeader
-        title="Job nou"
-        subtitle="Creează o rezervare manual din admin"
+        title="New Job"
+        subtitle="Create a booking manually from admin"
         actions={
           <Button variant="ghost" size="sm" asChild>
             <Link href="/jobs">
-              <ArrowLeft className="w-4 h-4 mr-1" /> Înapoi la Jobs
+              <ArrowLeft className="w-4 h-4 mr-1" /> Back to Jobs
             </Link>
           </Button>
         }
       />
 
       <div className="max-w-xl mx-auto px-4 py-6 space-y-5">
-        {/* Progress */}
         <WizardProgress
           steps={STEPS}
           currentStep={step}
@@ -61,7 +60,6 @@ export default function NewJobPage() {
           }}
         />
 
-        {/* Step card */}
         <Card className="shadow-sm">
           <CardContent className="p-5 space-y-1">
             <h2 className="text-base font-semibold text-foreground mb-4">{STEP_TITLES[step]}</h2>
@@ -89,7 +87,6 @@ export default function NewJobPage() {
                 onChange={setVehicle}
                 onNext={() => {
                   goNext();
-                  // Auto-fetch quote when entering price step
                   setTimeout(fetchQuote, 100);
                 }}
                 onPrev={goPrev}
@@ -129,7 +126,7 @@ export default function NewJobPage() {
         </Card>
 
         <p className="text-center text-[11px] text-muted-foreground">
-          Admin · Vantage Lane · Booking creat cu source=admin
+          Admin · Vantage Lane · Booking created with source=admin
         </p>
       </div>
     </div>
