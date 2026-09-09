@@ -21,11 +21,13 @@ interface RecentBookingsTableProps {
 export function RecentBookingsTable({ bookings }: RecentBookingsTableProps) {
   const formatDate = (dateStr: string) => {
     if (!dateStr) return "—";
-    return new Date(dateStr).toLocaleDateString("en-GB", {
+    return new Date(dateStr).toLocaleString("en-GB", {
+      timeZone: "Europe/London",
       day: "2-digit",
       month: "short",
       hour: "2-digit",
       minute: "2-digit",
+      hour12: false,
     });
   };
 
