@@ -19,9 +19,21 @@ interface StepPriceProps {
   onPrev: () => void;
 }
 
-function fmt(n: number | null | undefined) {
-  if (n == null) return "—";
-  return `£${n.toFixed(2)}`;
+function fmt(n: unknown) {
+  if (n == null || n === "") return "—";
+  const num = typeof n === "number" ? n : typeof n === "string" ? Number(n) : NaN;
+  if (!Number.isFinite(num)) return "—";
+  return `£${num.toFixed(2)}`;
+}
+
+function breakdownRows(breakdown: Record<string, unknown>): Array<{ key: string; value: string }> {
+  return Object.entries(breakdown)
+    .filter(([, v]) => {
+      if (v == null || typeof v === "object") return false;
+      const num = typeof v === "number" ? v : Number(v);
+      return Number.isFinite(num);
+    })
+    .map(([k, v]) => ({ key: k, value: fmt(v) }));
 }
 
 export function StepPrice({
@@ -96,10 +108,10 @@ export function StepPrice({
 
               {showBreakdown && value.breakdown && (
                 <div className="rounded-lg bg-muted p-3 space-y-1 text-xs">
-                  {Object.entries(value.breakdown).map(([k, v]) => (
-                    <div key={k} className="flex justify-between">
-                      <span className="text-muted-foreground capitalize">{k.replace(/_/g, " ")}</span>
-                      <span className="font-medium">{fmt(v as number)}</span>
+                  {breakdownRows(value.breakdown as Record<string, unknown>).map(({ key, value: amount }) => (
+                    <div key={key} className="flex justify-between gap-3">
+                      <span className="text-muted-foreground capitalize">{key.replace(/_/g, " ")}</span>
+                      <span className="font-medium shrink-0">{amount}</span>
                     </div>
                   ))}
                 </div>
@@ -109,7 +121,7 @@ export function StepPrice({
                 <div className="space-y-1 pt-1">
                   {value.legDetails.map((leg) => (
                     <div key={leg.legNumber} className="text-xs text-muted-foreground">
-                      Leg {leg.legNumber}: {leg.distance.toFixed(1)} mi · {leg.duration} min
+                      Leg {leg.legNumber}: {Number(leg.distance).toFixed(1)} mi · {leg.duration} min
                     </div>
                   ))}
                 </div>
