@@ -19,9 +19,21 @@ interface StepPriceProps {
   onPrev: () => void;
 }
 
-function fmt(n: number | null | undefined) {
-  if (n == null) return "—";
-  return `£${n.toFixed(2)}`;
+function fmt(n: unknown) {
+  if (n == null || n === "") return "—";
+  const num = typeof n === "number" ? n : typeof n === "string" ? Number(n) : NaN;
+  if (!Number.isFinite(num)) return "—";
+  return `£${num.toFixed(2)}`;
+}
+
+function breakdownRows(breakdown: Record<string, unknown>): Array<{ key: string; value: string }> {
+  return Object.entries(breakdown)
+    .filter(([, v]) => {
+      if (v == null || typeof v === "object") return false;
+      const num = typeof v === "number" ? v : Number(v);
+      return Number.isFinite(num);
+    })
+    .map(([k, v]) => ({ key: k, value: fmt(v) }));
 }
 
 export function StepPrice({
@@ -56,7 +68,7 @@ export function StepPrice({
       <Card className="border-dashed">
         <CardContent className="p-4 space-y-3">
           <div className="flex items-center justify-between">
-            <p className="text-sm font-medium">Preț calculat de engine</p>
+            <p className="text-sm font-medium">Price from pricing engine</p>
             <Button
               size="sm"
               variant="outline"
@@ -65,7 +77,7 @@ export function StepPrice({
               className="gap-1.5"
             >
               <RefreshCw className={cn("w-3.5 h-3.5", quoteLoading && "animate-spin")} />
-              {quoteLoading ? "Calculez..." : value.quoteId ? "Recalculez" : "Calculează"}
+              {quoteLoading ? "Calculating..." : value.quoteId ? "Recalculate" : "Calculate"}
             </Button>
           </div>
 
@@ -90,16 +102,16 @@ export function StepPrice({
                   className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
                 >
                   {showBreakdown ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-                  Detalii breakdown
+                  Breakdown details
                 </button>
               )}
 
               {showBreakdown && value.breakdown && (
                 <div className="rounded-lg bg-muted p-3 space-y-1 text-xs">
-                  {Object.entries(value.breakdown).map(([k, v]) => (
-                    <div key={k} className="flex justify-between">
-                      <span className="text-muted-foreground capitalize">{k.replace(/_/g, " ")}</span>
-                      <span className="font-medium">{fmt(v as number)}</span>
+                  {breakdownRows(value.breakdown as Record<string, unknown>).map(({ key, value: amount }) => (
+                    <div key={key} className="flex justify-between gap-3">
+                      <span className="text-muted-foreground capitalize">{key.replace(/_/g, " ")}</span>
+                      <span className="font-medium shrink-0">{amount}</span>
                     </div>
                   ))}
                 </div>
@@ -109,7 +121,7 @@ export function StepPrice({
                 <div className="space-y-1 pt-1">
                   {value.legDetails.map((leg) => (
                     <div key={leg.legNumber} className="text-xs text-muted-foreground">
-                      Leg {leg.legNumber}: {leg.distance.toFixed(1)} mi · {leg.duration} min
+                      Leg {leg.legNumber}: {Number(leg.distance).toFixed(1)} mi · {leg.duration} min
                     </div>
                   ))}
                 </div>
@@ -133,7 +145,7 @@ export function StepPrice({
             className="rounded"
           />
           <Label htmlFor="manual-price" className="cursor-pointer text-sm">
-            Override manual de preț
+            Manual price override
           </Label>
         </div>
 
@@ -154,7 +166,7 @@ export function StepPrice({
 
         {manualMode && value.priceOverride != null && value.quotedPrice != null && (
           <p className="text-xs text-amber-600 mt-1">
-            Prețul engine: {fmt(value.quotedPrice)} → Override: {fmt(value.priceOverride)}
+            Engine price: {fmt(value.quotedPrice)} → Override: {fmt(value.priceOverride)}
           </p>
         )}
       </div>
@@ -173,11 +185,11 @@ export function StepPrice({
             className="rounded"
           />
           <Label htmlFor="driver-payout" className="cursor-pointer text-sm font-medium">
-            Setează prețul șoferului manual
+            Set driver payout manually
           </Label>
         </div>
         <p className="text-[11px] text-muted-foreground">
-          Cât vede șoferul în app (driver payout). Dacă nu setezi, se calculează automat din rate cards.
+          What the driver sees in the app. If left empty, payout is calculated from rate cards.
         </p>
 
         {driverMode && (
@@ -197,7 +209,7 @@ export function StepPrice({
 
         {driverMode && value.driverPayout != null && (
           <p className="text-xs text-blue-600">
-            Șoferul va vedea: {fmt(value.driverPayout)}
+            Driver will see: {fmt(value.driverPayout)}
           </p>
         )}
       </div>
@@ -207,19 +219,19 @@ export function StepPrice({
         <Card className="bg-primary/5 border-primary/20">
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
-              <span className="text-sm font-medium">Total de facturat</span>
+              <span className="text-sm font-medium">Amount to charge</span>
               <span className="text-xl font-bold text-primary">{fmt(displayPrice)}</span>
             </div>
             {manualMode && value.priceOverride != null && (
-              <p className="text-xs text-muted-foreground mt-1">Override manual activ</p>
+              <p className="text-xs text-muted-foreground mt-1">Manual override active</p>
             )}
           </CardContent>
         </Card>
       )}
 
       <div className="flex gap-3">
-        <Button variant="outline" className="flex-1" onClick={onPrev}>← Înapoi</Button>
-        <Button className="flex-1" disabled={!canProceed} onClick={onNext}>Continuă →</Button>
+        <Button variant="outline" className="flex-1" onClick={onPrev}>← Back</Button>
+        <Button className="flex-1" disabled={!canProceed} onClick={onNext}>Continue →</Button>
       </div>
     </div>
   );

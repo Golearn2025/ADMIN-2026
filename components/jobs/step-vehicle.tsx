@@ -44,7 +44,7 @@ export function StepVehicle({ value, onChange, onNext, onPrev }: StepVehicleProp
     <div className="space-y-6">
       {/* Category */}
       <div>
-        <Label className="text-sm font-semibold">Categorie vehicul</Label>
+        <Label className="text-sm font-semibold">Vehicle category</Label>
         <div className="grid grid-cols-2 gap-3 mt-2">
           {CATEGORIES.map((cat) => (
             <button
@@ -67,7 +67,7 @@ export function StepVehicle({ value, onChange, onNext, onPrev }: StepVehicleProp
 
       {/* Model */}
       <div>
-        <Label className="text-sm font-semibold">Model specific</Label>
+        <Label className="text-sm font-semibold">Specific model</Label>
         <div className="flex flex-wrap gap-2 mt-2">
           {models.map((m) => (
             <button
@@ -88,8 +88,8 @@ export function StepVehicle({ value, onChange, onNext, onPrev }: StepVehicleProp
       </div>
 
       <div className="flex gap-3">
-        <Button variant="outline" className="flex-1" onClick={onPrev}>← Înapoi</Button>
-        <Button className="flex-1" onClick={onNext}>Continuă →</Button>
+        <Button variant="outline" className="flex-1" onClick={onPrev}>← Back</Button>
+        <Button className="flex-1" onClick={onNext}>Continue →</Button>
       </div>
     </div>
   );

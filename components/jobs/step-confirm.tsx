@@ -73,20 +73,20 @@ export function StepConfirm({
       {/* Summary card */}
       <Card>
         <CardContent className="p-4 space-y-4 text-sm">
-          <SummaryRow label="Client" value={`${customer.firstName || ""} ${customer.lastName || ""}`.trim() || customer.email} />
+          <SummaryRow label="Customer" value={`${customer.firstName || ""} ${customer.lastName || ""}`.trim() || customer.email} />
           <SummaryRow label="Email" value={customer.email} />
-          <SummaryRow label="Telefon" value={customer.phone || "—"} />
+          <SummaryRow label="Phone" value={customer.phone || "—"} />
           <hr className="border-border" />
-          <SummaryRow label="Tip cursă" value={BOOKING_TYPE_LABELS[trip.bookingType] || trip.bookingType} />
+          <SummaryRow label="Trip type" value={BOOKING_TYPE_LABELS[trip.bookingType] || trip.bookingType} />
           <SummaryRow label="Pickup" value={trip.pickup?.address || "—"} />
           {trip.dropoff?.address && <SummaryRow label="Dropoff" value={trip.dropoff.address} />}
           {trip.stops.length > 0 && (
-            <SummaryRow label="Stopuri" value={trip.stops.map(s => s.address).join(" → ")} />
+            <SummaryRow label="Stops" value={trip.stops.map(s => s.address).join(" → ")} />
           )}
-          <SummaryRow label="Data" value={scheduledFormatted} />
+          <SummaryRow label="Pickup time (UK)" value={scheduledFormatted} />
           {trip.returnAt && (
             <SummaryRow
-              label="Data retur"
+              label="Return pickup (UK)"
               value={new Date(trip.returnAt).toLocaleString("en-GB", {
                 timeZone: "Europe/London",
                 dateStyle: "medium",
@@ -95,12 +95,12 @@ export function StepConfirm({
               })}
             />
           )}
-          {trip.bookingType === "hourly" && <SummaryRow label="Ore" value={`${trip.hours}h`} />}
-          {trip.bookingType === "daily" && <SummaryRow label="Zile" value={`${trip.days} zile`} />}
-          <SummaryRow label="Pasageri" value={`${trip.passengers} · ${trip.bags} bagaje`} />
-          {trip.flightNumber && <SummaryRow label="Nr. zbor" value={trip.flightNumber} />}
+          {trip.bookingType === "hourly" && <SummaryRow label="Hours" value={`${trip.hours}h`} />}
+          {trip.bookingType === "daily" && <SummaryRow label="Days" value={`${trip.days} days`} />}
+          <SummaryRow label="Passengers" value={`${trip.passengers} · ${trip.bags} bags`} />
+          {trip.flightNumber && <SummaryRow label="Flight no." value={trip.flightNumber} />}
           <hr className="border-border" />
-          <SummaryRow label="Categorie" value={vehicle.categoryId} />
+          <SummaryRow label="Category" value={vehicle.categoryId} />
           <SummaryRow label="Model" value={vehicle.modelId.replace(/-/g, " ")} />
           <hr className="border-border" />
           <SummaryRow
@@ -109,7 +109,10 @@ export function StepConfirm({
             highlight
           />
           {price.priceOverride != null && (
-            <SummaryRow label="Override manual" value="Da" />
+            <SummaryRow label="Manual override" value="Yes" />
+          )}
+          {price.driverPayout != null && (
+            <SummaryRow label="Driver payout" value={fmt(price.driverPayout)} />
           )}
         </CardContent>
       </Card>
@@ -145,7 +148,7 @@ export function StepConfirm({
                   className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 shrink-0"
                 >
                   <Copy className="w-3.5 h-3.5" />
-                  {copied ? "Copiat!" : "Copiază"}
+                  {copied ? "Copied!" : "Copy"}
                 </button>
                 <a href={actionResult.url} target="_blank" rel="noopener noreferrer">
                   <ExternalLink className="w-3.5 h-3.5 text-muted-foreground" />
@@ -163,11 +166,11 @@ export function StepConfirm({
       {!createdBooking && !actionResult && (
         <>
           <p className="text-xs text-muted-foreground text-center">
-            Verifică toate datele și creează job-ul.
+            Review all details and create the job.
           </p>
           <div className="flex gap-3">
             <Button variant="outline" className="flex-1" onClick={onPrev} disabled={createLoading}>
-              ← Înapoi
+              ← Back
             </Button>
             <Button
               className="flex-1"
@@ -175,9 +178,9 @@ export function StepConfirm({
               disabled={createLoading}
             >
               {createLoading ? (
-                <><Loader2 className="w-4 h-4 animate-spin mr-2" /> Se creează...</>
+                <><Loader2 className="w-4 h-4 animate-spin mr-2" /> Creating...</>
               ) : (
-                "Creează Job"
+                "Create Job"
               )}
             </Button>
           </div>
@@ -190,10 +193,10 @@ export function StepConfirm({
           <div className="flex items-center gap-2 rounded-lg bg-muted px-3 py-2">
             <CheckCircle className="w-4 h-4 text-green-600 shrink-0" />
             <p className="text-sm font-medium">
-              Job creat: <span className="text-primary font-mono">{createdBooking.reference}</span>
+              Job created: <span className="text-primary font-mono">{createdBooking.reference}</span>
             </p>
           </div>
-          <p className="text-xs text-muted-foreground text-center">Ce facem acum?</p>
+          <p className="text-xs text-muted-foreground text-center">What next?</p>
 
           {/* Mark paid */}
           <Button
@@ -202,10 +205,10 @@ export function StepConfirm({
             disabled={actionLoading}
           >
             {actionLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
-            Marchează plătit & publică
+            Mark paid & publish
           </Button>
           <p className="text-[10px] text-muted-foreground text-center -mt-1">
-            Job apare imediat în app driver (cash / plată offline)
+            Job appears immediately in the driver app (cash / offline payment)
           </p>
 
           {/* Send payment link */}
@@ -216,10 +219,10 @@ export function StepConfirm({
             disabled={actionLoading}
           >
             {actionLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Link2 className="w-4 h-4" />}
-            Generează link de plată
+            Generate payment link
           </Button>
           <p className="text-[10px] text-muted-foreground text-center -mt-1">
-            Job apare în app driver doar după ce clientul plătește
+            Job appears in the driver app only after the customer pays
           </p>
         </div>
       )}

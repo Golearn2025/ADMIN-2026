@@ -4,11 +4,11 @@ import { cn } from "@/lib/utils";
 import type { WizardStep } from "@/hooks/use-new-job";
 
 const STEP_LABELS: Record<WizardStep, string> = {
-  customer: "Client",
-  trip: "Cursă",
-  vehicle: "Mașină",
-  price: "Preț",
-  confirm: "Confirmare",
+  customer: "Customer",
+  trip: "Trip",
+  vehicle: "Vehicle",
+  price: "Price",
+  confirm: "Confirm",
 };
 
 interface WizardProgressProps {

@@ -12,7 +12,7 @@ export default function JobsPage() {
         actions={
           <Button size="sm" asChild>
             <Link href="/jobs/new">
-              <Plus className="w-4 h-4 mr-1.5" /> Job nou
+              <Plus className="w-4 h-4 mr-1.5" /> New Job
             </Link>
           </Button>
         }
