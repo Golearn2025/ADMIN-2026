@@ -2,7 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 import { getCurrentOrg } from "@/lib/auth/org";
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const supabase = await createClient();
 
@@ -19,14 +19,31 @@ export async function GET() {
     const { data: isSuperAdmin } = await supabase
       .rpc('get_user_super_admin_status', { user_id: user.id });
 
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-    const thirtyDaysAgoISO = thirtyDaysAgo.toISOString();
+    // Parse date range from query params
+    const { searchParams } = new URL(request.url);
+    const fromParam = searchParams.get("from");
+    const toParam = searchParams.get("to");
+
+    let fromDate: string;
+    let toDate: string;
+
+    if (fromParam && toParam) {
+      // Use provided date range
+      fromDate = fromParam;
+      toDate = toParam;
+    } else {
+      // Default to last 30 days
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      fromDate = thirtyDaysAgo.toISOString();
+      toDate = new Date().toISOString();
+    }
 
     let query = supabase
       .from("admin_booking_list")
       .select("*")
-      .gte("created_at", thirtyDaysAgoISO);
+      .gte("created_at", fromDate)
+      .lte("created_at", toDate);
 
     // Apply organization filtering
     if (isSuperAdmin) {
@@ -66,7 +83,10 @@ export async function GET() {
       cancelled_bookings: cancelledBookings,
       pending_bookings: pendingBookings,
       scheduled_bookings: scheduledBookings,
-      period: "30d",
+      period: {
+        from: fromDate,
+        to: toDate,
+      },
     });
   } catch (error) {
     console.error("Dashboard stats exception:", error);
