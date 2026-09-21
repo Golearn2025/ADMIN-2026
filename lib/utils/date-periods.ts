@@ -98,24 +98,24 @@ export function getDateRangeFromPreset(preset: PeriodPreset): DateRange | null {
 }
 
 /**
- * Formatează o perioadă pentru afișare
+ * Format period for display
  */
 export function formatPeriodLabel(period: Period): string {
   const labels: Record<PeriodPreset, string> = {
-    today: "Astăzi",
-    yesterday: "Ieri",
-    last7days: "Ultimele 7 zile",
-    last30days: "Ultimele 30 zile",
-    last90days: "Ultimele 90 zile",
-    thisMonth: "Luna curentă",
-    lastMonth: "Luna trecută",
-    thisYear: "Anul curent",
-    all: "Toate",
-    custom: "Perioadă personalizată",
+    today: "Today",
+    yesterday: "Yesterday",
+    last7days: "Last 7 days",
+    last30days: "Last 30 days",
+    last90days: "Last 90 days",
+    thisMonth: "This month",
+    lastMonth: "Last month",
+    thisYear: "This year",
+    all: "All time",
+    custom: "Custom range",
   };
   
   if (period.preset === "custom" && period.customRange) {
-    const fmt = new Intl.DateTimeFormat("ro-RO", {
+    const fmt = new Intl.DateTimeFormat("en-GB", {
       day: "numeric",
       month: "short",
       year: "numeric",
@@ -127,20 +127,20 @@ export function formatPeriodLabel(period: Period): string {
 }
 
 /**
- * Formatează o perioadă pentru subtitle
+ * Format period for subtitle
  */
 export function formatPeriodSubtitle(period: Period): string {
   const subtitles: Record<PeriodPreset, string> = {
-    today: "Date de astăzi",
-    yesterday: "Date de ieri",
-    last7days: "Ultimele 7 zile",
-    last30days: "Ultimele 30 zile",
-    last90days: "Ultimele 90 zile",
-    thisMonth: "Această lună",
-    lastMonth: "Luna trecută",
-    thisYear: "Acest an",
-    all: "Toate perioadele",
-    custom: "Perioadă selectată",
+    today: "Today's data",
+    yesterday: "Yesterday's data",
+    last7days: "Last 7 days",
+    last30days: "Last 30 days",
+    last90days: "Last 90 days",
+    thisMonth: "This month",
+    lastMonth: "Last month",
+    thisYear: "This year",
+    all: "All periods",
+    custom: "Selected period",
   };
   
   return subtitles[period.preset];

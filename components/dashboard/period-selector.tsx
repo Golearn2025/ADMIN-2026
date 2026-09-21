@@ -27,16 +27,16 @@ interface PeriodSelectorProps {
 }
 
 const PRESET_OPTIONS: Array<{ value: PeriodPreset; label: string }> = [
-  { value: "today", label: "Astăzi" },
-  { value: "yesterday", label: "Ieri" },
-  { value: "last7days", label: "Ultimele 7 zile" },
-  { value: "last30days", label: "Ultimele 30 zile" },
-  { value: "last90days", label: "Ultimele 90 zile" },
-  { value: "thisMonth", label: "Luna curentă" },
-  { value: "lastMonth", label: "Luna trecută" },
-  { value: "thisYear", label: "Anul curent" },
-  { value: "all", label: "Toate" },
-  { value: "custom", label: "Interval personalizat..." },
+  { value: "today", label: "Today" },
+  { value: "yesterday", label: "Yesterday" },
+  { value: "last7days", label: "Last 7 days" },
+  { value: "last30days", label: "Last 30 days" },
+  { value: "last90days", label: "Last 90 days" },
+  { value: "thisMonth", label: "This month" },
+  { value: "lastMonth", label: "Last month" },
+  { value: "thisYear", label: "This year" },
+  { value: "all", label: "All time" },
+  { value: "custom", label: "Custom range..." },
 ];
 
 export function PeriodSelector({ value, onChange, className }: PeriodSelectorProps) {
@@ -67,9 +67,9 @@ export function PeriodSelector({ value, onChange, className }: PeriodSelectorPro
     const from = new Date(fromDate);
     const to = new Date(toDate);
 
-    // Validare: from trebuie să fie înainte de to
+    // Validation: from must be before to
     if (from > to) {
-      alert("Data de început trebuie să fie înainte de data de sfârșit");
+      alert("Start date must be before end date");
       return;
     }
 
@@ -90,7 +90,7 @@ export function PeriodSelector({ value, onChange, className }: PeriodSelectorPro
 
   const getDisplayValue = (): string => {
     if (value.preset === "custom" && value.customRange) {
-      const fmt = new Intl.DateTimeFormat("ro-RO", {
+      const fmt = new Intl.DateTimeFormat("en-GB", {
         day: "numeric",
         month: "short",
       });
@@ -98,7 +98,7 @@ export function PeriodSelector({ value, onChange, className }: PeriodSelectorPro
     }
     
     const option = PRESET_OPTIONS.find(opt => opt.value === value.preset);
-    return option?.label || "Selectează perioada";
+    return option?.label || "Select period";
   };
 
   return (
@@ -124,16 +124,16 @@ export function PeriodSelector({ value, onChange, className }: PeriodSelectorPro
         </SelectContent>
       </Select>
 
-      {/* Dialog pentru interval personalizat */}
+      {/* Dialog for custom range */}
       <Dialog open={customDialogOpen} onOpenChange={setCustomDialogOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Interval personalizat</DialogTitle>
+            <DialogTitle>Custom date range</DialogTitle>
           </DialogHeader>
           
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <Label htmlFor="from-date">De la</Label>
+              <Label htmlFor="from-date">From</Label>
               <Input
                 id="from-date"
                 type="date"
@@ -143,7 +143,7 @@ export function PeriodSelector({ value, onChange, className }: PeriodSelectorPro
             </div>
             
             <div className="space-y-2">
-              <Label htmlFor="to-date">Până la</Label>
+              <Label htmlFor="to-date">To</Label>
               <Input
                 id="to-date"
                 type="date"
@@ -158,10 +158,10 @@ export function PeriodSelector({ value, onChange, className }: PeriodSelectorPro
               variant="outline"
               onClick={() => setCustomDialogOpen(false)}
             >
-              Anulează
+              Cancel
             </Button>
             <Button onClick={handleCustomRangeApply}>
-              Aplică
+              Apply
             </Button>
           </DialogFooter>
         </DialogContent>

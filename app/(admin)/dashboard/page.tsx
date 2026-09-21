@@ -99,7 +99,7 @@ export default function DashboardPage() {
               className="gap-2"
             >
               <RefreshCw className="h-4 w-4" />
-              <span className="hidden sm:inline">Actualizează</span>
+              <span className="hidden sm:inline">Refresh</span>
             </Button>
           </div>
         }
@@ -107,7 +107,7 @@ export default function DashboardPage() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         <StatCard
-          title="Venit total"
+          title="Total Revenue"
           value={stats ? formatCurrency(stats.total_revenue_pence) : "—"}
           subtitle={subtitle}
           icon={DollarSign}
@@ -115,7 +115,7 @@ export default function DashboardPage() {
         />
 
         <StatCard
-          title="Rezervări totale"
+          title="Total Bookings"
           value={stats?.total_bookings ?? "—"}
           subtitle={subtitle}
           icon={Calendar}
@@ -123,53 +123,53 @@ export default function DashboardPage() {
         />
 
         <StatCard
-          title="Valoare medie"
+          title="Avg Booking Value"
           value={stats ? formatCurrency(stats.avg_booking_value_pence) : "—"}
-          subtitle="Per rezervare"
+          subtitle="Per booking"
           icon={TrendingUp}
           loading={loading}
         />
 
         <StatCard
-          title="Confirmate"
+          title="Confirmed"
           value={stats?.confirmed_bookings ?? "—"}
-          subtitle="Rezervări finalizate"
+          subtitle="Completed bookings"
           icon={CheckCircle}
           loading={loading}
         />
 
         <StatCard
-          title="În așteptare"
+          title="Pending"
           value={stats?.pending_bookings ?? "—"}
-          subtitle="Așteptând plată/confirmare"
+          subtitle="Awaiting payment/confirmation"
           icon={Clock}
           loading={loading}
         />
 
         <StatCard
-          title="Programate"
+          title="Scheduled"
           value={stats?.scheduled_bookings ?? "—"}
-          subtitle="Curse viitoare"
+          subtitle="Upcoming trips"
           icon={Calendar}
           loading={loading}
         />
       </div>
 
       <div className="mt-6">
-        <h3 className="text-lg font-semibold mb-3">Câștiguri (luna curentă)</h3>
+        <h3 className="text-lg font-semibold mb-3">Earnings (this month)</h3>
         <DashboardEarningsPanel />
       </div>
 
       {/* Revenue Chart - Full Width */}
       <div className="bg-card rounded-lg border border-border p-6 mt-6">
-        <h3 className="text-lg font-semibold mb-4">Evoluție venit</h3>
+        <h3 className="text-lg font-semibold mb-4">Revenue Trend</h3>
         {loading ? (
           <div className="h-[300px] bg-muted animate-pulse rounded"></div>
         ) : charts ? (
           <RevenueChart data={charts.revenue_trend} />
         ) : (
           <div className="h-[300px] flex items-center justify-center text-muted-foreground">
-            Nu există date disponibile
+            No data available
           </div>
         )}
       </div>
@@ -177,27 +177,27 @@ export default function DashboardPage() {
       {/* Smaller Charts - 2 Columns */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
         <div className="bg-card rounded-lg border border-border p-6">
-          <h3 className="text-base font-semibold mb-4">Tipuri de rezervări</h3>
+          <h3 className="text-base font-semibold mb-4">Booking Types</h3>
           {loading ? (
             <div className="h-[300px] bg-muted animate-pulse rounded"></div>
           ) : charts ? (
             <BookingTypesChart data={charts.booking_types} />
           ) : (
             <div className="h-[300px] flex items-center justify-center text-muted-foreground text-sm">
-              Nu există date
+              No data
             </div>
           )}
         </div>
 
         <div className="bg-card rounded-lg border border-border p-6">
-          <h3 className="text-base font-semibold mb-4">Cerere pe categorii</h3>
+          <h3 className="text-base font-semibold mb-4">Vehicle Demand</h3>
           {loading ? (
             <div className="h-[250px] bg-muted animate-pulse rounded"></div>
           ) : charts ? (
             <VehicleCategoriesChart data={charts.vehicle_categories} />
           ) : (
             <div className="h-[250px] flex items-center justify-center text-muted-foreground text-sm">
-              Nu există date
+              No data
             </div>
           )}
         </div>
