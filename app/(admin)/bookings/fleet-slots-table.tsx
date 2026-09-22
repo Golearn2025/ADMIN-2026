@@ -1,4 +1,5 @@
 import { Badge } from "@/components/common/badge";
+import { VehiclePlateBadge } from "@/components/bookings/vehicle-plate-badge";
 
 interface FleetSlot {
   slot_number: number;
@@ -70,8 +71,8 @@ export function FleetSlotsTable({ slots }: FleetSlotsTableProps) {
                 </td>
                 <td className="px-4 py-3">
                   {slot.vehicle_plate ? (
-                    <div className="space-y-1 text-xs">
-                      <div className="font-mono font-medium">{slot.vehicle_plate}</div>
+                    <div className="flex flex-col items-start gap-1.5 text-xs">
+                      <VehiclePlateBadge plate={slot.vehicle_plate} />
                       {slot.vehicle_make_model && (
                         <div className="text-muted-foreground">{slot.vehicle_make_model}</div>
                       )}

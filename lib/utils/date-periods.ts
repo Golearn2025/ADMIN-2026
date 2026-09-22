@@ -131,7 +131,7 @@ export function formatPeriodLabel(period: Period): string {
  */
 export function formatPeriodSubtitle(period: Period): string {
   const subtitles: Record<PeriodPreset, string> = {
-    today: "Today's data",
+    today: "Today's trips",
     yesterday: "Yesterday's data",
     last7days: "Last 7 days",
     last30days: "Last 30 days",
@@ -139,7 +139,7 @@ export function formatPeriodSubtitle(period: Period): string {
     thisMonth: "This month",
     lastMonth: "Last month",
     thisYear: "This year",
-    all: "All periods",
+    all: "All time",
     custom: "Selected period",
   };
   

@@ -7,8 +7,9 @@ import { StatCard } from "@/components/dashboard/stat-card";
 import { DashboardEarningsPanel } from "@/components/dashboard/dashboard-earnings-panel";
 import { VehicleCategoriesChart } from "@/components/dashboard/vehicle-categories-chart";
 import { PeriodSelector } from "@/components/dashboard/period-selector";
+import { OpsCoverageCards } from "@/components/dashboard/ops-coverage-cards";
 import { Button } from "@/components/ui/button";
-import { Calendar, CheckCircle, Clock, DollarSign, TrendingUp, RefreshCw } from "lucide-react";
+import { Calendar, CheckCircle, Clock, PoundSterling, TrendingUp, RefreshCw } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useDashboardPeriod } from "@/lib/hooks/useDashboardPeriod";
 
@@ -20,9 +21,16 @@ interface DashboardStats {
   cancelled_bookings: number;
   pending_bookings: number;
   scheduled_bookings: number;
+  incoming_bookings: number;
+  incoming_value_pence: number;
+  completed_bookings: number;
+  in_progress_bookings: number;
+  assigned_bookings: number;
+  unassigned_bookings: number;
   period: {
-    from: string;
-    to: string;
+    from: string | null;
+    to: string | null;
+    all: boolean;
   };
 }
 
@@ -37,7 +45,7 @@ export default function DashboardPage() {
   const [charts, setCharts] = useState<DashboardCharts | null>(null);
   const [loading, setLoading] = useState(true);
   
-  const { period, setPeriod, urlParams, subtitle } = useDashboardPeriod("last30days");
+  const { period, setPeriod, urlParams, subtitle } = useDashboardPeriod("today");
 
   const fetchStats = async () => {
     setLoading(true);
@@ -71,7 +79,7 @@ export default function DashboardPage() {
   useEffect(() => {
     fetchStats();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [period]);
+  }, [period.preset, period.customRange]);
 
   const formatCurrency = (pence: number) => {
     return new Intl.NumberFormat("en-GB", {
@@ -84,7 +92,7 @@ export default function DashboardPage() {
     <div className="space-y-6">
       <PageHeader
         title="Dashboard"
-        subtitle={subtitle}
+        subtitle={`${subtitle} · filtered by trip date`}
         actions={
           <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center">
             <PeriodSelector
@@ -105,19 +113,29 @@ export default function DashboardPage() {
         }
       />
 
+      <OpsCoverageCards
+        title={period.preset === "today" ? "Today's jobs" : "Jobs in this period"}
+        incoming={stats?.incoming_bookings ?? 0}
+        incomingValue={stats ? formatCurrency(stats.incoming_value_pence) : "—"}
+        completed={stats?.completed_bookings ?? 0}
+        inProgress={stats?.in_progress_bookings ?? 0}
+        unassigned={stats?.unassigned_bookings ?? 0}
+        loading={loading}
+      />
+
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         <StatCard
           title="Total Revenue"
           value={stats ? formatCurrency(stats.total_revenue_pence) : "—"}
-          subtitle={subtitle}
-          icon={DollarSign}
+          subtitle="Collected payments"
+          icon={PoundSterling}
           loading={loading}
         />
 
         <StatCard
           title="Total Bookings"
           value={stats?.total_bookings ?? "—"}
-          subtitle={subtitle}
+          subtitle="Excluding cancelled"
           icon={Calendar}
           loading={loading}
         />
@@ -125,7 +143,7 @@ export default function DashboardPage() {
         <StatCard
           title="Avg Booking Value"
           value={stats ? formatCurrency(stats.avg_booking_value_pence) : "—"}
-          subtitle="Per booking"
+          subtitle="Per paid booking"
           icon={TrendingUp}
           loading={loading}
         />
@@ -133,7 +151,7 @@ export default function DashboardPage() {
         <StatCard
           title="Confirmed"
           value={stats?.confirmed_bookings ?? "—"}
-          subtitle="Completed bookings"
+          subtitle="Confirmed and completed"
           icon={CheckCircle}
           loading={loading}
         />
@@ -141,7 +159,7 @@ export default function DashboardPage() {
         <StatCard
           title="Pending"
           value={stats?.pending_bookings ?? "—"}
-          subtitle="Awaiting payment/confirmation"
+          subtitle="Payment or invoice pending"
           icon={Clock}
           loading={loading}
         />

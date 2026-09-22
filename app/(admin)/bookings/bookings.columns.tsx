@@ -1,4 +1,5 @@
 import { BookingActionsDropdown } from "@/components/bookings/booking-actions-dropdown";
+import { VehiclePlateBadge } from "@/components/bookings/vehicle-plate-badge";
 import { Badge } from "@/components/common/badge";
 import { DataTableColumn } from "@/components/table";
 import {
@@ -126,13 +127,23 @@ export const columns: DataTableColumn<Booking>[] = [
     key: "driver",
     header: "Driver",
     cell: (row) => (
-      <div className="flex flex-col items-center space-y-1 text-xs">
-        <div className="font-medium">{row.driver_name || "Unassigned"}</div>
-        {row.vehicle_plate && (
-          <div className="font-mono text-gray-500">
-            {row.vehicle_plate}
-          </div>
-        )}
+      <div className="flex flex-col items-center justify-center gap-1.5 text-center">
+        <div
+          className={
+            row.driver_name
+              ? "text-xs font-medium text-foreground"
+              : "text-xs text-muted-foreground"
+          }
+        >
+          {row.driver_name || "Unassigned"}
+        </div>
+        {row.vehicle_plate ? (
+          <VehiclePlateBadge plate={row.vehicle_plate} />
+        ) : row.driver_name ? (
+          <span className="text-[10px] uppercase tracking-wide text-muted-foreground/70">
+            No plate
+          </span>
+        ) : null}
       </div>
     ),
   },

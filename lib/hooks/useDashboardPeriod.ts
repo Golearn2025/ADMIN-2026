@@ -58,8 +58,11 @@ export function useDashboardPeriod(
   }, [period]);
 
   const urlParams = useMemo(() => {
-    return dateRangeToURLParams(effectiveRange);
-  }, [effectiveRange]);
+    return {
+      period: period.preset,
+      ...dateRangeToURLParams(effectiveRange),
+    };
+  }, [period.preset, effectiveRange]);
 
   return {
     period,

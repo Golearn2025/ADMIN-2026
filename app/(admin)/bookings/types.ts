@@ -15,7 +15,9 @@ export interface Booking {
   distance_miles: number;
   duration_min: number | null;
   requested_vehicle_category_label: string;
+  requested_vehicle_category_id?: string;
   requested_vehicle_model_label?: string;
+  requested_vehicle_model_id?: string;
   requested_vehicle_display?: string;
   driver_name?: string;
   driver_phone?: string;
@@ -34,4 +36,6 @@ export interface Booking {
   booked_days: number;
   return_scheduled_at: string | null;
   fleet_size: number;
+  passenger_count?: number | null;
+  bag_count?: number | null;
 }

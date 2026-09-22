@@ -1,4 +1,5 @@
 import { Badge } from "@/components/common/badge";
+import { VehiclePlateBadge } from "@/components/bookings/vehicle-plate-badge";
 import { formatUkDateTime } from "./bookings.utils";
 
 interface BookingLeg {
@@ -71,8 +72,8 @@ export function ReturnLegsTable({ legs }: ReturnLegsTableProps) {
                 </td>
                 <td className="px-4 py-3">
                   {leg.vehicle_plate ? (
-                    <div className="space-y-1 text-xs">
-                      <div className="font-mono font-medium">{leg.vehicle_plate}</div>
+                    <div className="flex flex-col items-start gap-1.5 text-xs">
+                      <VehiclePlateBadge plate={leg.vehicle_plate} />
                       {leg.vehicle_make_model && (
                         <div className="text-muted-foreground">{leg.vehicle_make_model}</div>
                       )}

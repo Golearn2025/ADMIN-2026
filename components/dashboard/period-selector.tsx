@@ -65,7 +65,9 @@ export function PeriodSelector({ value, onChange, className }: PeriodSelectorPro
     }
 
     const from = new Date(fromDate);
+    from.setHours(0, 0, 0, 0);
     const to = new Date(toDate);
+    to.setHours(23, 59, 59, 999);
 
     // Validation: from must be before to
     if (from > to) {

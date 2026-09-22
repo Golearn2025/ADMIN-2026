@@ -40,9 +40,12 @@ export function BookingTypesChart({ data }: BookingTypesChartProps) {
           />
           <Legend
             verticalAlign="bottom"
-            height={50}
+            height={72}
             iconType="circle"
             iconSize={10}
+            formatter={(value: string, entry: any) =>
+              `${value} (${entry?.payload?.value ?? 0})`
+            }
             wrapperStyle={{
               paddingTop: '16px',
               fontSize: '13px',

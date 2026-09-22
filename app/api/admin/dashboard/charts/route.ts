@@ -1,6 +1,9 @@
 import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 import { getCurrentOrg } from "@/lib/auth/org";
+import { parseDashboardPeriodQuery } from "@/lib/dashboard/parse-period-query";
+import { isPaidBooking } from "@/lib/dashboard/compute-stats";
+import { aggregateBookingTypes } from "@/lib/dashboard/booking-types";
 
 export async function GET(request: Request) {
   try {
@@ -19,32 +22,19 @@ export async function GET(request: Request) {
     const { data: isSuperAdmin } = await supabase
       .rpc('get_user_super_admin_status', { user_id: user.id });
 
-    // Parse date range from query params
     const { searchParams } = new URL(request.url);
-    const fromParam = searchParams.get("from");
-    const toParam = searchParams.get("to");
-
-    let fromDate: string;
-    let toDate: string;
-
-    if (fromParam && toParam) {
-      // Use provided date range
-      fromDate = fromParam;
-      toDate = toParam;
-    } else {
-      // Default to last 30 days
-      const thirtyDaysAgo = new Date();
-      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-      fromDate = thirtyDaysAgo.toISOString();
-      toDate = new Date().toISOString();
-    }
+    const periodQuery = parseDashboardPeriodQuery(searchParams);
 
     let query = supabase
       .from("admin_booking_list")
       .select("*")
-      .gte("created_at", fromDate)
-      .lte("created_at", toDate)
       .order("created_at", { ascending: true });
+
+    if (!periodQuery.isAllTime && periodQuery.from && periodQuery.to) {
+      query = query
+        .gte("start_at", periodQuery.from)
+        .lte("start_at", periodQuery.to);
+    }
 
     // Apply organization filtering
     if (isSuperAdmin) {
@@ -70,7 +60,9 @@ export async function GET(request: Request) {
     const dailyRevenue = new Map<string, number>();
 
     bookings?.forEach((booking) => {
-      const date = new Date(booking.created_at).toISOString().split("T")[0];
+      if (!isPaidBooking(booking)) return;
+      const tripDate = booking.start_at || booking.created_at;
+      const date = new Date(tripDate).toISOString().split("T")[0];
       const revenue = Number(booking.display_price_pence) || 0;
       dailyRevenue.set(date, (dailyRevenue.get(date) || 0) + revenue);
     });
@@ -79,17 +71,7 @@ export async function GET(request: Request) {
       revenueTrend.push({ date, revenue: revenue / 100 }); // Convert to pounds
     });
 
-    // 2. Booking Types Distribution
-    const typesMap = new Map<string, number>();
-    bookings?.forEach((booking) => {
-      const type = booking.booking_type || "unknown";
-      typesMap.set(type, (typesMap.get(type) || 0) + 1);
-    });
-
-    const bookingTypes = Array.from(typesMap.entries()).map(([name, value]) => ({
-      name: name.charAt(0).toUpperCase() + name.slice(1),
-      value,
-    }));
+    const bookingTypes = aggregateBookingTypes(bookings ?? []);
 
     // 3. Payment Status Distribution
     const paymentsMap = new Map<string, number>();

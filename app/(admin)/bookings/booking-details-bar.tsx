@@ -1,4 +1,5 @@
 import { Badge } from "@/components/common/badge";
+import { VehiclePlateBadge } from "@/components/bookings/vehicle-plate-badge";
 import { Car, CheckCircle, CreditCard, DollarSign, Mail, Phone, XCircle } from "lucide-react";
 import { getVehicleCategoryVariant } from "./bookings.utils";
 import type { Booking } from "./types";
@@ -56,15 +57,17 @@ export function BookingDetailsBar({ booking }: BookingDetailsBarProps) {
 
       {/* Vehicle - Assigned */}
       {(booking.vehicle_make_model || booking.vehicle_plate) && (
-        <div className="bg-card border border-border/50 rounded px-3 py-1.5 shadow-sm">
+        <div className="bg-card border border-border/50 rounded-lg px-3 py-1.5 shadow-sm">
           <div className="flex items-center gap-2 text-xs">
             <Car className="w-3.5 h-3.5 text-green-600 flex-shrink-0" />
-            <span className="text-muted-foreground">Assigned:</span>
-            <span className="font-medium text-green-600">
-              {booking.vehicle_make_model || "Vehicle"}
-            </span>
+            <span className="text-muted-foreground">Vehicle</span>
+            {booking.vehicle_make_model && (
+              <span className="font-medium text-foreground">
+                {booking.vehicle_make_model}
+              </span>
+            )}
             {booking.vehicle_plate && (
-              <span className="font-mono text-xs text-muted-foreground">({booking.vehicle_plate})</span>
+              <VehiclePlateBadge plate={booking.vehicle_plate} />
             )}
           </div>
         </div>
