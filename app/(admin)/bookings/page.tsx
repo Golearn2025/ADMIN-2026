@@ -8,6 +8,8 @@ import { Calendar, Plus } from "lucide-react";
 import { useDeferredValue, useEffect, useState } from "react";
 import { BookingExpandedRow } from "./booking-expanded-row";
 import { columns } from "./bookings.columns";
+import { isBookingUnassigned, isPaidUpcomingBooking } from "./bookings.utils";
+import { NextUpStrip } from "./next-up-strip";
 import type { Booking } from "./types";
 import { apiFetch } from "@/lib/api/apiClient";
 
@@ -18,6 +20,7 @@ export default function BookingsPage() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
   const [bookings, setBookings] = useState<Booking[]>([]);
+  const [nextUp, setNextUp] = useState<Booking[]>([]);
   const [total, setTotal] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -36,6 +39,7 @@ export default function BookingsPage() {
 
         if (response.ok) {
           setBookings(result.data);
+          setNextUp(Array.isArray(result.nextUp) ? result.nextUp : []);
           setTotal(result.total);
         } else {
           console.error("Failed to fetch bookings:", result.error);
@@ -49,6 +53,16 @@ export default function BookingsPage() {
 
     fetchBookings();
   }, [page, pageSize, debouncedSearch]);
+
+  const focusBooking = (booking: Booking) => {
+    setSearchValue(booking.reference);
+    setPage(1);
+    // Allow search debounce + fetch, then scroll to row
+    window.setTimeout(() => {
+      const el = document.querySelector(`[data-booking-ref="${booking.reference}"]`);
+      el?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 600);
+  };
 
   return (
     <div className="space-y-6">
@@ -65,6 +79,7 @@ export default function BookingsPage() {
         }
       />
       <div className="px-6">
+        <NextUpStrip bookings={nextUp} onSelect={focusBooking} />
         <DataTableShell
           columns={columns}
           rows={bookings}
@@ -82,6 +97,12 @@ export default function BookingsPage() {
           emptyDescription="No bookings match your search criteria."
           getRowCanExpand={() => true}
           renderExpandedRow={(row) => <BookingExpandedRow booking={row} />}
+          getRowClassName={(row) => {
+            if (!isPaidUpcomingBooking(row)) return undefined;
+            return isBookingUnassigned(row)
+              ? "booking-row-next-up booking-row-next-up-warn"
+              : "booking-row-next-up booking-row-next-up-info";
+          }}
         />
       </div>
     </div>

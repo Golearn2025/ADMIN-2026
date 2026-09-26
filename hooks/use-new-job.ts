@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
+import { londonLocalToUtcIso } from "@/lib/utils/london-datetime";
 
 export type BookingType = "oneway" | "return" | "hourly" | "daily" | "fleet";
 
@@ -25,8 +26,8 @@ export interface TripForm {
   pickup: LocationPoint | null;
   dropoff: LocationPoint | null;
   stops: LocationPoint[];
-  scheduledAt: string;      // ISO
-  returnAt: string;         // ISO (for return type)
+  scheduledAt: string;      // datetime-local wall clock (Europe/London)
+  returnAt: string;         // datetime-local wall clock (Europe/London)
   hours: number;            // for hourly
   days: number;             // for daily
   passengers: number;
@@ -247,12 +248,16 @@ export function useNewJob() {
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function buildQuotePayload(trip: TripForm, vehicle: VehicleForm) {
+  // datetime-local is UK wall clock — convert to UTC ISO for pricing/booking
+  const dateTimeUtc = trip.scheduledAt ? londonLocalToUtcIso(trip.scheduledAt) : trip.scheduledAt;
+  const returnUtc = trip.returnAt ? londonLocalToUtcIso(trip.returnAt) : trip.returnAt;
+
   const base = {
     bookingType: trip.bookingType,
     pickup: trip.pickup ? locationToPoint(trip.pickup) : undefined,
     dropoff: trip.dropoff ? locationToPoint(trip.dropoff) : undefined,
     additionalStops: trip.stops.map(locationToPoint),
-    dateTime: trip.scheduledAt,
+    dateTime: dateTimeUtc,
     vehicleType: vehicle.categoryId,
     vehicleModel: vehicle.modelId,
     passengers: trip.passengers,
@@ -265,7 +270,7 @@ function buildQuotePayload(trip: TripForm, vehicle: VehicleForm) {
   };
 
   if (trip.bookingType === "return") {
-    return { ...base, returnDateTime: trip.returnAt };
+    return { ...base, returnDateTime: returnUtc };
   }
   if (trip.bookingType === "hourly") {
     return { ...base, hours: trip.hours };

@@ -23,6 +23,7 @@ interface DataTableProps<T> {
   renderExpandedRow?: (row: T) => React.ReactNode;
   // Custom key extractor for row uniqueness
   getRowKey?: (row: T, index: number) => string | number;
+  getRowClassName?: (row: T) => string | undefined;
 }
 
 export function DataTable<T>({
@@ -36,6 +37,7 @@ export function DataTable<T>({
   getRowCanExpand,
   renderExpandedRow,
   getRowKey = (_, index) => index,
+  getRowClassName,
 }: DataTableProps<T>) {
   const [expandedRows, setExpandedRows] = useState<Set<string | number>>(new Set());
 
@@ -100,7 +102,12 @@ export function DataTable<T>({
             return (
               <Fragment key={rowIndex}>
                 <tr
-                  className="transition-colors hover:bg-muted/50"
+                  className={[
+                    "transition-colors hover:bg-muted/50",
+                    getRowClassName?.(row) || "",
+                  ]
+                    .filter(Boolean)
+                    .join(" ")}
                   role="row"
                 >
                   {hasExpandableRows && (

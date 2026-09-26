@@ -52,4 +52,38 @@
   .text-balance {
     text-wrap: balance;
   }
+
+  @keyframes bookingNextUpWarn {
+    0%, 100% {
+      box-shadow: inset 5px 0 0 0 rgb(34 197 94), 0 0 0 0 rgb(34 197 94 / 0);
+      background-color: rgb(34 197 94 / 0.14);
+    }
+    50% {
+      box-shadow: inset 5px 0 0 0 rgb(74 222 128), 0 0 28px 2px rgb(34 197 94 / 0.35);
+      background-color: rgb(34 197 94 / 0.28);
+    }
+  }
+
+  @keyframes bookingNextUpInfo {
+    0%, 100% {
+      box-shadow: inset 5px 0 0 0 rgb(22 163 74), 0 0 0 0 rgb(22 163 74 / 0);
+      background-color: rgb(22 163 74 / 0.1);
+    }
+    50% {
+      box-shadow: inset 5px 0 0 0 rgb(34 197 94), 0 0 22px 1px rgb(22 163 74 / 0.28);
+      background-color: rgb(22 163 74 / 0.2);
+    }
+  }
+
+  .booking-row-next-up {
+    position: relative;
+  }
+
+  .booking-row-next-up-warn {
+    animation: bookingNextUpWarn 1.6s ease-in-out infinite;
+  }
+
+  .booking-row-next-up-info {
+    animation: bookingNextUpInfo 2s ease-in-out infinite;
+  }
 }

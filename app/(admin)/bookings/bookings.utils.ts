@@ -1,3 +1,36 @@
+/** Paid + future pickup — for Next up strip (read-only UI). */
+export const isPaidUpcomingBooking = (b: {
+  scheduled_at?: string | null;
+  status?: string | null;
+  latest_payment_status?: string | null;
+  trip_status?: string | null;
+}) => {
+  const payment = (b.latest_payment_status || "").toLowerCase();
+  const paid = payment === "succeeded" || payment === "paid";
+  if (!paid) return false;
+
+  const status = (b.status || "").toLowerCase();
+  if (status === "completed" || status === "cancelled" || status === "canceled" || status === "failed") {
+    return false;
+  }
+
+  const trip = (b.trip_status || "").toLowerCase();
+  if (trip === "completed" || trip === "cancelled" || trip === "canceled") {
+    return false;
+  }
+
+  if (!b.scheduled_at) return false;
+  const when = new Date(b.scheduled_at).getTime();
+  if (Number.isNaN(when)) return false;
+  return when >= Date.now() - 60_000; // 1 min grace
+};
+
+export const isBookingUnassigned = (b: { driver_name?: string | null; trip_status?: string | null }) => {
+  const trip = (b.trip_status || "").toLowerCase();
+  if (trip === "pending" || trip === "unassigned") return true;
+  return !b.driver_name?.trim();
+};
+
 export const getStatusBadgeVariant = (status?: string) => {
   if (!status) return "neutral";
   

@@ -37,6 +37,7 @@ interface DataTableShellProps<T> {
   // Expandable rows
   getRowCanExpand?: (row: T) => boolean;
   renderExpandedRow?: (row: T) => ReactNode;
+  getRowClassName?: (row: T) => string | undefined;
 }
 
 export function DataTableShell<T>({
@@ -59,6 +60,7 @@ export function DataTableShell<T>({
   emptyAction,
   getRowCanExpand,
   renderExpandedRow,
+  getRowClassName,
 }: DataTableShellProps<T>) {
   return (
     <div className="flex flex-col rounded-lg border border-border bg-card">
@@ -82,6 +84,7 @@ export function DataTableShell<T>({
         emptyAction={emptyAction}
         getRowCanExpand={getRowCanExpand}
         renderExpandedRow={renderExpandedRow}
+        getRowClassName={getRowClassName}
       />
 
       {/* Pagination */}

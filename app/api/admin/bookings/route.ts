@@ -2,42 +2,72 @@ import { createClient } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentOrg } from "@/lib/auth/org";
 
+type BookingRow = Record<string, unknown> & { id: string };
+
+function applyOrgFilter<T extends { eq: (col: string, val: string) => T }>(
+  query: T,
+  isSuperAdmin: boolean,
+  currentOrgId: string | null
+): T {
+  if (isSuperAdmin) {
+    if (currentOrgId) return query.eq("organization_id", currentOrgId);
+    return query;
+  }
+  if (!currentOrgId) {
+    throw new Error("NO_ORG");
+  }
+  return query.eq("organization_id", currentOrgId);
+}
+
 export async function GET(request: NextRequest) {
   try {
     const supabase = await createClient();
     const { searchParams } = new URL(request.url);
 
-    // Get pagination params
-    let page = parseInt(searchParams.get('page') || '1');
-    let pageSize = parseInt(searchParams.get('pageSize') || '20');
-    const search = searchParams.get('search') || '';
+    let page = parseInt(searchParams.get("page") || "1");
+    let pageSize = parseInt(searchParams.get("pageSize") || "20");
+    const search = searchParams.get("search") || "";
 
-    // Validate pagination
     if (page < 1) page = 1;
     if (pageSize < 1 || pageSize > 100) pageSize = 20;
 
-    // Get current user
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
+
     if (!user || authError) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Get current organization from database (backend-controlled)
     const currentOrgId = await getCurrentOrg(supabase, user.id);
+    const { data: isSuperAdmin } = await supabase.rpc(
+      "get_user_super_admin_status",
+      { user_id: user.id }
+    );
 
-    // Check if user is super admin
-    const { data: isSuperAdmin } = await supabase
-      .rpc('get_user_super_admin_status', { user_id: user.id });
-
-    // Base query from VIEW - SINGLE SOURCE OF TRUTH
-    let query = supabase
+    // ── Next up: paid + future (pinned top of table + strip) ───────────────
+    let nextUpQuery = supabase
       .from("admin_booking_list")
-      .select("*", { count: "exact" });
+      .select("*")
+      .in("latest_payment_status", ["succeeded", "paid"])
+      .gte("scheduled_at", new Date().toISOString())
+      .not("status", "in", "(COMPLETED,CANCELLED)")
+      .not("trip_status", "in", "(COMPLETED,CANCELLED)")
+      .order("scheduled_at", { ascending: true })
+      .limit(50);
 
-    // Apply search filter (enterprise backend-controlled)
+    try {
+      nextUpQuery = applyOrgFilter(nextUpQuery, !!isSuperAdmin, currentOrgId);
+    } catch {
+      return NextResponse.json(
+        { error: "No organization context found" },
+        { status: 400 }
+      );
+    }
+
     if (search) {
-      query = query.or(`
+      nextUpQuery = nextUpQuery.or(`
         reference.ilike.%${search}%, 
         customer_first_name.ilike.%${search}%, 
         customer_last_name.ilike.%${search}%, 
@@ -46,49 +76,143 @@ export async function GET(request: NextRequest) {
       `);
     }
 
-    // Backend-controlled filtering
-    // Super admin with specific org selected: filter by that org
-    // Super admin with NULL org (ALL): no filter
-    // Normal user: always filter by their org
-    if (isSuperAdmin) {
-      // Super admin: filter only if org is selected
-      if (currentOrgId) {
-        query = query.eq("organization_id", currentOrgId);
-      }
-      // If currentOrgId is NULL, no filter (see ALL)
-    } else {
-      // Normal user: must have org context
-      if (!currentOrgId) {
-        return NextResponse.json({ error: "No organization context found" }, { status: 400 });
-      }
-      query = query.eq("organization_id", currentOrgId);
+    const { data: nextUpRaw, error: nextUpError } = await nextUpQuery;
+    if (nextUpError) console.error("NEXT UP ERROR:", nextUpError);
+    const nextUp = (nextUpRaw || []) as BookingRow[];
+    const nextUpIds = nextUp.map((b) => b.id);
+    const nextUpIdSet = new Set(nextUpIds);
+
+    // ── Main list count (all bookings) ─────────────────────────────────────
+    let countQuery = supabase
+      .from("admin_booking_list")
+      .select("*", { count: "exact", head: true });
+
+    try {
+      countQuery = applyOrgFilter(countQuery, !!isSuperAdmin, currentOrgId);
+    } catch {
+      return NextResponse.json(
+        { error: "No organization context found" },
+        { status: 400 }
+      );
     }
 
-    // Apply pagination - ENTERPRISE STANDARD
+    if (search) {
+      countQuery = countQuery.or(`
+        reference.ilike.%${search}%, 
+        customer_first_name.ilike.%${search}%, 
+        customer_last_name.ilike.%${search}%, 
+        customer_email.ilike.%${search}%, 
+        customer_phone.ilike.%${search}%
+      `);
+    }
+
+    const { count, error: countError } = await countQuery;
+    if (countError) {
+      return NextResponse.json({ error: countError.message }, { status: 500 });
+    }
+
+    const total = count || 0;
+    const nextUpCount = nextUp.length;
     const offset = (page - 1) * pageSize;
-    query = query
-      .order('created_at', { ascending: false })
-      .range(offset, offset + pageSize - 1);
 
-    const { data, error, count } = await query;
+    // Pin next-up rows to the top of the table (scheduled ASC), then rest by created_at DESC
+    let data: BookingRow[] = [];
 
-    console.log('📅 BOOKINGS API DEBUG (Backend-Controlled):');
-    console.log('   userId:', user.id);
-    console.log('   currentOrgId (from DB):', currentOrgId);
-    console.log('   isSuperAdmin:', !!isSuperAdmin);
-    console.log('   bookings returned:', data?.length || 0);
+    if (offset < nextUpCount) {
+      const pinnedSlice = nextUp.slice(offset, offset + pageSize);
+      const needRest = pageSize - pinnedSlice.length;
 
-    if (error) {
-      console.error("BOOKINGS ERROR:", error);
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      if (needRest > 0) {
+        let restQuery = supabase
+          .from("admin_booking_list")
+          .select("*")
+          .order("created_at", { ascending: false })
+          .range(0, needRest - 1);
+
+        try {
+          restQuery = applyOrgFilter(restQuery, !!isSuperAdmin, currentOrgId);
+        } catch {
+          return NextResponse.json(
+            { error: "No organization context found" },
+            { status: 400 }
+          );
+        }
+
+        if (search) {
+          restQuery = restQuery.or(`
+            reference.ilike.%${search}%, 
+            customer_first_name.ilike.%${search}%, 
+            customer_last_name.ilike.%${search}%, 
+            customer_email.ilike.%${search}%, 
+            customer_phone.ilike.%${search}%
+          `);
+        }
+
+        if (nextUpIds.length > 0) {
+          restQuery = restQuery.not(
+            "id",
+            "in",
+            `(${nextUpIds.join(",")})`
+          );
+        }
+
+        const { data: rest, error: restError } = await restQuery;
+        if (restError) {
+          return NextResponse.json({ error: restError.message }, { status: 500 });
+        }
+        data = [
+          ...pinnedSlice,
+          ...((rest || []) as BookingRow[]).filter((r) => !nextUpIdSet.has(r.id)),
+        ];
+      } else {
+        data = pinnedSlice;
+      }
+    } else {
+      // Past the pinned block — page through the remaining (non next-up) rows
+      const restOffset = offset - nextUpCount;
+      let restQuery = supabase
+        .from("admin_booking_list")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .range(restOffset, restOffset + pageSize - 1);
+
+      try {
+        restQuery = applyOrgFilter(restQuery, !!isSuperAdmin, currentOrgId);
+      } catch {
+        return NextResponse.json(
+          { error: "No organization context found" },
+          { status: 400 }
+        );
+      }
+
+      if (search) {
+        restQuery = restQuery.or(`
+          reference.ilike.%${search}%, 
+          customer_first_name.ilike.%${search}%, 
+          customer_last_name.ilike.%${search}%, 
+          customer_email.ilike.%${search}%, 
+          customer_phone.ilike.%${search}%
+        `);
+      }
+
+      if (nextUpIds.length > 0) {
+        restQuery = restQuery.not("id", "in", `(${nextUpIds.join(",")})`);
+      }
+
+      const { data: rest, error: restError } = await restQuery;
+      if (restError) {
+        return NextResponse.json({ error: restError.message }, { status: 500 });
+      }
+      data = ((rest || []) as BookingRow[]).filter((r) => !nextUpIdSet.has(r.id));
     }
 
-    return NextResponse.json({ 
+    return NextResponse.json({
       data,
-      total: count || 0,
+      nextUp,
+      total,
       page,
       pageSize,
-      totalPages: Math.ceil((count || 0) / pageSize)
+      totalPages: Math.ceil(total / pageSize),
     });
   } catch (err) {
     console.error("CRASH:", err);

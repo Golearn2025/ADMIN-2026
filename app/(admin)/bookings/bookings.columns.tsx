@@ -20,7 +20,7 @@ export const columns: DataTableColumn<Booking>[] = [
     key: "reference",
     header: "Reference",
     cell: (row) => (
-      <div className="space-y-1">
+      <div className="space-y-1" data-booking-ref={row.reference}>
         <div className="font-mono text-xs">{row.reference}</div>
         <div className="text-xs text-muted-foreground">
           <span className="text-[10px] uppercase tracking-wide text-muted-foreground/80">Booked</span>{" "}
@@ -65,26 +65,36 @@ export const columns: DataTableColumn<Booking>[] = [
       const isHourly = row.booking_type === "hourly";
       const isDaily = row.booking_type === "daily";
       const isFleet = row.booking_type === "fleet";
+      const hasPickup = !!row.pickup_address?.trim();
+      const hasDropoff = !!row.dropoff_address?.trim();
 
       return (
         <div className="space-y-2 text-xs">
-          {!isHourly && !isDaily && (
+          {(hasPickup || hasDropoff) && (
             <>
-              <div className="flex items-start gap-1.5">
-                <span className="inline-block w-2 h-2 rounded-full bg-green-500 mt-0.5 flex-shrink-0" />
-                <span className="text-muted-foreground">{row.pickup_address}</span>
-              </div>
-              <div className="flex items-start gap-1.5">
-                <span className="inline-block w-2 h-2 rounded-full bg-red-500 mt-0.5 flex-shrink-0" />
-                <span className="text-muted-foreground">{row.dropoff_address}</span>
-              </div>
-              <div className="flex gap-2 text-xs pt-1">
-                <span className="text-blue-500">{row.distance_miles} mi</span>
-                {row.duration_min && (
-                  <span className="text-amber-500">{formatDuration(row.duration_min)}</span>
-                )}
-              </div>
+              {hasPickup && (
+                <div className="flex items-start gap-1.5">
+                  <span className="inline-block w-2 h-2 rounded-full bg-green-500 mt-0.5 flex-shrink-0" />
+                  <span className="text-muted-foreground">{row.pickup_address}</span>
+                </div>
+              )}
+              {hasDropoff && (
+                <div className="flex items-start gap-1.5">
+                  <span className="inline-block w-2 h-2 rounded-full bg-red-500 mt-0.5 flex-shrink-0" />
+                  <span className="text-muted-foreground">{row.dropoff_address}</span>
+                </div>
+              )}
             </>
+          )}
+          {!isHourly && !isDaily && !isFleet && (
+            <div className="flex gap-2 text-xs pt-0.5">
+              {row.distance_miles != null && (
+                <span className="text-blue-500">{row.distance_miles} mi</span>
+              )}
+              {row.duration_min && (
+                <span className="text-amber-500">{formatDuration(row.duration_min)}</span>
+              )}
+            </div>
           )}
           {isHourly && (
             <div className="flex flex-col gap-1">
