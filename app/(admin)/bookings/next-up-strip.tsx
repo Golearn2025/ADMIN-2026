@@ -2,33 +2,63 @@
 
 import { Badge } from "@/components/common/badge";
 import { cn } from "@/lib/utils";
-import { formatText, formatUkDateTime, getTripStatusBadgeVariant, isBookingUnassigned } from "./bookings.utils";
+import {
+  formatText,
+  formatUkDateTime,
+  getBookingOpsTier,
+  getBookingOpsTierMeta,
+  getTripStatusBadgeVariant,
+  isBookingUnassigned,
+} from "./bookings.utils";
+import { PickupCountdown } from "./pickup-countdown";
 import type { Booking } from "./types";
 
 interface NextUpStripProps {
   bookings: Booking[];
+  soonestUpcomingId: string | null;
   onSelect?: (booking: Booking) => void;
 }
 
-export function NextUpStrip({ bookings, onSelect }: NextUpStripProps) {
+const LEGEND = [
+  { color: "bg-red-500", label: "≤3h · unassigned" },
+  { color: "bg-amber-500", label: "≤24h unassigned / ≤3h assigned" },
+  { color: "bg-amber-500/50", label: ">24h · needs driver" },
+  { color: "bg-emerald-400", label: "Next job · running light on bar" },
+  { color: "bg-emerald-500/30", label: "Alte joburi · bară palidă" },
+] as const;
+
+export function NextUpStrip({ bookings, soonestUpcomingId, onSelect }: NextUpStripProps) {
   if (!bookings.length) return null;
 
   return (
-    <section className="mb-5 rounded-xl border border-emerald-500/40 bg-emerald-500/10 p-4">
-      <div className="mb-3">
-        <h2 className="text-sm font-semibold tracking-wide text-emerald-300">
-          Next up
-          <span className="ml-2 font-mono text-xs font-normal text-emerald-300/70">
-            {bookings.length} paid · upcoming
-          </span>
-        </h2>
-        <p className="text-[11px] text-muted-foreground">
-          Payment succeeded only · sorted by pickup (UK) · assigned + unassigned
-        </p>
+    <section className="mb-5 rounded-xl border border-border bg-muted/20 p-4">
+      <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h2 className="text-sm font-semibold tracking-wide text-foreground">
+            Next up
+            <span className="ml-2 font-mono text-xs font-normal text-muted-foreground">
+              {bookings.length} paid · upcoming
+            </span>
+          </h2>
+          <p className="text-[11px] text-muted-foreground">
+            Fixed left bar · Audi-style running light when urgent · payment succeeded
+          </p>
+        </div>
+        <ul className="flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-muted-foreground">
+          {LEGEND.map((item) => (
+            <li key={item.label} className="flex items-center gap-1.5">
+              <span className={cn("h-3 w-1 rounded-full", item.color)} aria-hidden />
+              {item.label}
+            </li>
+          ))}
+        </ul>
       </div>
 
       <div className="flex gap-3 overflow-x-auto pb-1">
         {bookings.map((b) => {
+          const tier = getBookingOpsTier(b) ?? "ok";
+          const isSoonest = !!soonestUpcomingId && b.id === soonestUpcomingId;
+          const meta = getBookingOpsTierMeta(tier, { isSoonest });
           const unassigned = isBookingUnassigned(b);
           return (
             <button
@@ -36,35 +66,31 @@ export function NextUpStrip({ bookings, onSelect }: NextUpStripProps) {
               type="button"
               onClick={() => onSelect?.(b)}
               className={cn(
-                "relative min-w-[220px] max-w-[260px] shrink-0 rounded-lg border bg-background/80 p-3 text-left transition",
-                "hover:bg-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/60",
-                unassigned ? "border-emerald-300/90" : "border-emerald-500/50"
+                "relative min-w-[220px] max-w-[260px] shrink-0 rounded-lg border border-border p-3 text-left transition",
+                "hover:bg-muted/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40",
+                meta.cardClass
               )}
             >
-              <span
-                aria-hidden
-                className={cn(
-                  "pointer-events-none absolute inset-0 rounded-lg",
-                  unassigned ? "booking-row-next-up-warn" : "booking-row-next-up-info"
-                )}
-              />
-              <div className="relative mb-1.5 flex items-center justify-between gap-2">
+              <div className="mb-1 flex items-center justify-between gap-2">
                 <span className="font-mono text-xs font-semibold">{b.reference}</span>
-                <Badge
-                  variant={unassigned ? "warning" : getTripStatusBadgeVariant(b.trip_status)}
-                  className="text-[10px]"
-                >
-                  {unassigned ? "Unassigned" : formatText(b.trip_status)}
+                <Badge variant={meta.badgeVariant} className="text-[10px]">
+                  {meta.label}
                 </Badge>
               </div>
-              <div className="relative text-xs font-semibold text-emerald-400">
-                {formatUkDateTime(b.scheduled_at)}
+              <PickupCountdown scheduledAt={b.scheduled_at} prominent />
+              <div className="mt-0.5 text-[11px] text-muted-foreground">
+                Pickup {formatUkDateTime(b.scheduled_at)}
               </div>
-              <div className="relative mt-1 truncate text-xs font-medium">
+              <div className="mt-1 truncate text-xs font-medium">
                 {b.customer_first_name} {b.customer_last_name}
               </div>
-              <div className="relative mt-0.5 truncate text-[11px] text-muted-foreground">
-                {b.driver_name?.trim() || "No driver yet"}
+              <div className="mt-0.5 flex items-center justify-between gap-2 truncate text-[11px] text-muted-foreground">
+                <span>{b.driver_name?.trim() || "No driver yet"}</span>
+                {!unassigned && (
+                  <Badge variant={getTripStatusBadgeVariant(b.trip_status)} className="text-[9px] shrink-0">
+                    {formatText(b.trip_status)}
+                  </Badge>
+                )}
               </div>
             </button>
           );

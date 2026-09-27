@@ -24,6 +24,8 @@ interface DataTableProps<T> {
   // Custom key extractor for row uniqueness
   getRowKey?: (row: T, index: number) => string | number;
   getRowClassName?: (row: T) => string | undefined;
+  /** Left edge ops bar (bookings). Rendered in its own cell — animations do not work on `<tr>`. */
+  getRowLeadingBarClassName?: (row: T) => string | undefined;
 }
 
 export function DataTable<T>({
@@ -38,6 +40,7 @@ export function DataTable<T>({
   renderExpandedRow,
   getRowKey = (_, index) => index,
   getRowClassName,
+  getRowLeadingBarClassName,
 }: DataTableProps<T>) {
   const [expandedRows, setExpandedRows] = useState<Set<string | number>>(new Set());
 
@@ -73,12 +76,18 @@ export function DataTable<T>({
   }
 
   const hasExpandableRows = getRowCanExpand && renderExpandedRow;
+  const hasLeadingBarColumn = !!getRowLeadingBarClassName;
+  const expandedColSpan =
+    columns.length + (hasExpandableRows ? 1 : 0) + (hasLeadingBarColumn ? 1 : 0);
 
   return (
     <div className="overflow-x-auto" role="region" aria-label="Data table">
       <table className="w-full" role="table">
         <thead>
           <tr className="border-b border-border bg-muted/50" role="row">
+            {hasLeadingBarColumn && (
+              <th className="booking-ops-bar-cell p-0" scope="col" aria-hidden />
+            )}
             {hasExpandableRows && (
               <th className="px-3 py-3 w-10" scope="col" aria-label="Expand row"></th>
             )}
@@ -98,6 +107,9 @@ export function DataTable<T>({
           {rows.map((row, rowIndex) => {
             const canExpand = hasExpandableRows && getRowCanExpand(row);
             const isExpanded = expandedRows.has(rowIndex);
+            const leadingBarClass = hasLeadingBarColumn
+              ? getRowLeadingBarClassName?.(row)
+              : undefined;
 
             return (
               <Fragment key={rowIndex}>
@@ -110,6 +122,11 @@ export function DataTable<T>({
                     .join(" ")}
                   role="row"
                 >
+                  {hasLeadingBarColumn && (
+                    <td className="booking-ops-bar-cell" role="cell" aria-hidden>
+                      {leadingBarClass ? <span className={leadingBarClass} /> : null}
+                    </td>
+                  )}
                   {hasExpandableRows && (
                     <td className="px-3 py-4 w-10" role="cell">
                       {canExpand && (
@@ -140,7 +157,7 @@ export function DataTable<T>({
                 </tr>
                 {canExpand && isExpanded && (
                   <tr key={`${rowIndex}-expanded`}>
-                    <td colSpan={columns.length + 1} className="px-6 py-4 bg-muted/30">
+                    <td colSpan={expandedColSpan} className="px-6 py-4 bg-muted/30">
                       {renderExpandedRow(row)}
                     </td>
                   </tr>

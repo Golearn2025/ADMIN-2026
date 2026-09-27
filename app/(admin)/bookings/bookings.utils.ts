@@ -31,6 +31,141 @@ export const isBookingUnassigned = (b: { driver_name?: string | null; trip_statu
   return !b.driver_name?.trim();
 };
 
+/** Hours until pickup (negative = past). */
+export function hoursUntilPickup(scheduled_at?: string | null): number | null {
+  if (!scheduled_at) return null;
+  const t = new Date(scheduled_at).getTime();
+  if (Number.isNaN(t)) return null;
+  return (t - Date.now()) / 3_600_000;
+}
+
+/** Human countdown until pickup (updates every minute in UI). */
+export function formatTimeUntilPickup(scheduled_at?: string | null): string {
+  const hours = hoursUntilPickup(scheduled_at);
+  if (hours == null) return "—";
+  if (hours < -1 / 60) return "Overdue";
+  if (hours <= 0) return "Starting now";
+
+  const totalMinutes = Math.max(1, Math.round(hours * 60));
+  if (totalMinutes < 60) return `in ${totalMinutes} min`;
+
+  const h = Math.floor(hours);
+  const m = Math.round((hours - h) * 60);
+  if (h < 24) {
+    return m > 0 ? `in ${h}h ${m}m` : `in ${h}h`;
+  }
+
+  const days = Math.floor(h / 24);
+  const remH = h % 24;
+  if (days < 60) {
+    return remH > 0 ? `in ${days}d ${remH}h` : `in ${days}d`;
+  }
+
+  const months = Math.floor(days / 30);
+  const remDays = days % 30;
+  return remDays > 0 ? `in ${months}mo ${remDays}d` : `in ${months}mo`;
+}
+
+/** Ops priority for paid upcoming rows — left bar only (no full-row flash). */
+export type BookingOpsTier = "critical" | "warning" | "ok" | "watch";
+
+export function getBookingOpsTier(b: {
+  scheduled_at?: string | null;
+  status?: string | null;
+  latest_payment_status?: string | null;
+  trip_status?: string | null;
+  driver_name?: string | null;
+}): BookingOpsTier | null {
+  if (!isPaidUpcomingBooking(b)) return null;
+  const hours = hoursUntilPickup(b.scheduled_at);
+  if (hours == null) return null;
+
+  const unassigned = isBookingUnassigned(b);
+
+  // ≤3h + no driver → urgent
+  if (unassigned && hours <= 3) return "critical";
+  // ≤24h + no driver, or ≤3h with driver (pickup iminent)
+  if ((unassigned && hours <= 24) || (!unassigned && hours <= 3)) return "warning";
+  // assigned, pickup >3h → OK
+  if (!unassigned) return "ok";
+  // unassigned, >24h (e.g. November) — de urmărit, fără panică
+  return "watch";
+}
+
+export function getSoonestUpcomingBookingId(
+  bookings: { id: string; scheduled_at?: string | null }[]
+): string | null {
+  let best: { id: string; t: number } | null = null;
+  for (const b of bookings) {
+    if (!b.scheduled_at) continue;
+    const t = new Date(b.scheduled_at).getTime();
+    if (Number.isNaN(t)) continue;
+    if (!best || t < best.t) best = { id: b.id, t };
+  }
+  return best?.id ?? null;
+}
+
+export function getBookingOpsTierMeta(
+  tier: BookingOpsTier,
+  opts?: { isSoonest?: boolean }
+) {
+  const map: Record<
+    BookingOpsTier,
+    { label: string; rowClass: string; cardClass: string; badgeVariant: "error" | "warning" | "success" | "neutral" | "primary" }
+  > = {
+    critical: {
+      label: "Urgent",
+      rowClass: "booking-row-ops booking-row-ops-critical booking-row-ops-audi",
+      cardClass: "booking-card-ops booking-card-ops-critical booking-card-ops-audi",
+      badgeVariant: "error",
+    },
+    warning: {
+      label: "Soon",
+      rowClass: "booking-row-ops booking-row-ops-warning booking-row-ops-audi-slow",
+      cardClass: "booking-card-ops booking-card-ops-warning booking-card-ops-audi-slow",
+      badgeVariant: "warning",
+    },
+    watch: {
+      label: "Needs driver",
+      rowClass: "booking-row-ops booking-row-ops-watch booking-row-ops-muted",
+      cardClass: "booking-card-ops booking-card-ops-watch booking-card-ops-muted",
+      badgeVariant: "warning",
+    },
+    ok: {
+      label: "Ready",
+      rowClass: "booking-row-ops booking-row-ops-ok booking-row-ops-muted",
+      cardClass: "booking-card-ops booking-card-ops-ok booking-card-ops-muted",
+      badgeVariant: "success",
+    },
+  };
+
+  const base = map[tier];
+  if (!opts?.isSoonest) return base;
+
+  const soonestLabel =
+    tier === "ok" ? "Next job" : tier === "watch" ? "Next · needs driver" : "Next · " + base.label;
+
+  const soonestRowExtra =
+    tier === "ok"
+      ? " booking-row-ops-soonest booking-row-ops-audi-slow"
+      : tier === "watch"
+        ? " booking-row-ops-soonest booking-row-ops-audi-slow"
+        : " booking-row-ops-soonest";
+
+  const soonestCardExtra =
+    tier === "ok" || tier === "watch"
+      ? " booking-card-ops-soonest booking-card-ops-audi-slow"
+      : " booking-card-ops-soonest";
+
+  return {
+    ...base,
+    label: soonestLabel,
+    rowClass: base.rowClass.replace(" booking-row-ops-muted", "") + soonestRowExtra,
+    cardClass: base.cardClass.replace(" booking-card-ops-muted", "") + soonestCardExtra,
+    badgeVariant: tier === "ok" ? ("primary" as const) : base.badgeVariant,
+  };
+}
+
 export const getStatusBadgeVariant = (status?: string) => {
   if (!status) return "neutral";
   

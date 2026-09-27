@@ -8,14 +8,19 @@ import {
     formatPrice,
     formatText,
     formatUkDateTime,
+    getBookingOpsTier,
+    getBookingOpsTierMeta,
     getBookingTypeColor,
     getPaymentBadgeVariant,
     getTripStatusBadgeVariant,
     getVehicleCategoryVariant,
+    isPaidUpcomingBooking,
 } from "./bookings.utils";
+import { PickupCountdown } from "./pickup-countdown";
 import type { Booking } from "./types";
 
-export const columns: DataTableColumn<Booking>[] = [
+export function getBookingColumns(soonestUpcomingId: string | null): DataTableColumn<Booking>[] {
+  return [
   {
     key: "reference",
     header: "Reference",
@@ -33,17 +38,32 @@ export const columns: DataTableColumn<Booking>[] = [
   {
     key: "type",
     header: "Trip",
-    cell: (row) => (
-      <div className="space-y-1">
-        <div className="text-xs font-semibold text-amber-500">
-          <span className="text-[10px] uppercase tracking-wide font-medium text-amber-600/80">Pickup</span>{" "}
-          {formatUkDateTime(row.scheduled_at)}
+    cell: (row) => {
+      const opsTier = getBookingOpsTier(row);
+      const isSoonest = !!soonestUpcomingId && row.id === soonestUpcomingId;
+      const opsMeta = opsTier ? getBookingOpsTierMeta(opsTier, { isSoonest }) : null;
+      return (
+        <div className="space-y-1">
+          {isPaidUpcomingBooking(row) && (
+            <div className="flex flex-wrap items-center gap-2">
+              <PickupCountdown scheduledAt={row.scheduled_at} />
+              {opsMeta && (
+                <Badge variant={opsMeta.badgeVariant} className="text-[10px]">
+                  {opsMeta.label}
+                </Badge>
+              )}
+            </div>
+          )}
+          <div className="text-xs font-semibold text-amber-500">
+            <span className="text-[10px] uppercase tracking-wide font-medium text-amber-600/80">Pickup</span>{" "}
+            {formatUkDateTime(row.scheduled_at)}
+          </div>
+          <div className={`text-xs font-medium ${getBookingTypeColor(row.booking_type)}`}>
+            {formatBookingType(row.booking_type)}
+          </div>
         </div>
-        <div className={`text-xs font-medium ${getBookingTypeColor(row.booking_type)}`}>
-          {formatBookingType(row.booking_type)}
-        </div>
-      </div>
-    ),
+      );
+    },
     width: "160px",
   },
   {
@@ -193,3 +213,4 @@ export const columns: DataTableColumn<Booking>[] = [
     width: "48px",
   },
 ];
+}

@@ -5,10 +5,10 @@ import { PageHeader } from "@/components/common/page-header";
 import { DataTableShell } from "@/components/table";
 import { Button } from "@/components/ui/button";
 import { Calendar, Plus } from "lucide-react";
-import { useDeferredValue, useEffect, useState } from "react";
+import { useDeferredValue, useEffect, useMemo, useState } from "react";
 import { BookingExpandedRow } from "./booking-expanded-row";
-import { columns } from "./bookings.columns";
-import { isBookingUnassigned, isPaidUpcomingBooking } from "./bookings.utils";
+import { getBookingColumns } from "./bookings.columns";
+import { getBookingOpsTier, getBookingOpsTierMeta, getSoonestUpcomingBookingId } from "./bookings.utils";
 import { NextUpStrip } from "./next-up-strip";
 import type { Booking } from "./types";
 import { apiFetch } from "@/lib/api/apiClient";
@@ -54,6 +54,15 @@ export default function BookingsPage() {
     fetchBookings();
   }, [page, pageSize, debouncedSearch]);
 
+  const soonestUpcomingId = useMemo(
+    () => getSoonestUpcomingBookingId(nextUp),
+    [nextUp]
+  );
+  const columns = useMemo(
+    () => getBookingColumns(soonestUpcomingId),
+    [soonestUpcomingId]
+  );
+
   const focusBooking = (booking: Booking) => {
     setSearchValue(booking.reference);
     setPage(1);
@@ -79,7 +88,11 @@ export default function BookingsPage() {
         }
       />
       <div className="px-6">
-        <NextUpStrip bookings={nextUp} onSelect={focusBooking} />
+        <NextUpStrip
+          bookings={nextUp}
+          soonestUpcomingId={soonestUpcomingId}
+          onSelect={focusBooking}
+        />
         <DataTableShell
           columns={columns}
           rows={bookings}
@@ -97,11 +110,11 @@ export default function BookingsPage() {
           emptyDescription="No bookings match your search criteria."
           getRowCanExpand={() => true}
           renderExpandedRow={(row) => <BookingExpandedRow booking={row} />}
-          getRowClassName={(row) => {
-            if (!isPaidUpcomingBooking(row)) return undefined;
-            return isBookingUnassigned(row)
-              ? "booking-row-next-up booking-row-next-up-warn"
-              : "booking-row-next-up booking-row-next-up-info";
+          getRowLeadingBarClassName={(row) => {
+            const tier = getBookingOpsTier(row);
+            if (!tier) return undefined;
+            const isSoonest = !!soonestUpcomingId && row.id === soonestUpcomingId;
+            return getBookingOpsTierMeta(tier, { isSoonest }).rowClass;
           }}
         />
       </div>
