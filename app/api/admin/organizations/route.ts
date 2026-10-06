@@ -1,6 +1,51 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getUserRole } from "@/lib/auth/roles";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
+
+type OrgMember = { user_id: string; role: string; auth_users: { email: string } };
+
+/** auth.users is not exposed to PostgREST, so emails come from the Auth admin API. */
+async function getMembersByOrg(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  orgIds: string[]
+): Promise<Map<string, OrgMember[]>> {
+  const byOrg = new Map<string, OrgMember[]>();
+  if (!orgIds.length) return byOrg;
+
+  const admin = createAdminClient();
+  const { data: rows, error } = await (admin ?? supabase)
+    .from("organization_members")
+    .select("organization_id, user_id, role")
+    .in("organization_id", orgIds);
+
+  if (error) {
+    console.error("Error fetching organization members:", error);
+    return byOrg;
+  }
+
+  const emailById = new Map<string, string>();
+  if (admin) {
+    const userIds = Array.from(new Set((rows || []).map((r) => r.user_id)));
+    await Promise.all(
+      userIds.map(async (id) => {
+        const { data } = await admin.auth.admin.getUserById(id);
+        if (data?.user?.email) emailById.set(id, data.user.email);
+      })
+    );
+  }
+
+  for (const row of rows || []) {
+    const list = byOrg.get(row.organization_id) ?? [];
+    list.push({
+      user_id: row.user_id,
+      role: row.role,
+      auth_users: { email: emailById.get(row.user_id) ?? "" },
+    });
+    byOrg.set(row.organization_id, list);
+  }
+  return byOrg;
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -35,37 +80,20 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ error: "Failed to fetch organizations" }, { status: 500 });
       }
 
-      // Then get members for each organization separately
-      const orgsWithMembers = await Promise.all(
-        organizations.map(async (org) => {
-          const { data: members, error: membersError } = await supabase
-            .from('organization_members')
-            .select(`
-              user_id,
-              role,
-              auth_users!inner(
-                email
-              )
-            `)
-            .eq('organization_id', org.id);
-
-          console.log(`🔍 Members for ${org.name}:`, {
-            count: members?.length || 0,
-            error: membersError
-          });
-
-          return {
-            ...org,
-            organization_members: members || [],
-            member_count: members?.length || 0
-          };
-        })
+      const membersByOrg = await getMembersByOrg(
+        supabase,
+        organizations.map((org) => org.id)
       );
 
-      if (error) {
-        console.error('Error fetching organizations:', error);
-        return NextResponse.json({ error: "Failed to fetch organizations" }, { status: 500 });
-      }
+      const orgsWithMembers = organizations.map((org) => {
+        const members = membersByOrg.get(org.id) ?? [];
+        return {
+          ...org,
+          members,
+          organization_members: members,
+          member_count: members.length,
+        };
+      });
 
       return NextResponse.json({ 
         organizations: orgsWithMembers,
@@ -88,8 +116,10 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ error: "Failed to fetch organization" }, { status: 500 });
       }
 
+      const members = (await getMembersByOrg(supabase, [organization.id])).get(organization.id) ?? [];
+
       return NextResponse.json({ 
-        organizations: [organization],
+        organizations: [{ ...organization, members, organization_members: members, member_count: members.length }],
         isSuperAdmin: false 
       });
     }
