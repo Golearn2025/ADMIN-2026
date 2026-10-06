@@ -99,8 +99,11 @@ export default function BookingsPage() {
           totalRows={total}
           isLoading={isLoading}
           searchValue={searchValue}
-          onSearchChange={setSearchValue}
-          searchPlaceholder="Search by reference, customer name or phone..."
+          onSearchChange={(value) => {
+            setSearchValue(value);
+            setPage(1);
+          }}
+          searchPlaceholder="Search reference, customer, driver, email, phone, address or plate..."
           page={page}
           pageSize={pageSize}
           onPageChange={setPage}

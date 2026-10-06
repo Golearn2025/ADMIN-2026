@@ -4,6 +4,81 @@ import { getCurrentOrg } from "@/lib/auth/org";
 
 type BookingRow = Record<string, unknown> & { id: string };
 
+const SEARCH_COLUMNS = [
+  "reference",
+  "customer_first_name",
+  "customer_last_name",
+  "customer_email",
+  "customer_phone",
+  "driver_name",
+  "driver_phone",
+  "pickup_address",
+  "dropoff_address",
+  "vehicle_plate",
+] as const;
+
+/** PostgREST `or` values must be quoted so commas, dots or parentheses in user input don't break parsing. */
+function quoteFilterValue(value: string): string {
+  return `"${value.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
+}
+
+/**
+ * One `or` group per search word (groups are ANDed), so "Cristian Manolache" matches
+ * first + last name. Driver email is not in admin_booking_list, so it resolves to driver ids.
+ */
+async function buildSearchFilters(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  search: string
+): Promise<string[]> {
+  const words = search.trim().split(/\s+/).filter(Boolean).slice(0, 5);
+
+  return Promise.all(
+    words.map(async (word) => {
+      const pattern = quoteFilterValue(`%${word}%`);
+      const clauses: string[] = SEARCH_COLUMNS.map((col) => `${col}.ilike.${pattern}`);
+
+      const { data: drivers } = await supabase
+        .from("drivers")
+        .select("id")
+        .ilike("email", `%${word}%`)
+        .limit(50);
+      const driverIds = (drivers || []).map((d) => d.id);
+      if (driverIds.length) clauses.push(`assigned_driver_id.in.(${driverIds.join(",")})`);
+
+      return clauses.join(",");
+    })
+  );
+}
+
+function applySearch<T extends { or: (filters: string) => T }>(query: T, filters: string[]): T {
+  return filters.reduce((q, f) => q.or(f), query);
+}
+
+type SegmentQuery<T> = {
+  or: (filters: string) => T;
+  neq: (column: string, value: string) => T;
+};
+type ListSegment = <T extends SegmentQuery<T>>(query: T) => T;
+
+const NOT_CANCELLED: ListSegment = (q) =>
+  q.neq("status", "CANCELLED").or("trip_status.is.null,trip_status.neq.CANCELLED");
+
+/**
+ * Table order after the pinned next-up block. Segments must stay disjoint and together
+ * cover every booking, otherwise rows get duplicated or disappear from pagination.
+ */
+const LIST_SEGMENTS: ListSegment[] = [
+  // Completed or paid trips (recent first)
+  (q) => NOT_CANCELLED(q).or("status.eq.COMPLETED,latest_payment_status.in.(succeeded,paid)"),
+  // Unpaid / pending payment
+  (q) =>
+    NOT_CANCELLED(q)
+      .neq("status", "COMPLETED")
+      .or("latest_payment_status.is.null,latest_payment_status.not.in.(succeeded,paid)"),
+  // Cancelled
+  (q) => q.or("status.eq.CANCELLED,trip_status.eq.CANCELLED"),
+];
+
 function applyOrgFilter<T extends { eq: (col: string, val: string) => T }>(
   query: T,
   isSuperAdmin: boolean,
@@ -46,6 +121,8 @@ export async function GET(request: NextRequest) {
       { user_id: user.id }
     );
 
+    const searchFilters = search ? await buildSearchFilters(supabase, search) : [];
+
     // ── Next up: paid + future (pinned top of table + strip) ───────────────
     let nextUpQuery = supabase
       .from("admin_booking_list")
@@ -66,15 +143,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    if (search) {
-      nextUpQuery = nextUpQuery.or(`
-        reference.ilike.%${search}%, 
-        customer_first_name.ilike.%${search}%, 
-        customer_last_name.ilike.%${search}%, 
-        customer_email.ilike.%${search}%, 
-        customer_phone.ilike.%${search}%
-      `);
-    }
+    nextUpQuery = applySearch(nextUpQuery, searchFilters);
 
     const { data: nextUpRaw, error: nextUpError } = await nextUpQuery;
     if (nextUpError) console.error("NEXT UP ERROR:", nextUpError);
@@ -82,128 +151,48 @@ export async function GET(request: NextRequest) {
     const nextUpIds = nextUp.map((b) => b.id);
     const nextUpIdSet = new Set(nextUpIds);
 
-    // ── Main list count (all bookings) ─────────────────────────────────────
-    let countQuery = supabase
-      .from("admin_booking_list")
-      .select("*", { count: "exact", head: true });
+    const segmentQuery = (segment: ListSegment, countOnly = false) => {
+      let query = countOnly
+        ? supabase.from("admin_booking_list").select("*", { count: "exact", head: true })
+        : supabase.from("admin_booking_list").select("*");
+      query = segment(applySearch(applyOrgFilter(query, !!isSuperAdmin, currentOrgId), searchFilters));
+      if (nextUpIds.length > 0) {
+        query = query.not("id", "in", `(${nextUpIds.join(",")})`);
+      }
+      return query;
+    };
 
-    try {
-      countQuery = applyOrgFilter(countQuery, !!isSuperAdmin, currentOrgId);
-    } catch {
-      return NextResponse.json(
-        { error: "No organization context found" },
-        { status: 400 }
-      );
-    }
-
-    if (search) {
-      countQuery = countQuery.or(`
-        reference.ilike.%${search}%, 
-        customer_first_name.ilike.%${search}%, 
-        customer_last_name.ilike.%${search}%, 
-        customer_email.ilike.%${search}%, 
-        customer_phone.ilike.%${search}%
-      `);
-    }
-
-    const { count, error: countError } = await countQuery;
+    const segmentCounts = await Promise.all(
+      LIST_SEGMENTS.map((segment) => segmentQuery(segment, true))
+    );
+    const countError = segmentCounts.find((r) => r.error)?.error;
     if (countError) {
       return NextResponse.json({ error: countError.message }, { status: 500 });
     }
+    const counts = segmentCounts.map((r) => r.count || 0);
 
-    const total = count || 0;
-    const nextUpCount = nextUp.length;
+    const total = nextUp.length + counts.reduce((sum, c) => sum + c, 0);
     const offset = (page - 1) * pageSize;
 
-    // Pin next-up rows to the top of the table (scheduled ASC), then rest by created_at DESC
-    let data: BookingRow[] = [];
+    // Pinned next-up rows (scheduled ASC), then each segment by trip date DESC
+    const data: BookingRow[] = nextUp.slice(offset, offset + pageSize);
+    let cursor = Math.max(0, offset - nextUp.length);
 
-    if (offset < nextUpCount) {
-      const pinnedSlice = nextUp.slice(offset, offset + pageSize);
-      const needRest = pageSize - pinnedSlice.length;
-
-      if (needRest > 0) {
-        let restQuery = supabase
-          .from("admin_booking_list")
-          .select("*")
-          .order("created_at", { ascending: false })
-          .range(0, needRest - 1);
-
-        try {
-          restQuery = applyOrgFilter(restQuery, !!isSuperAdmin, currentOrgId);
-        } catch {
-          return NextResponse.json(
-            { error: "No organization context found" },
-            { status: 400 }
-          );
-        }
-
-        if (search) {
-          restQuery = restQuery.or(`
-            reference.ilike.%${search}%, 
-            customer_first_name.ilike.%${search}%, 
-            customer_last_name.ilike.%${search}%, 
-            customer_email.ilike.%${search}%, 
-            customer_phone.ilike.%${search}%
-          `);
-        }
-
-        if (nextUpIds.length > 0) {
-          restQuery = restQuery.not(
-            "id",
-            "in",
-            `(${nextUpIds.join(",")})`
-          );
-        }
-
-        const { data: rest, error: restError } = await restQuery;
-        if (restError) {
-          return NextResponse.json({ error: restError.message }, { status: 500 });
-        }
-        data = [
-          ...pinnedSlice,
-          ...((rest || []) as BookingRow[]).filter((r) => !nextUpIdSet.has(r.id)),
-        ];
-      } else {
-        data = pinnedSlice;
+    for (let i = 0; i < LIST_SEGMENTS.length && data.length < pageSize; i++) {
+      if (cursor >= counts[i]) {
+        cursor -= counts[i];
+        continue;
       }
-    } else {
-      // Past the pinned block — page through the remaining (non next-up) rows
-      const restOffset = offset - nextUpCount;
-      let restQuery = supabase
-        .from("admin_booking_list")
-        .select("*")
+      const need = pageSize - data.length;
+      const { data: rows, error: rowsError } = await segmentQuery(LIST_SEGMENTS[i])
+        .order("scheduled_at", { ascending: false, nullsFirst: false })
         .order("created_at", { ascending: false })
-        .range(restOffset, restOffset + pageSize - 1);
-
-      try {
-        restQuery = applyOrgFilter(restQuery, !!isSuperAdmin, currentOrgId);
-      } catch {
-        return NextResponse.json(
-          { error: "No organization context found" },
-          { status: 400 }
-        );
+        .range(cursor, cursor + need - 1);
+      if (rowsError) {
+        return NextResponse.json({ error: rowsError.message }, { status: 500 });
       }
-
-      if (search) {
-        restQuery = restQuery.or(`
-          reference.ilike.%${search}%, 
-          customer_first_name.ilike.%${search}%, 
-          customer_last_name.ilike.%${search}%, 
-          customer_email.ilike.%${search}%, 
-          customer_phone.ilike.%${search}%
-        `);
-      }
-
-      if (nextUpIds.length > 0) {
-        restQuery = restQuery.not("id", "in", `(${nextUpIds.join(",")})`);
-      }
-
-      const { data: rest, error: restError } = await restQuery;
-      if (restError) {
-        return NextResponse.json({ error: restError.message }, { status: 500 });
-      }
-      data = ((rest || []) as BookingRow[]).filter((r) => !nextUpIdSet.has(r.id));
+      data.push(...((rows || []) as BookingRow[]).filter((r) => !nextUpIdSet.has(r.id)));
+      cursor = 0;
     }
 
     return NextResponse.json({
