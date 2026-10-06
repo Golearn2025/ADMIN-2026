@@ -3,6 +3,7 @@
 import { X, User, MapPin, Clock, Car, Phone, MessageSquare, Bell, Calendar, Star, Building, Navigation, Shield, Mail } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { LiveDriver } from "../types";
+import { getLiveDriverStatus, LIVE_DRIVER_STATUS_META } from "../utils/driverStatus";
 
 
 interface StatusDotProps {
@@ -83,6 +84,8 @@ export function DriverDetailsPanel({ driver, onClose }: DriverDetailsPanelProps)
   
   if (!driver) return null;
 
+  const statusMeta = LIVE_DRIVER_STATUS_META[getLiveDriverStatus(driver)];
+
   const formatTime = (timestamp: string) => {
     if (!timestamp) return "No data";
     
@@ -136,29 +139,12 @@ export function DriverDetailsPanel({ driver, onClose }: DriverDetailsPanelProps)
               {driver.first_name} {driver.last_name}
             </h4>
             <div className="flex items-center justify-center gap-2 mb-2">
-              <StatusDot 
-                color={
-                  driver.computed_status === "ON_TRIP"
-                    ? "red"
-                    : driver.computed_status === "ONLINE_IDLE"
-                    ? "green"
-                    : "gray"
-                } 
-                pulse={driver.computed_status !== "OFFLINE"}
+              <div
+                className={`h-3 w-3 rounded-full shadow-md ${statusMeta.pulse ? "animate-pulse" : ""}`}
+                style={{ backgroundColor: statusMeta.color }}
               />
-              <span className={`text-sm font-medium ${
-                driver.computed_status === "ON_TRIP" 
-                  ? "text-red-400" 
-                  : driver.computed_status === "ONLINE_IDLE"
-                  ? "text-green-400"
-                  : "text-gray-400"
-              }`}>
-                {driver.computed_status === "ON_TRIP" 
-                  ? "On Trip" 
-                  : driver.computed_status === "ONLINE_IDLE"
-                  ? "Online"
-                  : "Offline"
-                }
+              <span className="text-sm font-medium" style={{ color: statusMeta.color }}>
+                {statusMeta.label}
               </span>
             </div>
             <div className="flex items-center justify-center gap-4 text-sm">

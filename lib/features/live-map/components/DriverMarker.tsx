@@ -8,6 +8,7 @@ import {
   getDriverColor, 
   getVehicleScale 
 } from "../utils/markerUtils";
+import { getLiveDriverStatus } from "../utils/driverStatus";
 
 interface DriverMarkerProps {
   driver: LiveDriver;
@@ -19,7 +20,7 @@ export function DriverMarker({ driver, onClick, isSelected = false }: DriverMark
   const markerRef = useRef<HTMLDivElement | null>(null);
 
   // Get color based on driver status
-  const color = getDriverColor(driver.computed_status);
+  const color = getDriverColor(getLiveDriverStatus(driver));
   
   // Get vehicle info for scaling
   const vehicles = (driver as any).vehicles || [];

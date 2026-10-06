@@ -4,6 +4,7 @@ import { useState } from "react";
 import { User } from "lucide-react";
 import { LiveDriver } from "../types";
 import { AdvancedFilters } from "./AdvancedFilters";
+import { getLiveDriverStatus, LIVE_DRIVER_STATUS_META } from "../utils/driverStatus";
 
 interface SidebarProps {
   drivers: LiveDriver[];
@@ -92,7 +93,9 @@ export function Sidebar({
             DRIVERS ({filteredDrivers.length})
           </div>
           <div className="space-y-2">
-            {filteredDrivers.map((driver) => (
+            {filteredDrivers.map((driver) => {
+              const statusMeta = LIVE_DRIVER_STATUS_META[getLiveDriverStatus(driver)];
+              return (
               <button
                 key={driver.driver_id}
                 onClick={() => onDriverSelect(driver)}
@@ -121,11 +124,8 @@ export function Sidebar({
                     <div className="flex flex-col gap-1">
                       <div className="flex items-center gap-2">
                         <div
-                          className={`h-2 w-2 rounded-full ${
-                            driver.computed_status === "ON_TRIP"
-                              ? "bg-red-500 animate-pulse"
-                              : "bg-[#D6B25E]"
-                          }`}
+                          className={`h-2 w-2 rounded-full ${statusMeta.pulse ? "animate-pulse" : ""}`}
+                          style={{ backgroundColor: statusMeta.color }}
                         />
                         <span className="text-sm font-medium text-[#E8EEF6]">
                           {driver.first_name} {driver.last_name}
@@ -138,13 +138,10 @@ export function Sidebar({
                   </div>
                   <div className="flex flex-col items-end gap-1">
                     <span
-                      className={`text-xs px-2 py-1 rounded font-medium ${
-                        driver.computed_status === "ON_TRIP"
-                          ? "bg-red-500/10 text-red-500"
-                          : "bg-[#D6B25E]/10 text-[#D6B25E]"
-                      }`}
+                      className="text-xs px-2 py-1 rounded font-medium"
+                      style={{ backgroundColor: `${statusMeta.color}1A`, color: statusMeta.color }}
                     >
-                      {driver.computed_status === "ON_TRIP" ? "On Trip" : "Online"}
+                      {statusMeta.label}
                     </span>
                     <span className="text-xs text-gray-500">
                       {driver.vehicle_model || 'No Vehicle'}
@@ -152,7 +149,8 @@ export function Sidebar({
                   </div>
                 </div>
               </button>
-            ))}
+              );
+            })}
           </div>
         </div>
       </div>

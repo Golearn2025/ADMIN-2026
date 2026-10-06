@@ -1,13 +1,19 @@
 "use client";
 
 import { LiveDriver } from "../types";
+import {
+  getLiveDriverStatus,
+  LIVE_DRIVER_STATUSES,
+  LIVE_DRIVER_STATUS_META,
+  type LiveDriverStatus,
+} from "../utils/driverStatus";
 
 interface TopBarProps {
   drivers: LiveDriver[];
   autoRefresh: boolean;
   onAutoRefreshToggle: () => void;
-  focusFilter: "all" | "online" | "in_trip";
-  onFocusChange: (filter: "all" | "online" | "in_trip") => void;
+  focusFilter: "all" | LiveDriverStatus;
+  onFocusChange: (filter: "all" | LiveDriverStatus) => void;
 }
 
 export function TopBar({
@@ -17,13 +23,15 @@ export function TopBar({
   focusFilter,
   onFocusChange,
 }: TopBarProps) {
-  const totalDrivers = drivers.length;
-  const onlineDrivers = drivers.filter(d => d.computed_status === "ONLINE_IDLE").length;
-  const inTripDrivers = drivers.filter(d => d.computed_status === "ON_TRIP").length;
+  const counts = LIVE_DRIVER_STATUSES.reduce(
+    (acc, status) => ({ ...acc, [status]: 0 }),
+    {} as Record<LiveDriverStatus, number>
+  );
+  for (const driver of drivers) counts[getLiveDriverStatus(driver)] += 1;
 
   return (
     <div className="z-20 shrink-0 border-b border-gray-800 bg-[#0B0F14] px-6 py-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-4">
         {/* Left: Title + Subtitle + Live Indicator */}
         <div className="flex flex-col gap-1">
           <div className="flex items-center gap-4">
@@ -33,39 +41,53 @@ export function TopBar({
               <span className="text-sm font-medium text-green-500">LIVE</span>
             </div>
           </div>
-          <p className="text-sm text-gray-400">Real-time driver locations and active rides</p>
+          <p className="text-sm text-gray-400">Online drivers · same trip status as Bookings</p>
         </div>
 
-        {/* Center: Stats Cards */}
-        <div className="flex items-center gap-3">
-          {/* Total Card */}
-          <div className="px-4 py-2 rounded-lg bg-[#101824] border border-gray-800/50 hover:border-gray-700 transition-colors">
+        {/* Center: Stats Cards (click to filter) */}
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => onFocusChange("all")}
+            className={`rounded-lg border px-4 py-2 transition-colors ${
+              focusFilter === "all"
+                ? "border-[#E8EEF6]/60 bg-[#101824]"
+                : "border-gray-800/50 bg-[#101824] hover:border-gray-700"
+            }`}
+          >
             <div className="text-center">
-              <div className="text-xl font-bold text-[#E8EEF6]">{totalDrivers}</div>
-              <div className="text-xs text-gray-400 uppercase tracking-wide">Total</div>
+              <div className="text-xl font-bold text-[#E8EEF6]">{drivers.length}</div>
+              <div className="text-xs uppercase tracking-wide text-gray-400">Total</div>
             </div>
-          </div>
-          
-          {/* Online Card */}
-          <div className="px-4 py-2 rounded-lg bg-[#D6B25E]/10 border border-[#D6B25E]/30 hover:border-[#D6B25E]/50 transition-colors">
-            <div className="text-center">
-              <div className="text-xl font-bold text-[#D6B25E]">{onlineDrivers}</div>
-              <div className="text-xs text-gray-400 uppercase tracking-wide">Online</div>
-            </div>
-          </div>
-          
-          {/* In Trip Card */}
-          <div className="px-4 py-2 rounded-lg bg-red-500/10 border border-red-500/30 hover:border-red-500/50 transition-colors">
-            <div className="text-center">
-              <div className="text-xl font-bold text-red-500">{inTripDrivers}</div>
-              <div className="text-xs text-gray-400 uppercase tracking-wide">In Trip</div>
-            </div>
-          </div>
+          </button>
+
+          {LIVE_DRIVER_STATUSES.map((status) => {
+            const meta = LIVE_DRIVER_STATUS_META[status];
+            const active = focusFilter === status;
+            return (
+              <button
+                key={status}
+                type="button"
+                onClick={() => onFocusChange(active ? "all" : status)}
+                className="rounded-lg border px-4 py-2 transition-colors"
+                style={{
+                  backgroundColor: `${meta.color}1A`,
+                  borderColor: active ? meta.color : `${meta.color}4D`,
+                }}
+              >
+                <div className="text-center">
+                  <div className="text-xl font-bold" style={{ color: meta.color }}>
+                    {counts[status]}
+                  </div>
+                  <div className="text-xs uppercase tracking-wide text-gray-400">{meta.label}</div>
+                </div>
+              </button>
+            );
+          })}
         </div>
 
         {/* Right: Controls */}
         <div className="flex items-center gap-4">
-          {/* Auto Refresh Toggle */}
           <button
             onClick={onAutoRefreshToggle}
             className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
@@ -77,16 +99,18 @@ export function TopBar({
             Auto Refresh {autoRefresh ? "ON" : "OFF"}
           </button>
 
-          {/* Focus Dropdown */}
           <select
             value={focusFilter}
-            onChange={(e) => onFocusChange(e.target.value as any)}
+            onChange={(e) => onFocusChange(e.target.value as "all" | LiveDriverStatus)}
             className="rounded-lg bg-[#101824] px-4 py-2 text-sm font-medium text-[#E8EEF6] border border-gray-800 focus:border-[#D6B25E] focus:outline-none [color-scheme:dark]"
-            style={{ colorScheme: 'dark' }}
+            style={{ colorScheme: "dark" }}
           >
             <option value="all" className="bg-[#101824] text-[#E8EEF6]">All Drivers</option>
-            <option value="online" className="bg-[#101824] text-[#E8EEF6]">Online Only</option>
-            <option value="in_trip" className="bg-[#101824] text-[#E8EEF6]">In Trip Only</option>
+            {LIVE_DRIVER_STATUSES.map((status) => (
+              <option key={status} value={status} className="bg-[#101824] text-[#E8EEF6]">
+                {LIVE_DRIVER_STATUS_META[status].label}
+              </option>
+            ))}
           </select>
         </div>
       </div>

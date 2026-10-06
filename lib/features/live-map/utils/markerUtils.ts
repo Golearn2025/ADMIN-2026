@@ -2,11 +2,14 @@
  * Marker utilities for creating realistic car SVG markers
  */
 
+import { LIVE_DRIVER_STATUS_META, type LiveDriverStatus } from "./driverStatus";
+
 export const MARKER_COLORS = {
-  ONLINE_IDLE: '#22C55E',    // Verde - șofer disponibil
-  ON_TRIP: '#D4AF37',        // Auriu - cursă în desfășurare
-  OFFLINE: '#9CA3AF',        // Gri - offline
-} as const;
+  ...Object.fromEntries(
+    Object.entries(LIVE_DRIVER_STATUS_META).map(([status, meta]) => [status, meta.color])
+  ),
+  OFFLINE: '#9CA3AF',
+} as Record<LiveDriverStatus | 'OFFLINE', string>;
 
 export const SCALE_BY_TYPE = {
   exec: 1,      // Toate la fel

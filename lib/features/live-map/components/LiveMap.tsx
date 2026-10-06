@@ -9,6 +9,7 @@ import { TopBar } from "./TopBar";
 import { Sidebar } from "./Sidebar";
 import { DriverDetailsPanel } from "./DriverDetailsPanel";
 import { LiveDriver } from "../types";
+import { getLiveDriverStatus, type LiveDriverStatus } from "../utils/driverStatus";
 
 interface LiveMapProps {
   className?: string;
@@ -17,7 +18,7 @@ interface LiveMapProps {
 export function LiveMap({ className = "" }: LiveMapProps) {
   const { drivers, loading } = useLiveDrivers();
   const [autoRefresh, setAutoRefresh] = useState(true);
-  const [focusFilter, setFocusFilter] = useState<"all" | "online" | "in_trip">("all");
+  const [focusFilter, setFocusFilter] = useState<"all" | LiveDriverStatus>("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string[]>([]);
   const [selectedDriver, setSelectedDriver] = useState<LiveDriver | null>(null);
@@ -30,17 +31,15 @@ export function LiveMap({ className = "" }: LiveMapProps) {
     );
   }
 
-  // Apply focus filter
-  const filteredDrivers = drivers.filter(driver => {
-    if (focusFilter === "online") return driver.computed_status === "ONLINE_IDLE";
-    if (focusFilter === "in_trip") return driver.computed_status === "ON_TRIP";
-    return true;
-  });
+  const filteredDrivers =
+    focusFilter === "all"
+      ? drivers
+      : drivers.filter((driver) => getLiveDriverStatus(driver) === focusFilter);
 
   return (
     <div className={`flex h-full min-h-0 w-full flex-col overflow-hidden bg-[#0B0F14] ${className}`}>
       <TopBar
-        drivers={filteredDrivers}
+        drivers={drivers}
         autoRefresh={autoRefresh}
         onAutoRefreshToggle={() => setAutoRefresh(!autoRefresh)}
         focusFilter={focusFilter}
