@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Map from "react-map-gl/mapbox";
 import "mapbox-gl/dist/mapbox-gl.css";
 import { useLiveDrivers } from "../hooks/useLiveDrivers";
@@ -15,6 +15,15 @@ interface LiveMapProps {
   className?: string;
 }
 
+const MAP_STYLES = {
+  dark: { label: "Dark", url: "mapbox://styles/mapbox/dark-v11" },
+  streets: { label: "Streets", url: "mapbox://styles/mapbox/streets-v12" },
+} as const;
+
+type MapStyleKey = keyof typeof MAP_STYLES;
+
+const MAP_STYLE_STORAGE_KEY = "live-map-style";
+
 export function LiveMap({ className = "" }: LiveMapProps) {
   const { drivers, loading } = useLiveDrivers();
   const [autoRefresh, setAutoRefresh] = useState(true);
@@ -22,6 +31,17 @@ export function LiveMap({ className = "" }: LiveMapProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string[]>([]);
   const [selectedDriver, setSelectedDriver] = useState<LiveDriver | null>(null);
+  const [mapStyle, setMapStyle] = useState<MapStyleKey>("dark");
+
+  useEffect(() => {
+    const saved = window.localStorage.getItem(MAP_STYLE_STORAGE_KEY);
+    if (saved === "dark" || saved === "streets") setMapStyle(saved);
+  }, []);
+
+  const changeMapStyle = (style: MapStyleKey) => {
+    setMapStyle(style);
+    window.localStorage.setItem(MAP_STYLE_STORAGE_KEY, style);
+  };
 
   if (loading) {
     return (
@@ -66,7 +86,7 @@ export function LiveMap({ className = "" }: LiveMapProps) {
               zoom: 10,
             }}
             style={{ position: "absolute", inset: 0, width: "100%", height: "100%" }}
-            mapStyle="mapbox://styles/mapbox/dark-v11"
+            mapStyle={MAP_STYLES[mapStyle].url}
             attributionControl={false}
           >
             {filteredDrivers.map((driver) => (
@@ -78,6 +98,23 @@ export function LiveMap({ className = "" }: LiveMapProps) {
               />
             ))}
           </Map>
+
+          <div className="absolute right-3 top-3 z-10 flex overflow-hidden rounded-lg border border-gray-700 bg-[#0B0F14]/90 shadow-lg backdrop-blur">
+            {(Object.keys(MAP_STYLES) as MapStyleKey[]).map((key) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => changeMapStyle(key)}
+                className={`px-3 py-1.5 text-xs font-medium transition-colors ${
+                  mapStyle === key
+                    ? "bg-[#D6B25E] text-[#0B0F14]"
+                    : "text-gray-300 hover:text-[#E8EEF6]"
+                }`}
+              >
+                {MAP_STYLES[key].label}
+              </button>
+            ))}
+          </div>
         </div>
 
         {selectedDriver && (
