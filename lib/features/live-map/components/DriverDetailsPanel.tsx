@@ -106,7 +106,7 @@ export function DriverDetailsPanel({ driver, onClose }: DriverDetailsPanelProps)
   };
 
   return (
-    <div className="flex h-full w-80 shrink-0 flex-col overflow-hidden border-l border-gray-800 bg-[#0B0F14] lg:w-96">
+    <div className="fixed inset-x-0 bottom-0 z-40 flex max-h-[75vh] w-full flex-col overflow-hidden rounded-t-2xl border-t border-gray-800 bg-[#0B0F14] shadow-2xl lg:static lg:z-auto lg:h-full lg:max-h-none lg:w-96 lg:shrink-0 lg:rounded-none lg:border-l lg:border-t-0 lg:shadow-none">
       {/* Header */}
       <div className="flex items-center justify-between p-4 border-b border-gray-800">
         <h3 className="text-lg font-semibold text-[#E8EEF6]">Driver Details</h3>

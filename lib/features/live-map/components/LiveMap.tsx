@@ -37,7 +37,9 @@ export function LiveMap({ className = "" }: LiveMapProps) {
       : drivers.filter((driver) => getLiveDriverStatus(driver) === focusFilter);
 
   return (
-    <div className={`flex h-full min-h-0 w-full flex-col overflow-hidden bg-[#0B0F14] ${className}`}>
+    <div
+      className={`flex h-full min-h-0 w-full flex-col overflow-y-auto bg-[#0B0F14] lg:overflow-hidden ${className}`}
+    >
       <TopBar
         drivers={drivers}
         autoRefresh={autoRefresh}
@@ -46,7 +48,7 @@ export function LiveMap({ className = "" }: LiveMapProps) {
         onFocusChange={setFocusFilter}
       />
 
-      <div className="flex min-h-0 flex-1 overflow-hidden">
+      <div className="flex flex-col lg:min-h-0 lg:flex-1 lg:flex-row lg:overflow-hidden">
         <Sidebar
           drivers={filteredDrivers}
           searchQuery={searchQuery}
@@ -55,7 +57,7 @@ export function LiveMap({ className = "" }: LiveMapProps) {
           onDriverSelect={setSelectedDriver}
         />
 
-        <div className="relative min-h-0 min-w-0 flex-1">
+        <div className="relative h-[60vh] min-h-[320px] w-full shrink-0 lg:h-auto lg:min-h-0 lg:min-w-0 lg:flex-1 lg:shrink">
           <Map
             mapboxAccessToken={process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN}
             initialViewState={{

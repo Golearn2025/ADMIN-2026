@@ -30,7 +30,7 @@ export function TopBar({
   for (const driver of drivers) counts[getLiveDriverStatus(driver)] += 1;
 
   return (
-    <div className="z-20 shrink-0 border-b border-gray-800 bg-[#0B0F14] px-6 py-4">
+    <div className="z-20 shrink-0 border-b border-gray-800 bg-[#0B0F14] px-4 py-3 lg:px-6 lg:py-4">
       <div className="flex flex-wrap items-center justify-between gap-4">
         {/* Left: Title + Subtitle + Live Indicator */}
         <div className="flex flex-col gap-1">
