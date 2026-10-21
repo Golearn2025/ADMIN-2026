@@ -48,7 +48,7 @@ export interface PriceForm {
   driverPayout: number | null;     // manual driver payout (GBP) — what driver sees
   currency: string;
   breakdown: Record<string, number> | null;
-  legDetails: Array<{ legNumber: number; pickup: string; dropoff: string; distance: number; duration: number }> | null;
+  legDetails: Array<{ legNumber: number; distance: number | null; duration: number | null }> | null;
 }
 
 export type WizardStep = "customer" | "trip" | "vehicle" | "price" | "confirm";
@@ -129,6 +129,18 @@ export function useNewJob() {
       }
 
       const q = data.data || data;
+      const rawLegs = q.pricing?.legs ?? q.legs ?? [];
+      const legDetails = Array.isArray(rawLegs)
+        ? rawLegs.map((leg: Record<string, unknown>, index: number) => {
+            const miles = leg.distance ?? leg.distance_miles;
+            const mins = leg.duration ?? leg.duration_min;
+            return {
+              legNumber: Number(leg.legNumber ?? leg.leg_number ?? index + 1),
+              distance: miles == null || miles === "" ? null : Number(miles),
+              duration: mins == null || mins === "" ? null : Number(mins),
+            };
+          })
+        : null;
       setPrice({
         quoteId: q.quoteId,
         quotedPrice: q.pricing?.finalPrice ?? null,
@@ -136,7 +148,7 @@ export function useNewJob() {
         driverPayout: null,
         currency: q.pricing?.currency || "GBP",
         breakdown: q.pricing?.breakdown || null,
-        legDetails: q.legs || null,
+        legDetails,
       });
     } catch (err) {
       setQuoteError(err instanceof Error ? err.message : "Quote error");

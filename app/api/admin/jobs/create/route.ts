@@ -119,20 +119,47 @@ export async function POST(req: NextRequest) {
       .single();
 
     // ── Step 4: Patch distance_miles + duration_min on booking_legs ─────────
-    // Critical: driver_offer_base_payout_for_leg() returns 0 without distance
-    if (Array.isArray(legDetails) && legDetails.length > 0) {
-      for (const leg of legDetails) {
-        if (leg.distance != null || leg.duration != null) {
-          await admin
-            .from("booking_legs")
-            .update({
-              distance_miles: leg.distance ?? null,
-              duration_min: leg.duration != null ? Math.round(leg.duration) : null,
-              updated_at: new Date().toISOString(),
-            })
-            .eq("booking_id", bookingId)
-            .eq("leg_number", leg.legNumber ?? 1);
-        }
+    // The quote response uses distance_miles / duration_min inside pricing.legs.
+    // Older admin payloads used distance / duration. If neither arrives, copy the
+    // quote totals so the driver app is not left with an empty route.
+    const quotedLegs = Array.isArray(legDetails) ? legDetails : [];
+    let wroteRoute = false;
+    for (const leg of quotedLegs) {
+      const milesRaw = leg.distance ?? leg.distance_miles;
+      const minsRaw = leg.duration ?? leg.duration_min;
+      const miles = milesRaw == null || milesRaw === "" ? null : Number(milesRaw);
+      const mins = minsRaw == null || minsRaw === "" ? null : Math.round(Number(minsRaw));
+      if (!Number.isFinite(miles as number) && !Number.isFinite(mins as number)) continue;
+      await admin
+        .from("booking_legs")
+        .update({
+          distance_miles: Number.isFinite(miles as number) ? miles : null,
+          duration_min: Number.isFinite(mins as number) ? mins : null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("booking_id", bookingId)
+        .eq("leg_number", leg.legNumber ?? leg.leg_number ?? 1);
+      wroteRoute = true;
+    }
+
+    if (!wroteRoute) {
+      const { data: quote } = await admin
+        .from("client_booking_quotes")
+        .select("total_distance_miles, total_duration_minutes")
+        .eq("id", quoteId)
+        .maybeSingle();
+      const miles = quote?.total_distance_miles == null ? null : Number(quote.total_distance_miles);
+      const mins = quote?.total_duration_minutes == null ? null : Math.round(Number(quote.total_duration_minutes));
+      if (Number.isFinite(miles as number) || Number.isFinite(mins as number)) {
+        await admin
+          .from("booking_legs")
+          .update({
+            distance_miles: Number.isFinite(miles as number) ? miles : null,
+            duration_min: Number.isFinite(mins as number) ? mins : null,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("booking_id", bookingId)
+          .eq("leg_number", 1);
       }
     }
 
