@@ -101,7 +101,14 @@ export function StepConfirm({
           {trip.flightNumber && <SummaryRow label="Flight no." value={trip.flightNumber} />}
           <hr className="border-border" />
           <SummaryRow label="Category" value={vehicle.categoryId} />
-          <SummaryRow label="Model" value={vehicle.modelId.replace(/-/g, " ")} />
+          <SummaryRow
+            label="Model"
+            value={
+              vehicle.modelId?.trim()
+                ? vehicle.modelId.replace(/-/g, " ")
+                : `Any ${vehicle.categoryId} (all drivers in category)`
+            }
+          />
           <hr className="border-border" />
           <SummaryRow
             label="Total"

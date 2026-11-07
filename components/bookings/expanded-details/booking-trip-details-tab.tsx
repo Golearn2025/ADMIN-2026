@@ -12,6 +12,8 @@ type BookingTripDetailsTabProps = {
   extras: BookingExtras | null;
   payments: BookingPayment[];
   extrasError?: boolean;
+  scheduledAt?: string | null;
+  returnScheduledAt?: string | null;
 };
 
 function DetailCard({ children }: { children: React.ReactNode }) {
@@ -56,6 +58,8 @@ export function BookingTripDetailsTab({
   extras,
   payments,
   extrasError,
+  scheduledAt,
+  returnScheduledAt,
 }: BookingTripDetailsTabProps) {
   if (extrasError || !extras) {
     return (
@@ -101,6 +105,8 @@ export function BookingTripDetailsTab({
               <FlightInfoSection
                 pickupFlightNumber={extras.flight_number_pickup}
                 returnFlightNumber={extras.flight_number_return}
+                scheduledAt={scheduledAt}
+                returnScheduledAt={returnScheduledAt}
               />
             </DetailCard>
           )}

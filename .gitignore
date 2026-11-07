@@ -26,6 +26,9 @@ yarn-error.log*
 .env*.local
 .env
 
+# secrets (GCP service accounts, etc.)
+/secrets/
+
 # vercel
 .vercel
 

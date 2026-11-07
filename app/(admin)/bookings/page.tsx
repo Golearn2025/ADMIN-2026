@@ -23,6 +23,13 @@ export default function BookingsPage() {
   const [nextUp, setNextUp] = useState<Booking[]>([]);
   const [total, setTotal] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
+  const [refreshTick, setRefreshTick] = useState(0);
+
+  useEffect(() => {
+    const onOpsRefresh = () => setRefreshTick((n) => n + 1);
+    window.addEventListener("admin-bookings-refresh", onOpsRefresh);
+    return () => window.removeEventListener("admin-bookings-refresh", onOpsRefresh);
+  }, []);
 
   useEffect(() => {
     const fetchBookings = async () => {
@@ -52,7 +59,7 @@ export default function BookingsPage() {
     };
 
     fetchBookings();
-  }, [page, pageSize, debouncedSearch]);
+  }, [page, pageSize, debouncedSearch, refreshTick]);
 
   const soonestUpcomingId = useMemo(
     () => getSoonestUpcomingBookingId(nextUp),

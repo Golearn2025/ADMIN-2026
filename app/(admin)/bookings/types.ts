@@ -19,6 +19,7 @@ export interface Booking {
   requested_vehicle_model_label?: string;
   requested_vehicle_model_id?: string;
   requested_vehicle_display?: string;
+  assigned_driver_id?: string | null;
   driver_name?: string;
   driver_phone?: string;
   vehicle_plate?: string;

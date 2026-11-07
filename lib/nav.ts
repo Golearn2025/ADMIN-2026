@@ -13,6 +13,7 @@ import {
     LogOut,
     Map,
     Plus,
+    Receipt,
     RotateCcw,
     Settings,
     TrendingUp,
@@ -88,6 +89,11 @@ export const navConfig: NavGroup[] = [
         title: "Refunds",
         href: "/refunds",
         icon: RotateCcw,
+      },
+      {
+        title: "Operating Costs",
+        href: "/operating-costs",
+        icon: Receipt,
       },
       {
         title: "Financial Operations",

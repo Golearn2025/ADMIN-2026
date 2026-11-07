@@ -38,6 +38,7 @@ export interface TripForm {
 
 export interface VehicleForm {
   categoryId: string;
+  /** Empty string = category-only (all drivers in category). Specific id locks to that model. */
   modelId: string;
 }
 
@@ -271,7 +272,9 @@ function buildQuotePayload(trip: TripForm, vehicle: VehicleForm) {
     additionalStops: trip.stops.map(locationToPoint),
     dateTime: dateTimeUtc,
     vehicleType: vehicle.categoryId,
-    vehicleModel: vehicle.modelId,
+    // Omit / null model → booking_legs.vehicle_model_id stays NULL →
+    // all drivers in the category can see the job (admin WhatsApp quotes).
+    vehicleModel: vehicle.modelId?.trim() ? vehicle.modelId : null,
     passengers: trip.passengers,
     luggage: trip.bags,
     flightNumber: trip.flightNumber || undefined,

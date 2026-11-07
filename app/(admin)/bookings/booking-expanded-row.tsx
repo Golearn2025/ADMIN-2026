@@ -63,11 +63,14 @@ export function BookingExpandedRow({ booking }: BookingExpandedRowProps) {
 
       <div className="border-t border-border pt-4">
         <BookingExpandedTabs
+          bookingId={booking.id}
           extras={extras}
           payments={payments}
           economics={economics}
           economicsError={economicsError}
           isLoadingDetails={isLoadingDetails}
+          scheduledAt={booking.scheduled_at}
+          returnScheduledAt={booking.return_scheduled_at}
         />
       </div>
     </div>

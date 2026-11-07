@@ -32,13 +32,23 @@ const MODELS: Record<string, { id: string; label: string }[]> = {
   suv: [{ id: "range-rover", label: "Range Rover" }],
 };
 
+/** Empty modelId = category-only — all drivers in that category can see the job. */
+export const ANY_MODEL_ID = "";
+
 export function StepVehicle({ value, onChange, onNext, onPrev }: StepVehicleProps) {
   function selectCategory(catId: string) {
-    const firstModel = MODELS[catId]?.[0]?.id || "";
-    onChange({ categoryId: catId, modelId: firstModel });
+    // Keep category-only if already selected; otherwise keep current model if still valid
+    const models = MODELS[catId] || [];
+    const keepAny = value.modelId === ANY_MODEL_ID;
+    const modelStillValid = models.some((m) => m.id === value.modelId);
+    onChange({
+      categoryId: catId,
+      modelId: keepAny ? ANY_MODEL_ID : modelStillValid ? value.modelId : models[0]?.id || ANY_MODEL_ID,
+    });
   }
 
   const models = MODELS[value.categoryId] || [];
+  const isAnyModel = value.modelId === ANY_MODEL_ID;
 
   return (
     <div className="space-y-6">
@@ -65,10 +75,25 @@ export function StepVehicle({ value, onChange, onNext, onPrev }: StepVehicleProp
         </div>
       </div>
 
-      {/* Model */}
+      {/* Model — specific OR any in category (admin-only flexibility for WhatsApp quotes) */}
       <div>
         <Label className="text-sm font-semibold">Specific model</Label>
+        <p className="text-xs text-muted-foreground mt-1 mb-2">
+          Optional for admin quotes: pick a model to lock the job, or Any model so all drivers in this category can see it.
+        </p>
         <div className="flex flex-wrap gap-2 mt-2">
+          <button
+            type="button"
+            onClick={() => onChange({ ...value, modelId: ANY_MODEL_ID })}
+            className={cn(
+              "px-4 py-2 rounded-lg border text-sm font-medium transition-all",
+              isAnyModel
+                ? "bg-primary text-primary-foreground border-primary"
+                : "border-border text-muted-foreground hover:border-primary/40"
+            )}
+          >
+            Any model
+          </button>
           {models.map((m) => (
             <button
               key={m.id}
@@ -85,11 +110,18 @@ export function StepVehicle({ value, onChange, onNext, onPrev }: StepVehicleProp
             </button>
           ))}
         </div>
+        {isAnyModel && (
+          <p className="text-xs text-muted-foreground mt-2">
+            Drivers with any vehicle in <span className="font-medium capitalize">{value.categoryId}</span> will see this job.
+          </p>
+        )}
       </div>
 
       <div className="flex gap-3">
         <Button variant="outline" className="flex-1" onClick={onPrev}>← Back</Button>
-        <Button className="flex-1" onClick={onNext}>Continue →</Button>
+        <Button className="flex-1" onClick={onNext} disabled={!value.categoryId}>
+          Continue →
+        </Button>
       </div>
     </div>
   );

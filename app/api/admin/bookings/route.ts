@@ -66,15 +66,17 @@ const NOT_CANCELLED: ListSegment = (q) =>
 /**
  * Table order after the pinned next-up block. Segments must stay disjoint and together
  * cover every booking, otherwise rows get duplicated or disappear from pagination.
+ *
+ * Ops order: next-up (paid upcoming) → unpaid/pending → paid/completed history → cancelled.
  */
 const LIST_SEGMENTS: ListSegment[] = [
-  // Completed or paid trips (recent first)
-  (q) => NOT_CANCELLED(q).or("status.eq.COMPLETED,latest_payment_status.in.(succeeded,paid)"),
-  // Unpaid / pending payment
+  // Unpaid / pending payment (checkout attempts, invoice awaiting confirm)
   (q) =>
     NOT_CANCELLED(q)
       .neq("status", "COMPLETED")
       .or("latest_payment_status.is.null,latest_payment_status.not.in.(succeeded,paid)"),
+  // Completed or paid trips (history)
+  (q) => NOT_CANCELLED(q).or("status.eq.COMPLETED,latest_payment_status.in.(succeeded,paid)"),
   // Cancelled
   (q) => q.or("status.eq.CANCELLED,trip_status.eq.CANCELLED"),
 ];
