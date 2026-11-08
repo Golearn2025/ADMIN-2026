@@ -16,9 +16,30 @@ import {
 } from "@/lib/features/drivers/compliance.utils";
 import { EditExpiryDialog } from "../EditExpiryDialog";
 import { useToast } from "@/hooks/use-toast";
+import { cn } from "@/lib/utils";
 
 function isVehiclePhotoDoc(doc: VehicleDocument): boolean {
   return Boolean(VEHICLE_PHOTO_LABELS[doc.document_type]);
+}
+
+type DocumentsVehicle = {
+  id?: string;
+  vehicle_id?: string;
+  license_plate?: string;
+  plate?: string;
+  status?: string;
+  model_name?: string;
+  model_id?: string;
+};
+
+function vehicleRowId(v: DocumentsVehicle): string | null {
+  return v.vehicle_id || v.id || null;
+}
+
+function vehicleLabel(v: DocumentsVehicle): string {
+  const plate = v.license_plate || v.plate || "No plate";
+  const model = v.model_name || v.model_id || "";
+  return model ? `${plate} · ${model}` : plate;
 }
 
 interface DriverDocumentsTabProps {
@@ -30,6 +51,7 @@ interface DriverDocumentsTabProps {
   profilePhotoRejectionReason?: string | null;
   driverDocuments: DriverDocument[];
   vehicleDocuments: VehicleDocument[];
+  vehicles?: DocumentsVehicle[];
   onRefresh: () => void;
 }
 
@@ -42,6 +64,7 @@ export function DriverDocumentsTab({
   profilePhotoRejectionReason,
   driverDocuments, 
   vehicleDocuments,
+  vehicles = [],
   onRefresh 
 }: DriverDocumentsTabProps) {
   const [userId, setUserId] = useState<string>("");
@@ -53,23 +76,64 @@ export function DriverDocumentsTab({
     currentExpiry: string | null;
     entityType: "driver" | "vehicle";
   } | null>(null);
+  const [selectedVehicleId, setSelectedVehicleId] = useState<string | null>(null);
   
   const { toast } = useToast();
   const actions = useDriverActions({ onSuccess: onRefresh });
+
+  const sortedVehicles = useMemo(() => {
+    const list = [...vehicles].filter((v) => vehicleRowId(v));
+    list.sort((a, b) => {
+      const aActive = a.status === "active" ? 0 : 1;
+      const bActive = b.status === "active" ? 0 : 1;
+      if (aActive !== bActive) return aActive - bActive;
+      return vehicleLabel(a).localeCompare(vehicleLabel(b));
+    });
+    return list;
+  }, [vehicles]);
+
+  // Prefer active vehicle; keep selection if still present
+  useEffect(() => {
+    if (!sortedVehicles.length) {
+      setSelectedVehicleId(null);
+      return;
+    }
+    const stillValid = sortedVehicles.some(
+      (v) => vehicleRowId(v) === selectedVehicleId
+    );
+    if (stillValid) return;
+    const active = sortedVehicles.find((v) => v.status === "active");
+    setSelectedVehicleId(vehicleRowId(active || sortedVehicles[0]));
+  }, [sortedVehicles, selectedVehicleId]);
+
+  const selectedVehicleDocs = useMemo(() => {
+    if (!selectedVehicleId) return [];
+    return vehicleDocuments.filter((doc) => doc.vehicle_id === selectedVehicleId);
+  }, [vehicleDocuments, selectedVehicleId]);
   
   const bulkActions = useDocumentBulkActions({
     driverDocuments,
-    vehicleDocuments,
+    vehicleDocuments: selectedVehicleDocs,
     onRefresh,
   });
 
+  // Clear selection when vehicle changes to avoid approving another car's docs
+  useEffect(() => {
+    bulkActions.clearSelection();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only when selected vehicle changes
+  }, [selectedVehicleId]);
+
   const vehiclePaperDocuments = useMemo(
-    () => vehicleDocuments.filter((doc) => !isVehiclePhotoDoc(doc)),
-    [vehicleDocuments]
+    () => selectedVehicleDocs.filter((doc) => !isVehiclePhotoDoc(doc)),
+    [selectedVehicleDocs]
   );
   const vehiclePhotoDocuments = useMemo(
-    () => vehicleDocuments.filter(isVehiclePhotoDoc),
-    [vehicleDocuments]
+    () => selectedVehicleDocs.filter(isVehiclePhotoDoc),
+    [selectedVehicleDocs]
+  );
+
+  const selectedVehicle = sortedVehicles.find(
+    (v) => vehicleRowId(v) === selectedVehicleId
   );
 
   // Debug: Check if reviewed_by_name is present
@@ -389,6 +453,45 @@ export function DriverDocumentsTab({
         </div>
       </div>
 
+      {/* Vehicle picker — docs/photos scoped to one car when driver has multiple */}
+      {sortedVehicles.length > 0 && (
+        <div className="space-y-3 rounded-lg border border-border bg-card p-4">
+          <div>
+            <h2 className="text-sm font-semibold">Vehicle</h2>
+            <p className="text-xs text-muted-foreground">
+              Documents and photos below are only for the selected car
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {sortedVehicles.map((v) => {
+              const id = vehicleRowId(v);
+              if (!id) return null;
+              const active = id === selectedVehicleId;
+              const count = vehicleDocuments.filter((d) => d.vehicle_id === id).length;
+              return (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => setSelectedVehicleId(id)}
+                  className={cn(
+                    "rounded-md border px-3 py-2 text-left text-sm transition-colors",
+                    active
+                      ? "border-primary bg-primary/10 text-foreground"
+                      : "border-border bg-background text-muted-foreground hover:bg-muted/50"
+                  )}
+                >
+                  <div className="font-medium text-foreground">{vehicleLabel(v)}</div>
+                  <div className="text-xs capitalize">
+                    {v.status || "unknown"}
+                    {count > 0 ? ` · ${count} docs` : " · no docs yet"}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* SECTION 2: Vehicle papers */}
       <div className="space-y-4">
         <div className="flex items-center gap-3">
@@ -398,23 +501,29 @@ export function DriverDocumentsTab({
           <div>
             <h2 className="text-xl font-bold">Vehicle Documents</h2>
             <p className="text-sm text-muted-foreground">
-              PHV, MOT, insurance, V5C, and hire agreement
+              {selectedVehicle
+                ? `PHV, MOT, insurance, V5C for ${vehicleLabel(selectedVehicle)}`
+                : "PHV, MOT, insurance, V5C, and hire agreement"}
             </p>
           </div>
         </div>
 
         <div className="rounded-lg border border-border bg-card">
-          <DocumentTable
-            documents={vehiclePaperDocuments}
-            selectedIds={bulkActions.selectedDocuments}
-            onToggleSelect={bulkActions.toggleDocument}
-            onToggleSelectAll={() => bulkActions.toggleSectionDocs(vehiclePaperDocuments)}
-            onApprove={handleApprove}
-            onReject={handleReject}
-            onDocumentAction={handleDocumentAction}
-            isProcessing={actions.isProcessing}
-            isDownloading={isDownloading}
-          />
+          {sortedVehicles.length === 0 ? (
+            <p className="p-4 text-sm text-muted-foreground">No vehicles on this driver.</p>
+          ) : (
+            <DocumentTable
+              documents={vehiclePaperDocuments}
+              selectedIds={bulkActions.selectedDocuments}
+              onToggleSelect={bulkActions.toggleDocument}
+              onToggleSelectAll={() => bulkActions.toggleSectionDocs(vehiclePaperDocuments)}
+              onApprove={handleApprove}
+              onReject={handleReject}
+              onDocumentAction={handleDocumentAction}
+              isProcessing={actions.isProcessing}
+              isDownloading={isDownloading}
+            />
+          )}
         </div>
       </div>
 
@@ -427,23 +536,29 @@ export function DriverDocumentsTab({
           <div>
             <h2 className="text-xl font-bold">Vehicle Photos</h2>
             <p className="text-sm text-muted-foreground">
-              Exterior front/rear and interior front/rear — approve here with the other docs
+              {selectedVehicle
+                ? `Photos for ${vehicleLabel(selectedVehicle)}`
+                : "Exterior front/rear and interior front/rear"}
             </p>
           </div>
         </div>
 
         <div className="rounded-lg border border-border bg-card">
-          <DocumentTable
-            documents={vehiclePhotoDocuments}
-            selectedIds={bulkActions.selectedDocuments}
-            onToggleSelect={bulkActions.toggleDocument}
-            onToggleSelectAll={() => bulkActions.toggleSectionDocs(vehiclePhotoDocuments)}
-            onApprove={handleApprove}
-            onReject={handleReject}
-            onDocumentAction={handleDocumentAction}
-            isProcessing={actions.isProcessing}
-            isDownloading={isDownloading}
-          />
+          {sortedVehicles.length === 0 ? (
+            <p className="p-4 text-sm text-muted-foreground">No vehicles on this driver.</p>
+          ) : (
+            <DocumentTable
+              documents={vehiclePhotoDocuments}
+              selectedIds={bulkActions.selectedDocuments}
+              onToggleSelect={bulkActions.toggleDocument}
+              onToggleSelectAll={() => bulkActions.toggleSectionDocs(vehiclePhotoDocuments)}
+              onApprove={handleApprove}
+              onReject={handleReject}
+              onDocumentAction={handleDocumentAction}
+              isProcessing={actions.isProcessing}
+              isDownloading={isDownloading}
+            />
+          )}
         </div>
       </div>
 

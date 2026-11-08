@@ -215,6 +215,7 @@ export function DriverWorkspace({
               profilePhotoRejectionReason={driver.profile_photo_rejection_reason}
               driverDocuments={driverDocuments}
               vehicleDocuments={vehicleDocuments}
+              vehicles={vehicles}
               onRefresh={refetch}
             />
           </TabsContent>
