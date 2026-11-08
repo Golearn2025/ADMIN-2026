@@ -39,4 +39,6 @@ export interface Booking {
   fleet_size: number;
   passenger_count?: number | null;
   bag_count?: number | null;
+  flight_number_pickup?: string | null;
+  flight_number_return?: string | null;
 }

@@ -1,6 +1,6 @@
 import { Badge } from "@/components/common/badge";
 import { VehiclePlateBadge } from "@/components/bookings/vehicle-plate-badge";
-import { Car, CheckCircle, CreditCard, DollarSign, Mail, Phone, XCircle } from "lucide-react";
+import { Car, CheckCircle, CreditCard, DollarSign, Mail, Phone, Plane, XCircle } from "lucide-react";
 import { getVehicleCategoryVariant } from "./bookings.utils";
 import type { Booking } from "./types";
 
@@ -19,6 +19,9 @@ const getPaymentStatusVariant = (status?: string): "success" | "warning" | "erro
 };
 
 export function BookingDetailsBar({ booking }: BookingDetailsBarProps) {
+  const flightPickup = booking.flight_number_pickup?.trim() || null;
+  const flightReturn = booking.flight_number_return?.trim() || null;
+
   return (
     <div className="flex flex-wrap gap-2">
       {/* Customer Email */}
@@ -27,6 +30,35 @@ export function BookingDetailsBar({ booking }: BookingDetailsBarProps) {
           <div className="flex items-center gap-2 text-xs">
             <Mail className="w-3.5 h-3.5 text-blue-500 flex-shrink-0" />
             <span className="text-muted-foreground">{booking.customer_email}</span>
+          </div>
+        </div>
+      )}
+
+      {/* Customer phone (when present on list row) */}
+      {booking.customer_phone && (
+        <div className="bg-card border border-border/50 rounded px-3 py-1.5 shadow-sm">
+          <div className="flex items-center gap-2 text-xs">
+            <Phone className="w-3.5 h-3.5 text-sky-500 flex-shrink-0" />
+            <span className="font-medium">{booking.customer_phone}</span>
+          </div>
+        </div>
+      )}
+
+      {/* Flight number(s) */}
+      {(flightPickup || flightReturn) && (
+        <div className="bg-card border border-border/50 rounded px-3 py-1.5 shadow-sm">
+          <div className="flex items-center gap-2 text-xs">
+            <Plane className="w-3.5 h-3.5 text-indigo-500 flex-shrink-0" />
+            <span className="text-muted-foreground">Flight:</span>
+            {flightPickup && (
+              <span className="font-mono font-semibold tracking-wide">{flightPickup}</span>
+            )}
+            {flightReturn && (
+              <>
+                <span className="text-muted-foreground">· Return:</span>
+                <span className="font-mono font-semibold tracking-wide">{flightReturn}</span>
+              </>
+            )}
           </div>
         </div>
       )}

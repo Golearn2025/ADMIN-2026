@@ -13,6 +13,7 @@ import {
   invoiceMonthToDate,
   majorToMinor,
 } from "@/lib/operating-costs/google-billing";
+import { withGbpFields } from "@/lib/operating-costs/with-gbp";
 
 export async function POST() {
   try {
@@ -117,6 +118,11 @@ export async function POST() {
       const paymentStatus = isCurrentMonth ? "unpaid" : "paid";
       const catalogId = catalogBySlug.get(item.catalogSlug) ?? null;
 
+      const gbp = await withGbpFields({
+        amount_pence: amountMinor,
+        currency: item.currency,
+        start_date: startDate,
+      });
       const payload = {
         organization_id: orgId,
         catalog_id: catalogId,
@@ -125,6 +131,7 @@ export async function POST() {
         description: `${item.vendorName} · ${item.invoiceMonth} (${item.services.slice(0, 4).join(", ")}${item.services.length > 4 ? "…" : ""})`,
         amount_pence: amountMinor,
         currency: item.currency,
+        ...gbp,
         cadence: "one_time" as const,
         start_date: startDate,
         end_date: startDate,
@@ -154,6 +161,9 @@ export async function POST() {
             description: payload.description,
             amount_pence: payload.amount_pence,
             currency: payload.currency,
+            amount_gbp_pence: payload.amount_gbp_pence,
+            fx_rate_to_gbp: payload.fx_rate_to_gbp,
+            fx_as_of: payload.fx_as_of,
             notes: payload.notes,
             // keep user payment_status if they toggled; only set on create
             updated_at: payload.updated_at,

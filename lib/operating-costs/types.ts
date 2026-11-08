@@ -44,6 +44,11 @@ export type OperatingCostRow = {
   description: string | null;
   amount_pence: number;
   currency: string;
+  /** GBP pence (ECB/Frankfurter on invoice date). */
+  amount_gbp_pence?: number | null;
+  fx_rate_to_gbp?: number | null;
+  fx_as_of?: string | null;
+  monthly_equivalent_gbp_pence?: number;
   cadence: CostCadence;
   amortize_months: number | null;
   start_date: string;
@@ -70,6 +75,8 @@ export type OperatingCostSummary = {
   yearly_burn_pence: number;
   unpaid_pence?: number;
   unpaid_count?: number;
+  /** Present when KPIs were normalized to GBP. */
+  fx_note?: string;
 };
 
 export const CADENCE_OPTIONS: { value: CostCadence; label: string }[] = [

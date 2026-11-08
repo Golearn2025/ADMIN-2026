@@ -56,24 +56,57 @@ export function getOperatingCostColumns(handlers: {
     {
       key: "amount",
       header: "Amount",
-      width: "120px",
-      cell: (row) => (
-        <span className="tabular-nums font-medium whitespace-nowrap block text-right">
-          {formatMoney(row.amount_pence, row.currency)}
-        </span>
-      ),
+      width: "140px",
+      cell: (row) => {
+        const cur = (row.currency || "GBP").toUpperCase();
+        const gbpPence =
+          typeof row.amount_gbp_pence === "number"
+            ? row.amount_gbp_pence
+            : cur === "GBP"
+              ? row.amount_pence
+              : null;
+        return (
+          <div className="text-right">
+            <span className="tabular-nums font-medium whitespace-nowrap block">
+              {formatMoney(row.amount_pence, row.currency)}
+            </span>
+            {cur !== "GBP" && gbpPence != null && (
+              <span className="tabular-nums text-[10px] text-muted-foreground whitespace-nowrap block">
+                ≈ {formatMoney(gbpPence, "GBP")}
+              </span>
+            )}
+          </div>
+        );
+      },
     },
     {
       key: "monthly",
-      header: "≈ / mo",
+      header: "≈ / mo GBP",
       width: "110px",
-      cell: (row) => (
-        <span className="tabular-nums text-muted-foreground whitespace-nowrap block text-right">
-          {row.monthly_equivalent_pence > 0
-            ? formatMoney(row.monthly_equivalent_pence, row.currency)
-            : "—"}
-        </span>
-      ),
+      cell: (row) => {
+        // Always GBP: prefer dedicated field, else enriched monthly_equivalent_pence
+        const monthlyGbp =
+          typeof row.monthly_equivalent_gbp_pence === "number"
+            ? row.monthly_equivalent_gbp_pence
+            : row.monthly_equivalent_pence;
+        const isOneShot =
+          row.cadence === "one_time" &&
+          !(row.amortize_months != null && row.amortize_months > 0);
+        return (
+          <span
+            className="tabular-nums text-muted-foreground whitespace-nowrap block text-right"
+            title={
+              isOneShot
+                ? "One-time — does not add to monthly burn"
+                : "Monthly equivalent in GBP (ECB FX)"
+            }
+          >
+            {isOneShot
+              ? formatMoney(0, "GBP")
+              : formatMoney(monthlyGbp || 0, "GBP")}
+          </span>
+        );
+      },
     },
     {
       key: "invoice_ref",

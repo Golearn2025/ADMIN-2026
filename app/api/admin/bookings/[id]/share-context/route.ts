@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { NextResponse } from "next/server";
 import { getCurrentOrg } from "@/lib/auth/org";
 
@@ -20,6 +21,9 @@ export type BookingShareContext = {
   dropoff_address_full?: string | null;
   customer_name?: string | null;
   customer_phone?: string | null;
+  /** Flight numbers for airport jobs (pickup / return). */
+  flight_number?: string | null;
+  flight_number_return?: string | null;
 };
 
 /**
@@ -73,7 +77,7 @@ export async function GET(
     const { data: legs } = await supabase
       .from("booking_legs")
       .select(
-        "id, pickup_lat, pickup_lng, dropoff_lat, dropoff_lng, pickup_address, dropoff_address, leg_kind, leg_number, scheduled_at, vehicle_category_id"
+        "id, pickup_lat, pickup_lng, dropoff_lat, dropoff_lng, pickup_address, dropoff_address, leg_kind, leg_number, scheduled_at, vehicle_category_id, flight_number"
       )
       .eq("booking_id", id)
       .is("deleted_at", null)
@@ -85,11 +89,25 @@ export async function GET(
       legs?.[0] ||
       null;
 
+    /** Prefer first payout > 0 (0 is often a placeholder, not a real offer). */
+    const firstPositivePence = (
+      ...vals: Array<number | null | undefined>
+    ): number | null => {
+      for (const v of vals) {
+        if (v != null && Number(v) > 0) return Number(v);
+      }
+      return null;
+    };
+
     let driverPayoutPence: number | null = null;
     let tierFactor: number | null = null;
 
+    // internal_*_financials are service_role only (RLS deny_all for users) —
+    // use admin client after org authz above so Share shows real Driver Fare.
+    const admin = createAdminClient() || supabase;
+
     if (mainLeg?.id && mainLeg.scheduled_at) {
-      const { data: liveOffer, error: liveError } = await supabase.rpc(
+      const { data: liveOffer, error: liveError } = await admin.rpc(
         "driver_offer_base_payout_for_leg",
         {
           p_leg_id: mainLeg.id,
@@ -98,11 +116,13 @@ export async function GET(
         }
       );
 
-      if (!liveError && liveOffer != null && Number(liveOffer) > 0) {
-        driverPayoutPence = Number(liveOffer);
+      if (!liveError) {
+        driverPayoutPence = firstPositivePence(
+          liveOffer != null ? Number(liveOffer) : null
+        );
       }
 
-      const { data: factor } = await supabase.rpc("resolve_payout_tier_factor", {
+      const { data: factor } = await admin.rpc("resolve_payout_tier_factor", {
         p_scheduled_at: mainLeg.scheduled_at,
         p_organization_id: booking.organization_id,
         p_tier_group: "trip",
@@ -112,7 +132,7 @@ export async function GET(
     }
 
     if (driverPayoutPence == null && mainLeg?.id) {
-      const { data: legFin } = await supabase
+      const { data: legFin } = await admin
         .from("internal_leg_financials")
         .select(
           "driver_final_payout_pence, driver_estimated_payout_pence, driver_payout_pence, driver_target_payout_pence"
@@ -121,17 +141,17 @@ export async function GET(
         .maybeSingle();
 
       if (legFin) {
-        driverPayoutPence =
-          legFin.driver_final_payout_pence ??
-          legFin.driver_estimated_payout_pence ??
-          legFin.driver_payout_pence ??
-          legFin.driver_target_payout_pence ??
-          null;
+        driverPayoutPence = firstPositivePence(
+          legFin.driver_final_payout_pence,
+          legFin.driver_estimated_payout_pence,
+          legFin.driver_payout_pence,
+          legFin.driver_target_payout_pence
+        );
       }
     }
 
     if (driverPayoutPence == null) {
-      const { data: bookingFin } = await supabase
+      const { data: bookingFin } = await admin
         .from("internal_booking_financials")
         .select(
           "driver_final_payout_pence, driver_estimated_payout_pence, driver_payout_pence, driver_target_payout_pence, version"
@@ -142,12 +162,12 @@ export async function GET(
         .maybeSingle();
 
       if (bookingFin) {
-        driverPayoutPence =
-          bookingFin.driver_final_payout_pence ??
-          bookingFin.driver_estimated_payout_pence ??
-          bookingFin.driver_payout_pence ??
-          bookingFin.driver_target_payout_pence ??
-          null;
+        driverPayoutPence = firstPositivePence(
+          bookingFin.driver_final_payout_pence,
+          bookingFin.driver_estimated_payout_pence,
+          bookingFin.driver_payout_pence,
+          bookingFin.driver_target_payout_pence
+        );
       }
     }
 
@@ -203,6 +223,24 @@ export async function GET(
         : null) ||
       null;
 
+    const trimStr = (v: unknown): string | null =>
+      typeof v === "string" && v.trim() ? v.trim() : null;
+
+    const returnLeg =
+      legs?.find((l) => String(l.leg_kind).toLowerCase() === "return") || null;
+
+    const flightNumber =
+      trimStr(trip.flightNumberPickup) ||
+      trimStr(trip.flightNumber) ||
+      trimStr(mainLeg?.flight_number) ||
+      null;
+
+    const flightNumberReturn =
+      trimStr(trip.flightNumberReturn) ||
+      trimStr(trip.returnFlightNumber) ||
+      trimStr(returnLeg?.flight_number) ||
+      null;
+
     let customerName: string | null = null;
     let customerPhone: string | null = null;
     if (booking.customer_id) {
@@ -244,6 +282,8 @@ export async function GET(
       dropoff_address_full: dropoffAddressFull,
       customer_name: customerName,
       customer_phone: customerPhone,
+      flight_number: flightNumber,
+      flight_number_return: flightNumberReturn,
     } satisfies BookingShareContext);
   } catch (error) {
     console.error("[share-context]", error);

@@ -18,6 +18,8 @@ export type BookingShareContext = {
   dropoff_address_full?: string | null;
   customer_name?: string | null;
   customer_phone?: string | null;
+  flight_number?: string | null;
+  flight_number_return?: string | null;
 };
 
 interface BookingExtras {
@@ -272,8 +274,10 @@ function buildJobBody(options: {
   booking: Booking;
   ctx: BookingShareContext | null;
   publicLocations: boolean;
+  /** Flight only on Share Private (after accept). */
+  includeFlight: boolean;
 }): string {
-  const { booking, ctx, publicLocations } = options;
+  const { booking, ctx, publicLocations, includeFlight } = options;
   const hasDropoff =
     !!booking.dropoff_address &&
     booking.booking_type !== "hourly" &&
@@ -288,6 +292,10 @@ function buildJobBody(options: {
 
   const passengers = ctx?.passenger_count ?? booking.passenger_count ?? null;
   const luggage = ctx?.bag_count ?? booking.bag_count ?? null;
+  const flight = includeFlight ? ctx?.flight_number?.trim() || null : null;
+  const flightReturn = includeFlight
+    ? ctx?.flight_number_return?.trim() || null
+    : null;
 
   const lines = [
     row("📍", "Date & Time", formatDateTime(booking.scheduled_at)),
@@ -297,6 +305,8 @@ function buildJobBody(options: {
     hasDropoff
       ? row(dropoffEmoji(booking.dropoff_address), "Drop-off", dropoff)
       : "",
+    flight ? row("✈️", "Flight", flight) : "",
+    flightReturn ? row("✈️", "Return flight", flightReturn) : "",
     row("📝", "Type of Service", formatServiceType(booking)),
     passengers != null ? row("👥", "Passengers", passengers) : "",
     luggage != null ? row("🧳", "Luggage", luggage) : "",
@@ -330,7 +340,7 @@ export function getPublicShareTemplate(
 ): string {
   const body = `*VANTAGE LANE* · ${booking.reference}
 
-${buildJobBody({ booking, ctx, publicLocations: true })}`;
+${buildJobBody({ booking, ctx, publicLocations: true, includeFlight: false })}`;
   return withRouteMap(body, booking, ctx);
 }
 
@@ -356,7 +366,7 @@ export function getPrivateShareTemplate(
 
   const body = `*VANTAGE LANE* · ${booking.reference}
 
-${clientLines.length ? `${clientLines.join("\n")}\n\n` : ""}${buildJobBody({ booking, ctx, publicLocations: false })}
+${clientLines.length ? `${clientLines.join("\n")}\n\n` : ""}${buildJobBody({ booking, ctx, publicLocations: false, includeFlight: true })}
 
 📘 *Standards*: ${DRIVER_STANDARDS_URL}`;
 

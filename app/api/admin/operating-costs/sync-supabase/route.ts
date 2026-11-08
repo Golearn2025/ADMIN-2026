@@ -16,6 +16,7 @@ import {
   getSupabaseProjectRef,
   hourlyUsdToMonthlyCents,
 } from "@/lib/operating-costs/supabase-mgmt";
+import { withGbpFields } from "@/lib/operating-costs/with-gbp";
 
 type UpsertItem = {
   invoice_ref: string;
@@ -195,6 +196,12 @@ export async function POST() {
         .is("deleted_at", null)
         .maybeSingle();
 
+      const gbp = await withGbpFields({
+        amount_pence: item.amount_pence,
+        currency: item.currency,
+        start_date: today,
+      });
+
       if (existing?.id) {
         const { error } = await admin
           .from("operating_costs")
@@ -204,6 +211,7 @@ export async function POST() {
             description: item.description,
             amount_pence: item.amount_pence,
             currency: item.currency,
+            ...gbp,
             cadence: item.cadence,
             is_usage_based: item.is_usage_based,
             notes: item.notes,
@@ -226,6 +234,7 @@ export async function POST() {
           description: item.description,
           amount_pence: item.amount_pence,
           currency: item.currency,
+          ...gbp,
           cadence: item.cadence,
           is_usage_based: item.is_usage_based,
           invoice_ref: item.invoice_ref,

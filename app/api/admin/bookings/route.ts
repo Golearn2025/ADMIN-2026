@@ -197,9 +197,47 @@ export async function GET(request: NextRequest) {
       cursor = 0;
     }
 
+    // Attach flight numbers (from extras view / trip payload) for list UI chips
+    const allForFlight = [...data, ...nextUp];
+    const flightById = new Map<
+      string,
+      { flight_number_pickup: string | null; flight_number_return: string | null }
+    >();
+    const ids = [...new Set(allForFlight.map((b) => b.id).filter(Boolean))];
+    if (ids.length > 0) {
+      const { data: extras } = await supabase
+        .from("admin_booking_extras")
+        .select("booking_id, flight_number_pickup, flight_number_return")
+        .in("booking_id", ids);
+      for (const row of extras || []) {
+        const pickup =
+          typeof row.flight_number_pickup === "string" && row.flight_number_pickup.trim()
+            ? row.flight_number_pickup.trim()
+            : null;
+        const ret =
+          typeof row.flight_number_return === "string" && row.flight_number_return.trim()
+            ? row.flight_number_return.trim()
+            : null;
+        flightById.set(row.booking_id, {
+          flight_number_pickup: pickup,
+          flight_number_return: ret,
+        });
+      }
+    }
+
+    const withFlight = <T extends BookingRow>(rows: T[]): T[] =>
+      rows.map((b) => {
+        const f = flightById.get(b.id);
+        return {
+          ...b,
+          flight_number_pickup: f?.flight_number_pickup ?? null,
+          flight_number_return: f?.flight_number_return ?? null,
+        };
+      });
+
     return NextResponse.json({
-      data,
-      nextUp,
+      data: withFlight(data),
+      nextUp: withFlight(nextUp),
       total,
       page,
       pageSize,

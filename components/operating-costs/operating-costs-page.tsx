@@ -495,19 +495,19 @@ export function OperatingCostsPage() {
             icon={<TrendingDown className="h-4 w-4" />}
             label="Burn / month"
             value={loading ? "…" : formatPounds(summary.monthly_burn_pence)}
-            hint="Monthly equivalent (amortized)"
+            hint="GBP · latest period · ECB FX"
           />
           <KpiCard
             icon={<CalendarDays className="h-4 w-4" />}
             label="Burn / day"
             value={loading ? "…" : formatPounds(summary.daily_burn_pence)}
-            hint="From the same active costs"
+            hint="Same active costs, in GBP"
           />
           <KpiCard
             icon={<Wallet className="h-4 w-4" />}
             label="Cash total"
             value={loading ? "…" : formatPounds(summary.cash_spent_pence)}
-            hint="Sum of invoices entered"
+            hint="All invoices in GBP (ECB)"
           />
           <KpiCard
             icon={<Receipt className="h-4 w-4" />}
@@ -517,7 +517,7 @@ export function OperatingCostsPage() {
                 ? "…"
                 : `${summary.unpaid_count ?? 0} · ${formatPounds(summary.unpaid_pence ?? 0)}`
             }
-            hint="Still to pay — toggle Paid/Unpaid in the table"
+            hint="Still to pay · GBP (ECB FX)"
           />
         </div>
 

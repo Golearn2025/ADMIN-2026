@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getCurrentOrg } from "@/lib/auth/org";
 import { parseBulkExpenseLines } from "@/lib/operating-costs/parse-bulk-expenses";
+import { withGbpFields } from "@/lib/operating-costs/with-gbp";
 
 export async function POST(req: NextRequest) {
   try {
@@ -86,14 +87,22 @@ export async function POST(req: NextRequest) {
         continue;
       }
 
+      const amount_pence = Math.round(row.amountMajor * 100);
+      const currency = (row.currency || "USD").toUpperCase();
+      const gbp = await withGbpFields({
+        amount_pence,
+        currency,
+        start_date: row.startDate,
+      });
       const { error } = await admin.from("operating_costs").insert({
         organization_id: orgId,
         catalog_id: catalog?.id ?? null,
         vendor_name: vendorName,
         category,
         description: row.description || `Imported invoice ${row.invoiceRef || row.startDate}`,
-        amount_pence: Math.round(row.amountMajor * 100),
-        currency: row.currency || "USD",
+        amount_pence,
+        currency,
+        ...gbp,
         cadence,
         start_date: row.startDate,
         is_usage_based: true,

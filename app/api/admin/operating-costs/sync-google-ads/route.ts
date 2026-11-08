@@ -11,6 +11,7 @@ import {
   getGoogleAdsConfig,
   googleAdsConfigured,
 } from "@/lib/operating-costs/google-ads";
+import { withGbpFields } from "@/lib/operating-costs/with-gbp";
 
 export async function POST() {
   try {
@@ -82,6 +83,11 @@ export async function POST() {
         continue;
       }
 
+      const gbp = await withGbpFields({
+        amount_pence: amountMinor,
+        currency: row.currency,
+        start_date: row.startDate,
+      });
       const payload = {
         organization_id: orgId,
         catalog_id: catalog?.id ?? null,
@@ -90,6 +96,7 @@ export async function POST() {
         description: `Google Ads spend · ${row.invoiceMonth}`,
         amount_pence: amountMinor,
         currency: row.currency,
+        ...gbp,
         cadence: "one_time" as const,
         start_date: row.startDate,
         end_date: row.startDate,
@@ -119,6 +126,9 @@ export async function POST() {
             description: payload.description,
             amount_pence: payload.amount_pence,
             currency: payload.currency,
+            amount_gbp_pence: payload.amount_gbp_pence,
+            fx_rate_to_gbp: payload.fx_rate_to_gbp,
+            fx_as_of: payload.fx_as_of,
             notes: payload.notes,
             updated_at: payload.updated_at,
           })
