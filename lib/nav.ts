@@ -21,6 +21,7 @@ import {
     UserCircle,
     Users,
     BarChart3,
+    Wallet,
     type LucideIcon
 } from "lucide-react";
 
@@ -80,6 +81,11 @@ export const navConfig: NavGroup[] = [
     title: "Finance",
     icon: DollarSign,
     items: [
+      {
+        title: "Driver Payouts",
+        href: "/driver-payouts",
+        icon: Wallet,
+      },
       {
         title: "Payments",
         href: "/payments",

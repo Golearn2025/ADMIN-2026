@@ -31,16 +31,24 @@ export const VEHICLE_DOC_LABELS: Record<string, string> = {
   hire_agreement: "Hire Agreement (optional)",
 };
 
-/** Vehicle document types that do not block driver approval / compliance */
-export const OPTIONAL_VEHICLE_DOCUMENT_TYPES = new Set(["hire_agreement"]);
+/**
+ * Vehicle document types that do not block driver approval / compliance.
+ * Photos optional until driver app supports reliable vehicle photo upload.
+ */
+export const OPTIONAL_VEHICLE_DOCUMENT_TYPES = new Set([
+  "hire_agreement",
+  "vehicle_photo_exterior_front",
+  "vehicle_photo_exterior_rear",
+  "vehicle_photo_interior_front",
+  "vehicle_photo_interior_rear",
+]);
 
 export const REQUIRED_DRIVER_DOC_TYPES = Object.keys(DRIVER_DOC_LABELS);
 export const REQUIRED_VEHICLE_PAPER_TYPES = Object.keys(VEHICLE_PAPER_LABELS);
+/** Shown in UI, but optional for totals / approval (see OPTIONAL_VEHICLE_DOCUMENT_TYPES). */
 export const REQUIRED_VEHICLE_PHOTO_TYPES = Object.keys(VEHICLE_PHOTO_LABELS);
-export const REQUIRED_VEHICLE_DOC_TYPES = [
-  ...REQUIRED_VEHICLE_PAPER_TYPES,
-  ...REQUIRED_VEHICLE_PHOTO_TYPES,
-];
+/** Required vehicle docs for compliance totals (papers only). */
+export const REQUIRED_VEHICLE_DOC_TYPES = [...REQUIRED_VEHICLE_PAPER_TYPES];
 
 export type ComplianceDocRow = {
   key: string;
@@ -163,6 +171,7 @@ export function buildVehicleComplianceRows(
         expiryDate: doc?.expiry_date,
         entity: "vehicle",
         vehicleLabel: vLabel,
+        optional: true,
         kind: "photo",
       });
     }
@@ -206,8 +215,8 @@ export type DocumentsOverviewSummary = {
  * Overview for Pending Review: driver docs + car papers + car photos.
  * Pending uploads count as "In review", not "Missing".
  *
- * Activation package always assumes at least 1 vehicle (6 + 4 papers + 4 photos = 14).
- * If the driver has no vehicle yet, the 8 car slots count as Missing.
+ * Activation package assumes at least 1 vehicle (6 driver + 4 car papers = 10).
+ * Vehicle photos are optional until the driver app supports them.
  * hire_agreement is optional and never included in totals.
  */
 export function buildDocumentsOverviewSummary(
@@ -226,20 +235,18 @@ export function buildDocumentsOverviewSummary(
   const driverRequired = REQUIRED_DRIVER_DOC_TYPES.length;
   const vehiclePaperRequired =
     REQUIRED_VEHICLE_PAPER_TYPES.length * vehiclesForRequirement;
-  const vehiclePhotoRequired =
-    REQUIRED_VEHICLE_PHOTO_TYPES.length * vehiclesForRequirement;
-  const totalRequired = driverRequired + vehiclePaperRequired + vehiclePhotoRequired;
+  /** Photos shown in UI but not required for activation totals */
+  const vehiclePhotoRequired = 0;
+  const totalRequired = driverRequired + vehiclePaperRequired;
 
   const approved = driverRows.approved + vehicleRows.approved;
   const pending = driverRows.pending + vehicleRows.pending;
   const expired = driverRows.expired + vehicleRows.expired;
   const rejected = driverRows.rejected + vehicleRows.rejected;
 
-  // When no vehicle exists, all car paper + photo slots are missing
+  // When no vehicle exists, required car paper slots are missing
   const vehicleSlotsMissingWhenNoCar =
-    vehiclesCount === 0
-      ? REQUIRED_VEHICLE_PAPER_TYPES.length + REQUIRED_VEHICLE_PHOTO_TYPES.length
-      : 0;
+    vehiclesCount === 0 ? REQUIRED_VEHICLE_PAPER_TYPES.length : 0;
 
   const missing =
     driverRows.missing + vehicleRows.missing + vehicleSlotsMissingWhenNoCar;

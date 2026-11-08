@@ -1,0 +1,37 @@
+---
+description: Driver weekly payouts — views as SSOT, Wise-ready export, no ad-hoc SQL in UI
+globs: "{app/(admin)/driver-payouts/**,app/api/admin/driver-payouts/**,lib/features/driver-payouts/**,components/driver-payouts/**}"
+alwaysApply: false
+---
+
+# Driver payouts
+
+## Single source of truth
+
+- Read job-level rows only from `admin_driver_payout_jobs_v1`
+- Read weekly rollups only from `admin_driver_payout_weekly_v1`
+- Persist payout lifecycle only in `driver_payout_line_marks` (unpaid → exported → paid)
+- Do not recompute client paid / driver owed in React; trust the views
+
+## Money fields
+
+- `client_paid_pence` = sum of succeeded `booking_payments` for the booking
+- `driver_owed_pence` = COALESCE(final, estimated, payout, target) from latest `internal_leg_financials`
+- Always store and transfer amounts in **pence**; format GBP only in UI/CSV export
+
+## Wise readiness
+
+- Secrets: `WISE_API_TOKEN`, `WISE_ENV=sandbox|production`, optional `WISE_PROFILE_ID`, optional `WISE_GBP_BALANCE_ID`
+- Status: `GET /api/admin/driver-payouts/wise-status`
+- Diagnose fees: `GET /api/admin/driver-payouts/wise-diagnose` (BALANCE vs BANK_TRANSFER quote options)
+- Pay API: `POST /api/admin/driver-payouts/pay-wise` — recipient-first quote with `preferredPayIn=BALANCE` + `payInMethod` + balance id; batch transfers; attempt fund
+- Export CSV backup: `/api/admin/driver-payouts/export-wise`
+- Never send full bank numbers to the browser list UI (masked last4 only)
+- Docs (personal token): API may create quotes/recipients/transfers/batches; **funding via API only for US/CA/AU/NZ/SG/MY**. UK = draft in API, fund in Wise portal.
+- Quote without BALANCE pay-in defaults to BANK_TRANSFER fees (~£0.52). Manual Wise “Current account 0 / Bank 0.52” is the same pay-in menu, not a separate product path.
+- Docs: https://docs.wise.com/guides/developer/auth-and-security/personal-api-token · https://docs.wise.com/guides/product/send-money/quotes/authenticated-quote · https://docs.wise.com/guides/product/send-money/use-cases/payouts-smbs
+
+## Week boundary
+
+- Weeks are **Europe/London** ISO weeks (`week_key` like `2026-W45`)
+- Settlement timestamp = `completed_at` else `scheduled_at`

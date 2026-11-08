@@ -5,7 +5,7 @@ import { Fragment, useState } from "react";
 
 export interface DataTableColumn<T> {
   key: string;
-  header: string;
+  header: React.ReactNode;
   cell: (row: T) => React.ReactNode;
   width?: string;
 }
