@@ -80,77 +80,79 @@ export function DriverComplianceTab({
   vehicles = [],
 }: DriverComplianceTabProps) {
   const breakdown = getDriverComplianceBreakdown(driver);
-  const driverRows = buildDriverComplianceRows(
-    driverDocuments,
-    breakdown.driver.required
-  );
-  const vehicleRows = buildVehicleComplianceRows(
-    vehicleDocuments,
-    vehicles,
-    breakdown.vehicle.perVehicle
-  );
+  const driverRows = buildDriverComplianceRows(driverDocuments);
+  const vehicleRows = buildVehicleComplianceRows(vehicleDocuments, vehicles);
+  const paperRows = vehicleRows.rows.filter((r) => r.kind !== "photo");
+  const photoRows = vehicleRows.rows.filter((r) => r.kind === "photo");
 
+  const driverUploaded = driverRows.approved + driverRows.pending;
+  const vehicleUploaded = vehicleRows.approved + vehicleRows.pending;
   const driverProgress =
-    breakdown.driver.required > 0
-      ? (breakdown.driver.approved / breakdown.driver.required) * 100
+    driverRows.rows.filter((r) => !r.optional).length > 0
+      ? (driverUploaded / driverRows.rows.filter((r) => !r.optional).length) * 100
       : 0;
+  const vehicleRequiredCount = vehicleRows.rows.filter((r) => !r.optional).length;
   const vehicleProgress =
-    breakdown.vehicle.required > 0
-      ? (breakdown.vehicle.approved / breakdown.vehicle.required) * 100
-      : 0;
+    vehicleRequiredCount > 0 ? (vehicleUploaded / vehicleRequiredCount) * 100 : 0;
 
   const requirements = [
-    { label: "Șofer activ", met: driver.is_active, icon: User },
-    { label: "Șofer aprobat", met: driver.is_approved, icon: Shield },
+    { label: "Driver active", met: driver.is_active, icon: User },
+    { label: "Driver approved", met: driver.is_approved, icon: Shield },
     {
-      label: "Are vehicul",
+      label: "Has vehicle",
       met: driver.total_vehicles > 0,
       icon: Car,
       detail:
         driver.total_vehicles > 0
-          ? `${driver.total_vehicles} vehicul${driver.total_vehicles > 1 ? "e" : ""}`
+          ? `${driver.total_vehicles} vehicle${driver.total_vehicles > 1 ? "s" : ""}`
           : undefined,
     },
     {
-      label: "Documente șofer complete",
-      met: breakdown.driver.missing === 0 && breakdown.driver.expired === 0,
+      label: "Driver documents complete",
+      met: driverRows.missing === 0 && driverRows.expired === 0 && driverRows.rejected === 0 && driverRows.pending === 0,
       icon: FileText,
-      detail: `${breakdown.driver.approved}/${breakdown.driver.required} aprobate`,
+      detail: `${driverRows.approved}/${driverRows.rows.length} approved · ${driverRows.pending} in review · ${driverRows.missing} missing`,
     },
     {
-      label: "Documente vehicul complete",
+      label: "Vehicle documents & photos complete",
       met:
         driver.total_vehicles > 0 &&
-        breakdown.vehicle.missing === 0 &&
-        breakdown.vehicle.expired === 0,
+        vehicleRows.missing === 0 &&
+        vehicleRows.expired === 0 &&
+        vehicleRows.rejected === 0 &&
+        vehicleRows.pending === 0,
       icon: Car,
       detail:
         driver.total_vehicles > 0
-          ? `${breakdown.vehicle.approved}/${breakdown.vehicle.required} aprobate`
-          : "Fără vehicul",
+          ? `${vehicleRows.approved}/${vehicleRequiredCount} approved · ${vehicleRows.pending} in review · ${vehicleRows.missing} missing`
+          : "No vehicle",
     },
     {
-      label: "Fără documente expirate",
-      met: breakdown.driver.expired + breakdown.vehicle.expired === 0,
+      label: "No expired documents",
+      met: driverRows.expired + vehicleRows.expired === 0,
       icon: Clock,
       detail:
-        breakdown.driver.expired + breakdown.vehicle.expired > 0
-          ? `${breakdown.driver.expired + breakdown.vehicle.expired} expirate`
+        driverRows.expired + vehicleRows.expired > 0
+          ? `${driverRows.expired + vehicleRows.expired} expired`
           : undefined,
     },
   ];
 
   const issues: string[] = [];
-  if (!driver.is_active) issues.push("Contul șoferului nu e activ");
-  if (!driver.is_approved) issues.push("Șoferul nu e aprobat");
-  if (driver.total_vehicles === 0) issues.push("Nu are vehicul înregistrat");
-  if (breakdown.driver.missing > 0)
-    issues.push(`${breakdown.driver.missing} document(e) șofer lipsă/neaprobate`);
-  if (breakdown.vehicle.missing > 0)
-    issues.push(`${breakdown.vehicle.missing} document(e) vehicul lipsă/neaprobate`);
-  if (breakdown.driver.expired + breakdown.vehicle.expired > 0)
+  if (!driver.is_active) issues.push("Driver account is not active");
+  if (!driver.is_approved) issues.push("Driver is not approved");
+  if (driver.total_vehicles === 0) issues.push("No vehicle registered");
+  if (driverRows.missing > 0)
+    issues.push(`${driverRows.missing} driver document(s) missing`);
+  if (driverRows.pending > 0)
+    issues.push(`${driverRows.pending} driver document(s) waiting for review`);
+  if (vehicleRows.missing > 0)
+    issues.push(`${vehicleRows.missing} vehicle document/photo(s) missing`);
+  if (vehicleRows.pending > 0)
+    issues.push(`${vehicleRows.pending} vehicle document/photo(s) waiting for review`);
+  if (driverRows.expired + vehicleRows.expired > 0)
     issues.push(
-      `${breakdown.driver.expired + breakdown.vehicle.expired} document(e) expirate`
+      `${driverRows.expired + vehicleRows.expired} document(s) expired`
     );
 
   const statusBadge = (status: string) => {
@@ -158,11 +160,11 @@ export function DriverComplianceTab({
       case "ok":
         return <Badge variant="success">Compliant</Badge>;
       case "expired":
-        return <Badge variant="warning">Documente expirate</Badge>;
+        return <Badge variant="warning">Expired documents</Badge>;
       case "missing":
-        return <Badge variant="destructive">Documente lipsă</Badge>;
+        return <Badge variant="destructive">Missing documents</Badge>;
       case "no_vehicle":
-        return <Badge variant="warning">Fără vehicul</Badge>;
+        return <Badge variant="warning">No vehicle</Badge>;
       default:
         return <Badge variant="secondary">{status}</Badge>;
     }
@@ -171,17 +173,17 @@ export function DriverComplianceTab({
   return (
     <div className="space-y-6">
       <div className="grid gap-3 grid-cols-1 sm:grid-cols-3">
-        <SummaryCard icon={Shield} title="Status compliance">
+        <SummaryCard icon={Shield} title="Compliance status">
           {statusBadge(driver.compliance_status)}
         </SummaryCard>
-        <SummaryCard icon={CheckCircle} title="Poate primi curse">
+        <SummaryCard icon={CheckCircle} title="Can receive jobs">
           <Badge variant={driver.can_receive_jobs ? "success" : "destructive"}>
-            {driver.can_receive_jobs ? "DA" : "NU"}
+            {driver.can_receive_jobs ? "YES" : "NO"}
           </Badge>
         </SummaryCard>
-        <SummaryCard icon={User} title="Status cont">
+        <SummaryCard icon={User} title="Account status">
           <Badge variant={driver.is_active ? "success" : "secondary"}>
-            {driver.is_active ? "Activ" : "Inactiv"}
+            {driver.is_active ? "Active" : "Inactive"}
           </Badge>
         </SummaryCard>
       </div>
@@ -191,23 +193,24 @@ export function DriverComplianceTab({
         <div className="flex flex-col items-center gap-2 text-center sm:flex-row sm:items-center sm:text-left sm:gap-3">
           <FileText className="h-6 w-6 text-primary shrink-0" />
           <div>
-            <h3 className="text-lg font-semibold">Documente șofer</h3>
+            <h3 className="text-lg font-semibold">Driver documents</h3>
             <p className="text-sm text-muted-foreground">
-              Obligatorii per șofer (identitate, permis, PCO, etc.)
+              Required per driver (identity, licence, PCO, etc.)
             </p>
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-          <StatCell label="Necesare" value={breakdown.driver.required} />
-          <StatCell label="Aprobate" value={breakdown.driver.approved} tone="green" />
-          <StatCell label="Expirate" value={breakdown.driver.expired} tone="red" />
-          <StatCell label="Lipsă" value={breakdown.driver.missing} tone="orange" />
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+          <StatCell label="Required" value={driverRows.rows.length} />
+          <StatCell label="Approved" value={driverRows.approved} tone="green" />
+          <StatCell label="In review" value={driverRows.pending} tone="orange" />
+          <StatCell label="Missing" value={driverRows.missing} tone="red" />
+          <StatCell label="Expired" value={driverRows.expired} tone="red" />
         </div>
 
         <div>
           <div className="flex justify-between text-sm mb-1">
-            <span>Progres documente șofer</span>
+            <span>Driver documents progress</span>
             <span>{Math.round(driverProgress)}%</span>
           </div>
           <div className="h-2 rounded-full bg-muted overflow-hidden">
@@ -220,7 +223,7 @@ export function DriverComplianceTab({
 
         <ComplianceDocumentList
           rows={driverRows.rows}
-          emptyMessage="Niciun document șofer încărcat"
+          emptyMessage="No driver documents uploaded"
         />
       </section>
 
@@ -229,30 +232,33 @@ export function DriverComplianceTab({
         <div className="flex flex-col items-center gap-2 text-center sm:flex-row sm:items-center sm:text-left sm:gap-3">
           <Car className="h-6 w-6 text-primary shrink-0" />
           <div>
-            <h3 className="text-lg font-semibold">Documente vehicul</h3>
+            <h3 className="text-lg font-semibold">Vehicle documents &amp; photos</h3>
             <p className="text-sm text-muted-foreground">
-              {breakdown.vehicle.perVehicle} obligatorii × {breakdown.vehicle.vehicles}{" "}
-              vehicul(e) = {breakdown.vehicle.required} total. Hire Agreement este opțional.
+              {breakdown.vehicle.papersPerVehicle} papers + {breakdown.vehicle.photosPerVehicle} photos
+              {" × "}
+              {breakdown.vehicle.vehicles} vehicle(s) = {vehicleRequiredCount} required.
+              Hire Agreement is optional.
             </p>
           </div>
         </div>
 
         {driver.total_vehicles === 0 ? (
           <p className="text-center text-sm text-muted-foreground py-4">
-            Șoferul nu are vehicul — documentele de mașină nu se aplică.
+            No vehicle — car documents and photos do not apply yet.
           </p>
         ) : (
           <>
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-              <StatCell label="Necesare" value={breakdown.vehicle.required} />
-              <StatCell label="Aprobate" value={breakdown.vehicle.approved} tone="green" />
-              <StatCell label="Expirate" value={breakdown.vehicle.expired} tone="red" />
-              <StatCell label="Lipsă" value={breakdown.vehicle.missing} tone="orange" />
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+              <StatCell label="Required" value={vehicleRequiredCount} />
+              <StatCell label="Approved" value={vehicleRows.approved} tone="green" />
+              <StatCell label="In review" value={vehicleRows.pending} tone="orange" />
+              <StatCell label="Missing" value={vehicleRows.missing} tone="red" />
+              <StatCell label="Expired" value={vehicleRows.expired} tone="red" />
             </div>
 
             <div>
               <div className="flex justify-between text-sm mb-1">
-                <span>Progres documente vehicul</span>
+                <span>Vehicle progress (papers + photos)</span>
                 <span>{Math.round(vehicleProgress)}%</span>
               </div>
               <div className="h-2 rounded-full bg-muted overflow-hidden">
@@ -263,10 +269,22 @@ export function DriverComplianceTab({
               </div>
             </div>
 
-            <ComplianceDocumentList
-              rows={vehicleRows.rows}
-              emptyMessage="Niciun document vehicul încărcat"
-            />
+            <div className="space-y-3">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Car documents
+              </p>
+              <ComplianceDocumentList
+                rows={paperRows}
+                emptyMessage="No vehicle papers uploaded"
+              />
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground pt-2">
+                Car photos
+              </p>
+              <ComplianceDocumentList
+                rows={photoRows}
+                emptyMessage="No vehicle photos uploaded"
+              />
+            </div>
           </>
         )}
       </section>
@@ -274,7 +292,7 @@ export function DriverComplianceTab({
       {/* Checklist */}
       <section className="rounded-lg border border-border bg-card p-4 md:p-6">
         <h3 className="text-lg font-semibold text-center sm:text-left mb-4">
-          Checklist compliance
+          Compliance checklist
         </h3>
         <ul className="space-y-2">
           {requirements.map((req, i) => {
@@ -311,17 +329,21 @@ export function DriverComplianceTab({
 
         <div className="mt-6 pt-4 border-t border-border flex flex-col items-center gap-3 text-center sm:flex-row sm:justify-between sm:text-left">
           <div>
-            <p className="font-semibold">Rezultat final</p>
+            <p className="font-semibold">Final result</p>
             <p className="text-sm text-muted-foreground">
-              Total: {breakdown.total.approved}/{breakdown.total.required} documente
-              aprobate
+              Total: {driverRows.approved + vehicleRows.approved}/
+              {driverRows.rows.length + vehicleRequiredCount} approved
+              {" · "}
+              {driverRows.pending + vehicleRows.pending} in review
+              {" · "}
+              {driverRows.missing + vehicleRows.missing} missing
             </p>
           </div>
           <Badge
             variant={driver.can_receive_jobs ? "success" : "destructive"}
             className="whitespace-normal text-center max-w-full"
           >
-            {driver.can_receive_jobs ? "Poate primi curse" : "Nu poate primi curse"}
+            {driver.can_receive_jobs ? "Can receive jobs" : "Cannot receive jobs"}
           </Badge>
         </div>
       </section>
@@ -330,7 +352,7 @@ export function DriverComplianceTab({
         <section className="rounded-lg border border-red-500/30 bg-card p-4 md:p-6">
           <div className="flex items-center justify-center gap-2 mb-4 sm:justify-start">
             <AlertTriangle className="h-5 w-5 text-red-500 shrink-0" />
-            <h3 className="font-semibold">Probleme de rezolvat</h3>
+            <h3 className="font-semibold">Issues to resolve</h3>
           </div>
           <ul className="space-y-2">
             {issues.map((issue, i) => (

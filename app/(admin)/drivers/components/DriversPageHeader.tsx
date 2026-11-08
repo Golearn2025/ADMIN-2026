@@ -9,6 +9,7 @@ interface DriversPageHeaderProps {
   suspendedCount: number;
   inactiveCount: number;
   missingDocsCount: number;
+  noDocsCount: number;
   expiringCount: number;
   activeFilter: DriverFilterTab;
   onFilterChange: (filter: DriverFilterTab) => void;
@@ -21,6 +22,7 @@ export function DriversPageHeader({
   suspendedCount,
   inactiveCount,
   missingDocsCount,
+  noDocsCount,
   expiringCount,
   activeFilter,
   onFilterChange,
@@ -126,6 +128,22 @@ export function DriversPageHeader({
               activeFilter === 'missing_docs' ? 'bg-white/20' : 'bg-background'
             }`}>
               {missingDocsCount}
+            </span>
+          </button>
+
+          <button
+            onClick={() => onFilterChange('no_docs')}
+            className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-all whitespace-nowrap ${
+              activeFilter === 'no_docs'
+                ? 'bg-red-600/20 text-red-400 border border-red-500/30'
+                : 'bg-muted/50 text-muted-foreground hover:bg-muted'
+            }`}
+          >
+            No Documents
+            <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+              activeFilter === 'no_docs' ? 'bg-white/20' : 'bg-background'
+            }`}>
+              {noDocsCount}
             </span>
           </button>
 

@@ -14,6 +14,7 @@ import { DriverHeaderActions } from "./DriverHeaderActions";
 import { CompactDocumentsSummary } from "./CompactDocumentsSummary";
 import { DriverActionDialog } from "./DriverActionDialog";
 import { useToast } from "@/hooks/use-toast";
+import { buildDocumentsOverviewSummary } from "@/lib/features/drivers/compliance.utils";
 
 interface DriverWorkspaceProps {
   selectedDriverId: string | null;
@@ -37,12 +38,15 @@ export function DriverWorkspace({
 
   // ✅ NO MORE handleRefresh - not needed without onRefresh
 
-  // Memoize documents summary to prevent unnecessary re-renders
-  const documentsSummary = useMemo(() => ({
-    approved: driver?.documents_completed ?? 0,
-    expired: driver?.documents_expired ?? 0,
-    missing: (driver?.documents_required ?? 0) - (driver?.documents_completed ?? 0)
-  }), [driver?.documents_completed, driver?.documents_expired, driver?.documents_required]);
+  const documentsSummary = useMemo(() => {
+    if (!driver) return null;
+    return buildDocumentsOverviewSummary(
+      driver,
+      driverDocuments,
+      vehicleDocuments,
+      vehicles
+    );
+  }, [driver, driverDocuments, vehicleDocuments, vehicles]);
 
   const handleApprove = async () => {
     if (!driver) return;
@@ -159,12 +163,22 @@ export function DriverWorkspace({
         {/* Hero Section */}
         <DriverDetailHeader driver={driver} onRefresh={onRefresh} />
 
-      {/* Documents Summary */}
-      <CompactDocumentsSummary
-        approved={documentsSummary.approved}
-        expired={documentsSummary.expired}
-        missing={documentsSummary.missing}
-      />
+      {/* Documents Summary — driver + car papers + car photos */}
+      {documentsSummary && (
+        <CompactDocumentsSummary
+          totalRequired={documentsSummary.totalRequired}
+          approved={documentsSummary.approved}
+          pending={documentsSummary.pending}
+          missing={documentsSummary.missing}
+          expired={documentsSummary.expired}
+          driverRequired={documentsSummary.driverRequired}
+          vehiclePaperRequired={documentsSummary.vehiclePaperRequired}
+          vehiclePhotoRequired={documentsSummary.vehiclePhotoRequired}
+          vehicles={documentsSummary.vehicles}
+          readyToReview={documentsSummary.readyToReview}
+          readyToApprove={documentsSummary.readyToApprove}
+        />
+      )}
 
       {/* Tabs Section - Sticky */}
       <div className="sticky top-0 z-10 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 -mx-3 px-3 py-3 md:-mx-8 md:px-8 md:py-4 border-b border-border">

@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useDriverActions } from "@/lib/features/drivers/hooks/useDriverActions";
 import { useDocumentBulkActions } from "../../hooks/useDocumentBulkActions";
-import { AlertCircle, User as UserIcon, Car as CarIcon } from "lucide-react";
+import { AlertCircle, User as UserIcon, Car as CarIcon, Camera } from "lucide-react";
 import { BulkActionsBar } from "../BulkActionsBar";
 import { InlineRejectPanel } from "../InlineRejectPanel";
 import { DocumentTable } from "../DocumentTable";
@@ -12,9 +12,14 @@ import type { DriverDocument, VehicleDocument } from "@/lib/features/drivers/dri
 import {
   DRIVER_DOC_LABELS,
   VEHICLE_DOC_LABELS,
+  VEHICLE_PHOTO_LABELS,
 } from "@/lib/features/drivers/compliance.utils";
 import { EditExpiryDialog } from "../EditExpiryDialog";
 import { useToast } from "@/hooks/use-toast";
+
+function isVehiclePhotoDoc(doc: VehicleDocument): boolean {
+  return Boolean(VEHICLE_PHOTO_LABELS[doc.document_type]);
+}
 
 interface DriverDocumentsTabProps {
   driverId: string;
@@ -57,6 +62,15 @@ export function DriverDocumentsTab({
     vehicleDocuments,
     onRefresh,
   });
+
+  const vehiclePaperDocuments = useMemo(
+    () => vehicleDocuments.filter((doc) => !isVehiclePhotoDoc(doc)),
+    [vehicleDocuments]
+  );
+  const vehiclePhotoDocuments = useMemo(
+    () => vehicleDocuments.filter(isVehiclePhotoDoc),
+    [vehicleDocuments]
+  );
 
   // Debug: Check if reviewed_by_name is present
   useEffect(() => {
@@ -375,7 +389,7 @@ export function DriverDocumentsTab({
         </div>
       </div>
 
-      {/* SECTION 2: Vehicle Documents */}
+      {/* SECTION 2: Vehicle papers */}
       <div className="space-y-4">
         <div className="flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-purple-500/10">
@@ -384,17 +398,46 @@ export function DriverDocumentsTab({
           <div>
             <h2 className="text-xl font-bold">Vehicle Documents</h2>
             <p className="text-sm text-muted-foreground">
-              Vehicle registration, insurance, and inspection documents
+              PHV, MOT, insurance, V5C, and hire agreement
             </p>
           </div>
         </div>
 
         <div className="rounded-lg border border-border bg-card">
           <DocumentTable
-            documents={vehicleDocuments}
+            documents={vehiclePaperDocuments}
             selectedIds={bulkActions.selectedDocuments}
             onToggleSelect={bulkActions.toggleDocument}
-            onToggleSelectAll={() => bulkActions.toggleSectionDocs(vehicleDocuments)}
+            onToggleSelectAll={() => bulkActions.toggleSectionDocs(vehiclePaperDocuments)}
+            onApprove={handleApprove}
+            onReject={handleReject}
+            onDocumentAction={handleDocumentAction}
+            isProcessing={actions.isProcessing}
+            isDownloading={isDownloading}
+          />
+        </div>
+      </div>
+
+      {/* SECTION 3: Vehicle photos — same approve/reject flow as papers */}
+      <div className="space-y-4">
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-amber-500/10">
+            <Camera className="h-5 w-5 text-amber-600" />
+          </div>
+          <div>
+            <h2 className="text-xl font-bold">Vehicle Photos</h2>
+            <p className="text-sm text-muted-foreground">
+              Exterior front/rear and interior front/rear — approve here with the other docs
+            </p>
+          </div>
+        </div>
+
+        <div className="rounded-lg border border-border bg-card">
+          <DocumentTable
+            documents={vehiclePhotoDocuments}
+            selectedIds={bulkActions.selectedDocuments}
+            onToggleSelect={bulkActions.toggleDocument}
+            onToggleSelectAll={() => bulkActions.toggleSectionDocs(vehiclePhotoDocuments)}
             onApprove={handleApprove}
             onReject={handleReject}
             onDocumentAction={handleDocumentAction}

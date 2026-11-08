@@ -20,7 +20,32 @@ export async function POST(req: NextRequest) {
       priceOverride,  // number | null — manual client price in GBP
       driverPayout,   // number | null — manual driver payout in GBP (what driver sees)
       legDetails,     // Array<{ legNumber, distance, duration }> — from quote response
+      passengers,     // number — from admin trip form
+      bags,           // number — luggage/bag count from admin trip form
+      notes,          // string | null — special requirements → bookings.custom_requirements
+      flightNumber,   // string | null — optional flight number
     } = await req.json();
+
+    const passengerCount = Number.isFinite(Number(passengers))
+      ? Math.max(1, Math.round(Number(passengers)))
+      : 1;
+    const bagCount = Number.isFinite(Number(bags))
+      ? Math.max(0, Math.round(Number(bags)))
+      : 0;
+    const specialRequirements =
+      typeof notes === "string" && notes.trim() ? notes.trim() : null;
+    const flight =
+      typeof flightNumber === "string" && flightNumber.trim()
+        ? flightNumber.trim()
+        : null;
+
+    const internalNotes = [
+      priceOverride != null ? `Admin override price: £${priceOverride}` : null,
+      specialRequirements ? `Special requirements: ${specialRequirements}` : null,
+      !priceOverride && !specialRequirements ? "Created via admin panel" : null,
+    ]
+      .filter(Boolean)
+      .join(" | ");
 
     if (!quoteId) {
       return NextResponse.json({ success: false, error: "quoteId is required" }, { status: 400 });
@@ -79,17 +104,17 @@ export async function POST(req: NextRequest) {
     }
 
     // ── Step 2: Call RPC directly (no Node.js backend) ───────────────────────
+    // RPC prefers trip_config passengers; bags fall back to p_bag_count when
+    // quote meta.luggage is missing (common for admin quotes). Always pass form values.
     const { data: rpcResult, error: rpcError } = await admin.rpc(
       "convert_quote_to_booking_atomic",
       {
         p_quote_id: quoteId,
         p_organization_id: DEFAULT_ORG_ID,
         p_customer_id: customerId,
-        p_passenger_count: 1,
-        p_bag_count: 0,
-        p_notes_internal: priceOverride != null
-          ? `Admin override price: £${priceOverride}`
-          : "Created via admin panel",
+        p_passenger_count: passengerCount,
+        p_bag_count: bagCount,
+        p_notes_internal: internalNotes,
       }
     );
 
@@ -110,6 +135,34 @@ export async function POST(req: NextRequest) {
     }
 
     const bookingId: string = result.booking_id;
+
+    // ── Step 2b: Persist bags/notes onto booking columns ─────────────────────
+    // RPC writes passenger_count/bag_count/notes_internal, but does NOT map the
+    // admin "Special requirements" note into custom_requirements (driver-facing).
+    // Also force bag_count from the form — quote meta often omits luggage.
+    {
+      const bookingPatch: Record<string, unknown> = {
+        passenger_count: passengerCount,
+        bag_count: bagCount,
+        notes_internal: internalNotes,
+        updated_at: new Date().toISOString(),
+      };
+      if (specialRequirements) {
+        bookingPatch.custom_requirements = specialRequirements;
+      }
+      await admin.from("bookings").update(bookingPatch).eq("id", bookingId);
+
+      if (flight) {
+        await admin
+          .from("booking_legs")
+          .update({
+            flight_number: flight,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("booking_id", bookingId)
+          .eq("leg_number", 1);
+      }
+    }
 
     // ── Step 3: Fetch reference from booking ─────────────────────────────────
     const { data: booking } = await admin

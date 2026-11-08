@@ -7,6 +7,7 @@ export type DriverFilterTab =
   | "suspended"
   | "inactive"
   | "missing_docs"
+  | "no_docs"
   | "expiring";
 
 const TERMINAL_STATUSES = new Set(["suspended", "inactive"]);
@@ -58,6 +59,11 @@ export function isMissingDocuments(driver: Driver): boolean {
   return driver.compliance_status === "missing";
 }
 
+/** Niciun document încărcat (driver + vehicle) — pending/approved/rejected = 0 */
+export function isNoDocuments(driver: Driver): boolean {
+  return (driver.documents_uploaded ?? 0) === 0;
+}
+
 /** Documente care expiră în următoarele 30 zile */
 export function isExpiringSoon(driver: Driver): boolean {
   return (driver.documents_expiring_soon ?? 0) > 0;
@@ -78,6 +84,8 @@ export function filterDriversByTab(
       return drivers.filter(isInactiveDriver);
     case "missing_docs":
       return drivers.filter(isMissingDocuments);
+    case "no_docs":
+      return drivers.filter(isNoDocuments);
     case "expiring":
       return drivers.filter(isExpiringSoon);
     default:
@@ -93,6 +101,7 @@ export function countDriversByTab(drivers: Driver[]) {
     suspended: drivers.filter(isSuspendedDriver).length,
     inactive: drivers.filter(isInactiveDriver).length,
     missing_docs: drivers.filter(isMissingDocuments).length,
+    no_docs: drivers.filter(isNoDocuments).length,
     expiring: drivers.filter(isExpiringSoon).length,
   };
 }

@@ -45,15 +45,15 @@ export function DriverHeaderActions({
     if (driver.compliance_status !== "ok") {
       const detail =
         driver.compliance_status === "missing"
-          ? `Lipsesc ${(driver.total_required_docs ?? 0) - (driver.total_approved_docs ?? 0)} documente obligatorii aprobate.`
+          ? `Missing ${(driver.total_required_docs ?? 0) - (driver.total_approved_docs ?? 0)} required approved document(s).`
           : driver.compliance_status === "no_vehicle"
-            ? "Șoferul nu are vehicul înregistrat."
+            ? "Driver has no registered vehicle."
             : driver.compliance_status === "expired"
-              ? "Există documente expirate."
+              ? "There are expired documents."
               : "";
       toast({
-        title: "Nu poți activa șoferul",
-        description: `Compliance: '${driver.compliance_status}'. ${detail} Toate documentele obligatorii trebuie încărcate și aprobate.`,
+        title: "Cannot activate driver",
+        description: `Compliance: '${driver.compliance_status}'. ${detail} All required documents must be uploaded and approved.`,
         variant: "destructive",
       });
       return;
@@ -71,14 +71,14 @@ export function DriverHeaderActions({
       }
 
       toast({
-        title: "Șofer activat",
-        description: "Șoferul a fost aprobat cu succes.",
+        title: "Driver activated",
+        description: "Driver has been approved successfully.",
       });
       onRefresh();
     } catch (error) {
       toast({
-        title: "Eroare",
-        description: error instanceof Error ? error.message : "Activarea a eșuat",
+        title: "Error",
+        description: error instanceof Error ? error.message : "Activation failed",
         variant: "destructive",
       });
     } finally {
@@ -112,14 +112,14 @@ export function DriverHeaderActions({
       }
 
       toast({
-        title: dialogAction === "suspend" ? "Suspendat" : "Dezactivat",
-        description: "Statusul a fost actualizat.",
+        title: dialogAction === "suspend" ? "Suspended" : "Deactivated",
+        description: "Status has been updated.",
       });
       onRefresh();
     } catch (error) {
       toast({
-        title: "Eroare",
-        description: error instanceof Error ? error.message : "Acțiunea a eșuat",
+        title: "Error",
+        description: error instanceof Error ? error.message : "Action failed",
         variant: "destructive",
       });
     } finally {
@@ -140,14 +140,14 @@ export function DriverHeaderActions({
       }
 
       toast({
-        title: "Sign out reușit",
-        description: "Șoferul a fost deconectat de pe toate dispozitivele.",
+        title: "Signed out",
+        description: "Driver has been signed out from all devices.",
       });
       onRefresh();
     } catch (error) {
       toast({
-        title: "Eroare",
-        description: error instanceof Error ? error.message : "Sign out a eșuat",
+        title: "Error",
+        description: error instanceof Error ? error.message : "Sign out failed",
         variant: "destructive",
       });
     } finally {
@@ -165,18 +165,18 @@ export function DriverHeaderActions({
     <Dialog open={signOutOpen} onOpenChange={setSignOutOpen}>
       <DialogContent className="sm:max-w-[440px]">
         <DialogHeader>
-          <DialogTitle>Sign out șofer?</DialogTitle>
+          <DialogTitle>Sign out driver?</DialogTitle>
           <DialogDescription>
-            {driver.full_name || "Acest șofer"} va fi deconectat instant de pe toate telefoanele.
-            Sesiunile Supabase și push-urile active vor fi revocate.
+            {driver.full_name || "This driver"} will be signed out instantly from all phones.
+            Active sessions and push tokens will be revoked.
           </DialogDescription>
         </DialogHeader>
         <DialogFooter>
           <Button variant="outline" disabled={isProcessing} onClick={() => setSignOutOpen(false)}>
-            Anulează
+            Cancel
           </Button>
           <Button disabled={isProcessing} onClick={handleSignOut}>
-            {isProcessing ? "Se procesează..." : "Sign out"}
+            {isProcessing ? "Processing..." : "Sign out"}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -186,7 +186,7 @@ export function DriverHeaderActions({
   const menu = (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button size="sm" variant="outline" disabled={isProcessing} aria-label="Mai multe acțiuni">
+        <Button size="sm" variant="outline" disabled={isProcessing} aria-label="More actions">
           <MoreVertical className="h-4 w-4" />
         </Button>
       </DropdownMenuTrigger>
@@ -194,25 +194,25 @@ export function DriverHeaderActions({
         {canApprove && (
           <DropdownMenuItem onClick={handleApprove} className="md:hidden">
             <CheckCircle className="mr-2 h-4 w-4" />
-            Activează
+            Activate
           </DropdownMenuItem>
         )}
         {canSuspend && (
           <DropdownMenuItem onClick={handleSuspend}>
             <Ban className="mr-2 h-4 w-4" />
-            Suspendă
+            Suspend
           </DropdownMenuItem>
         )}
         {canDeactivate && (
           <DropdownMenuItem onClick={handleDeactivate}>
             <XCircle className="mr-2 h-4 w-4" />
-            Dezactivează
+            Deactivate
           </DropdownMenuItem>
         )}
         {(canSuspend || canDeactivate || canApprove) && <DropdownMenuSeparator />}
         <DropdownMenuItem onClick={() => setSignOutOpen(true)}>
           <LogOut className="mr-2 h-4 w-4" />
-          Sign out (toate device-urile)
+          Sign out (all devices)
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
@@ -235,7 +235,7 @@ export function DriverHeaderActions({
                 onClick={handleApprove}
               >
                 <CheckCircle className="h-4 w-4" />
-                Activează
+                Activate
               </Button>
             )}
             {canDeactivate && (
@@ -246,7 +246,7 @@ export function DriverHeaderActions({
                 onClick={handleDeactivate}
               >
                 <XCircle className="h-4 w-4" />
-                Dezactivează
+                Deactivate
               </Button>
             )}
             <Button
@@ -280,19 +280,19 @@ export function DriverHeaderActions({
         {canApprove && (
           <Button size="sm" disabled={isProcessing} onClick={handleApprove}>
             <CheckCircle className="mr-2 h-4 w-4" />
-            Activează
+            Activate
           </Button>
         )}
         {canSuspend && (
           <Button size="sm" variant="secondary" disabled={isProcessing} onClick={handleSuspend}>
             <Ban className="mr-2 h-4 w-4" />
-            Suspendă
+            Suspend
           </Button>
         )}
         {canDeactivate && (
           <Button size="sm" variant="outline" disabled={isProcessing} onClick={handleDeactivate}>
             <XCircle className="mr-2 h-4 w-4" />
-            Dezactivează
+            Deactivate
           </Button>
         )}
         <Button
@@ -310,13 +310,13 @@ export function DriverHeaderActions({
         {canApprove && (
           <Button size="sm" className="min-h-10 flex-1" disabled={isProcessing} onClick={handleApprove}>
             <CheckCircle className="mr-2 h-4 w-4" />
-            Activează
+            Activate
           </Button>
         )}
         {canDeactivate && (
           <Button size="sm" className="min-h-10 flex-1" variant="secondary" disabled={isProcessing} onClick={handleDeactivate}>
             <XCircle className="mr-2 h-4 w-4" />
-            Dezactiv.
+            Deactivate
           </Button>
         )}
         <Button size="sm" className="min-h-10" variant="outline" disabled={isProcessing} onClick={() => setSignOutOpen(true)}>

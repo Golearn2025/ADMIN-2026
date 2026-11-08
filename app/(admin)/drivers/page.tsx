@@ -89,6 +89,7 @@ export default function DriversPage() {
         suspendedCount={counts.suspended}
         inactiveCount={counts.inactive}
         missingDocsCount={counts.missing_docs}
+        noDocsCount={counts.no_docs}
         expiringCount={counts.expiring}
         activeFilter={activeFilter}
         onFilterChange={setActiveFilter}

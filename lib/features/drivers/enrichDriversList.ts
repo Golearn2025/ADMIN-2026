@@ -13,11 +13,13 @@ type RawDriver = Record<string, unknown> & {
 
 export function enrichDriverRow(
   driver: RawDriver,
-  expiringSoonByDriverId?: Set<string>
+  expiringSoonByDriverId?: Set<string>,
+  uploadedCountByDriverId?: Map<string, number>
 ): Driver {
   const expired =
     (driver.expired_driver_docs ?? 0) + (driver.expired_vehicle_docs ?? 0);
   const expiringSoon = expiringSoonByDriverId?.has(driver.id) ? 1 : 0;
+  const uploaded = uploadedCountByDriverId?.get(driver.id) ?? 0;
 
   return {
     ...(driver as Driver),
@@ -26,13 +28,17 @@ export function enrichDriverRow(
     documents_expired: expired,
     documents_expiring_soon: expiringSoon,
     documents_required: driver.total_required_docs ?? 0,
+    documents_uploaded: uploaded,
     member_since: driver.created_at,
   };
 }
 
 export function enrichDriversList(
   drivers: RawDriver[],
-  expiringSoonByDriverId?: Set<string>
+  expiringSoonByDriverId?: Set<string>,
+  uploadedCountByDriverId?: Map<string, number>
 ): Driver[] {
-  return drivers.map((d) => enrichDriverRow(d, expiringSoonByDriverId));
+  return drivers.map((d) =>
+    enrichDriverRow(d, expiringSoonByDriverId, uploadedCountByDriverId)
+  );
 }

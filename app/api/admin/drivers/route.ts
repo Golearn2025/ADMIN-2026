@@ -64,6 +64,53 @@ async function fetchDriverIdsWithExpiringSoon(
   return expiring;
 }
 
+/** Count uploaded docs per driver (any status): driver_documents + vehicle_documents */
+async function fetchUploadedDocCounts(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  driverIds: string[]
+): Promise<Map<string, number>> {
+  const counts = new Map<string, number>();
+  if (driverIds.length === 0) return counts;
+
+  for (const id of driverIds) counts.set(id, 0);
+
+  const { data: driverDocs } = await supabase
+    .from("driver_documents")
+    .select("driver_id")
+    .in("driver_id", driverIds);
+
+  for (const row of driverDocs ?? []) {
+    if (!row.driver_id) continue;
+    counts.set(row.driver_id, (counts.get(row.driver_id) ?? 0) + 1);
+  }
+
+  const { data: vehicles } = await supabase
+    .from("vehicles")
+    .select("id, driver_id")
+    .in("driver_id", driverIds)
+    .is("deleted_at", null);
+
+  const vehicleIds = (vehicles ?? []).map((v) => v.id);
+  const vehicleToDriver = new Map(
+    (vehicles ?? []).map((v) => [v.id, v.driver_id] as const)
+  );
+
+  if (vehicleIds.length > 0) {
+    const { data: vehicleDocs } = await supabase
+      .from("vehicle_documents")
+      .select("vehicle_id")
+      .in("vehicle_id", vehicleIds);
+
+    for (const row of vehicleDocs ?? []) {
+      const driverId = vehicleToDriver.get(row.vehicle_id);
+      if (!driverId) continue;
+      counts.set(driverId, (counts.get(driverId) ?? 0) + 1);
+    }
+  }
+
+  return counts;
+}
+
 export async function GET(request: NextRequest) {
   try {
     const supabase = await createClient();
@@ -109,12 +156,16 @@ export async function GET(request: NextRequest) {
     const { data: drivers, error } = await query;
 
     const driverIds = (drivers ?? []).map((d) => d.id);
-    const expiringSoonIds = await fetchDriverIdsWithExpiringSoon(
-      supabase,
-      driverIds
-    );
+    const [expiringSoonIds, uploadedCounts] = await Promise.all([
+      fetchDriverIdsWithExpiringSoon(supabase, driverIds),
+      fetchUploadedDocCounts(supabase, driverIds),
+    ]);
 
-    const enrichedDrivers = enrichDriversList(drivers ?? [], expiringSoonIds);
+    const enrichedDrivers = enrichDriversList(
+      drivers ?? [],
+      expiringSoonIds,
+      uploadedCounts
+    );
 
     console.log('👨‍💼 DRIVERS API DEBUG (Backend-Controlled):');
     console.log('   userId:', user.id);

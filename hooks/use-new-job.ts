@@ -182,6 +182,10 @@ export function useNewJob() {
           priceOverride: price.priceOverride,
           driverPayout: price.driverPayout,
           legDetails: price.legDetails, // distance + duration per leg → driver payout calc
+          passengers: trip.passengers,
+          bags: trip.bags,
+          notes: trip.notes?.trim() || null,
+          flightNumber: trip.flightNumber?.trim() || null,
         }),
       });
       const data = await res.json();
@@ -193,7 +197,7 @@ export function useNewJob() {
     } finally {
       setCreateLoading(false);
     }
-  }, [price, customer]);
+  }, [price, customer, trip]);
 
   const markPaid = useCallback(async () => {
     if (!createdBooking) return;
