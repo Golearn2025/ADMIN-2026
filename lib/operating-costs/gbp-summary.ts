@@ -52,11 +52,21 @@ function dailyFromGbp(
   }
 }
 
+type GbpAdminClient = {
+  from: (table: string) => {
+    update: (values: Record<string, unknown>) => {
+      eq: (
+        col: string,
+        val: string
+      ) => PromiseLike<{ error: { message: string } | null }>;
+    };
+  };
+};
+
 /** Ensure amount_gbp_pence is set (ECB/Frankfurter on invoice date), persist if missing. */
 export async function enrichCostsWithGbp(
   rows: OperatingCostRow[],
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  admin?: any
+  admin?: GbpAdminClient | null
 ): Promise<CostWithGbp[]> {
   const out: CostWithGbp[] = [];
 
