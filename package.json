@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "next lint",
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,css,md}\"",
-    "google-ads-oauth": "node scripts/google-ads-oauth.mjs"
+    "google-ads-oauth": "node scripts/google-ads-oauth.mjs",
+    "types:supabase": "echo \"Regenerate via Supabase MCP generate_typescript_types → lib/supabase/database.types.ts\""
   },
   "dependencies": {
     "@eslint/eslintrc": "^3.3.5",

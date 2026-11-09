@@ -4,12 +4,11 @@
  */
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createTypedAdminClient } from "@/lib/supabase/admin";
 import { getCurrentOrg } from "@/lib/auth/org";
 import {
-  DRIVER_PAYOUT_JOB_SAFE_COLUMNS,
-  type DriverPayoutJob,
-  type DriverPayoutWeekly,
+  toDriverPayoutJobDto,
+  toDriverPayoutWeeklyDto,
 } from "@/lib/features/driver-payouts";
 
 export async function GET(req: NextRequest) {
@@ -28,7 +27,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "No organization selected" }, { status: 400 });
     }
 
-    const admin = createAdminClient();
+    const admin = createTypedAdminClient();
     if (!admin) {
       return NextResponse.json({ error: "Server misconfiguration" }, { status: 500 });
     }
@@ -52,7 +51,7 @@ export async function GET(req: NextRequest) {
 
     let jobsQuery = admin
       .from("admin_driver_payout_jobs_v1")
-      .select(DRIVER_PAYOUT_JOB_SAFE_COLUMNS)
+      .select("*")
       .eq("organization_id", orgId)
       .order("settlement_at", { ascending: false });
 
@@ -64,8 +63,12 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: jobsError.message }, { status: 500 });
     }
 
-    const weeks = (weekly || []) as DriverPayoutWeekly[];
-    const jobRows = (jobs || []) as unknown as DriverPayoutJob[];
+    const weeks = (weekly ?? [])
+      .map(toDriverPayoutWeeklyDto)
+      .filter((w): w is NonNullable<typeof w> => w != null);
+    const jobRows = (jobs ?? [])
+      .map(toDriverPayoutJobDto)
+      .filter((j): j is NonNullable<typeof j> => j != null);
 
     const weekOptions = Array.from(
       new Set(weeks.map((w) => w.week_key).filter(Boolean))

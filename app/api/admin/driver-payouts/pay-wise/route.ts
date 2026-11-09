@@ -6,9 +6,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "crypto";
 import { createClient } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createTypedAdminClient } from "@/lib/supabase/admin";
 import { getCurrentOrg } from "@/lib/auth/org";
-import { penceToGbp } from "@/lib/features/driver-payouts";
+import { penceToGbp, toWisePayableJob } from "@/lib/features/driver-payouts";
 import {
   completeBatchGroup,
   createBatchGroup,
@@ -25,23 +25,6 @@ import {
   summarizeQuotePaymentOptions,
   updateQuoteTargetAccount,
 } from "@/lib/features/driver-payouts/wise-api";
-
-type PayJobRow = {
-  booking_leg_id: string;
-  booking_id: string;
-  driver_id: string;
-  organization_id: string;
-  driver_name: string;
-  driver_email: string | null;
-  driver_owed_pence: number;
-  booking_reference: string;
-  week_key: string;
-  has_uk_bank_details: boolean;
-  account_holder_name: string | null;
-  wise_account_number: string | null;
-  wise_sort_code: string | null;
-  payout_status: string;
-};
 
 export async function POST(req: NextRequest) {
   try {
@@ -74,31 +57,14 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const admin = createAdminClient();
+    const admin = createTypedAdminClient();
     if (!admin) {
       return NextResponse.json({ error: "Server misconfiguration" }, { status: 500 });
     }
 
     let query = admin
       .from("admin_driver_payout_jobs_v1")
-      .select(
-        [
-          "booking_leg_id",
-          "booking_id",
-          "driver_id",
-          "organization_id",
-          "driver_name",
-          "driver_email",
-          "driver_owed_pence",
-          "booking_reference",
-          "week_key",
-          "has_uk_bank_details",
-          "account_holder_name",
-          "wise_account_number",
-          "wise_sort_code",
-          "payout_status",
-        ].join(",")
-      )
+      .select("*")
       .eq("organization_id", orgId)
       .gt("driver_owed_pence", 0)
       .in("payout_status", ["unpaid", "ready", "exported"]);
@@ -112,14 +78,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    const jobs = (data || []) as unknown as PayJobRow[];
-    const eligible = jobs.filter(
-      (j) =>
-        j.has_uk_bank_details &&
-        j.wise_account_number &&
-        j.wise_sort_code &&
-        j.driver_owed_pence > 0
-    );
+    const jobs = data ?? [];
+    const eligible = jobs
+      .map(toWisePayableJob)
+      .filter((j): j is NonNullable<typeof j> => j != null);
 
     if (!eligible.length) {
       return NextResponse.json(
@@ -156,8 +118,8 @@ export async function POST(req: NextRequest) {
       } else {
         byDriver.set(job.driver_id, {
           name: job.account_holder_name || job.driver_name,
-          sortCode: job.wise_sort_code!,
-          accountNumber: job.wise_account_number!,
+          sortCode: job.wise_sort_code,
+          accountNumber: job.wise_account_number,
           amountPence: job.driver_owed_pence,
           refs: [job.booking_reference],
           legIds: [job.booking_leg_id],
