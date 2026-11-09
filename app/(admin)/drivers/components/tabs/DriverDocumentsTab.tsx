@@ -11,6 +11,8 @@ import { downloadFile } from "@/lib/utils/downloadFile";
 import type { DriverDocument, VehicleDocument } from "@/lib/features/drivers/drivers.types";
 import {
   DRIVER_DOC_LABELS,
+  REQUIRED_VEHICLE_PAPER_TYPES,
+  REQUIRED_VEHICLE_PHOTO_TYPES,
   VEHICLE_DOC_LABELS,
   VEHICLE_PHOTO_LABELS,
 } from "@/lib/features/drivers/compliance.utils";
@@ -20,6 +22,32 @@ import { cn } from "@/lib/utils";
 
 function isVehiclePhotoDoc(doc: VehicleDocument): boolean {
   return Boolean(VEHICLE_PHOTO_LABELS[doc.document_type]);
+}
+
+/** Fill required paper/photo slots so a new car shows Missing, not an empty table. */
+function withMissingVehicleSlots(
+  vehicleId: string,
+  existing: VehicleDocument[],
+  types: string[]
+): VehicleDocument[] {
+  const byType = new Map(existing.map((d) => [d.document_type, d]));
+  return types.map((type) => {
+    const found = byType.get(type);
+    if (found) return found;
+    return {
+      id: `missing-${vehicleId}-${type}`,
+      vehicle_id: vehicleId,
+      document_type: type,
+      status: "missing" as VehicleDocument["status"],
+      expiry_date: null,
+      created_at: "",
+      reviewed_at: null,
+      reviewed_by: null,
+      rejection_reason: null,
+      file_url: null,
+      file_name: null,
+    };
+  });
 }
 
 type DocumentsVehicle = {
@@ -123,14 +151,30 @@ export function DriverDocumentsTab({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- only when selected vehicle changes
   }, [selectedVehicleId]);
 
-  const vehiclePaperDocuments = useMemo(
-    () => selectedVehicleDocs.filter((doc) => !isVehiclePhotoDoc(doc)),
-    [selectedVehicleDocs]
-  );
-  const vehiclePhotoDocuments = useMemo(
-    () => selectedVehicleDocs.filter(isVehiclePhotoDoc),
-    [selectedVehicleDocs]
-  );
+  const vehiclePaperDocuments = useMemo(() => {
+    if (!selectedVehicleId) return [];
+    const existing = selectedVehicleDocs.filter((doc) => !isVehiclePhotoDoc(doc));
+    // Keep optional hire_agreement if present, plus required paper slots
+    const required = withMissingVehicleSlots(
+      selectedVehicleId,
+      existing,
+      REQUIRED_VEHICLE_PAPER_TYPES
+    );
+    const hire = existing.find((d) => d.document_type === "hire_agreement");
+    return hire && !required.some((d) => d.document_type === "hire_agreement")
+      ? [...required, hire]
+      : required;
+  }, [selectedVehicleDocs, selectedVehicleId]);
+
+  const vehiclePhotoDocuments = useMemo(() => {
+    if (!selectedVehicleId) return [];
+    const existing = selectedVehicleDocs.filter(isVehiclePhotoDoc);
+    return withMissingVehicleSlots(
+      selectedVehicleId,
+      existing,
+      REQUIRED_VEHICLE_PHOTO_TYPES
+    );
+  }, [selectedVehicleDocs, selectedVehicleId]);
 
   const selectedVehicle = sortedVehicles.find(
     (v) => vehicleRowId(v) === selectedVehicleId
@@ -516,7 +560,11 @@ export function DriverDocumentsTab({
               documents={vehiclePaperDocuments}
               selectedIds={bulkActions.selectedDocuments}
               onToggleSelect={bulkActions.toggleDocument}
-              onToggleSelectAll={() => bulkActions.toggleSectionDocs(vehiclePaperDocuments)}
+              onToggleSelectAll={() =>
+                bulkActions.toggleSectionDocs(
+                  vehiclePaperDocuments.filter((d) => !d.id.startsWith("missing-"))
+                )
+              }
               onApprove={handleApprove}
               onReject={handleReject}
               onDocumentAction={handleDocumentAction}
@@ -551,7 +599,11 @@ export function DriverDocumentsTab({
               documents={vehiclePhotoDocuments}
               selectedIds={bulkActions.selectedDocuments}
               onToggleSelect={bulkActions.toggleDocument}
-              onToggleSelectAll={() => bulkActions.toggleSectionDocs(vehiclePhotoDocuments)}
+              onToggleSelectAll={() =>
+                bulkActions.toggleSectionDocs(
+                  vehiclePhotoDocuments.filter((d) => !d.id.startsWith("missing-"))
+                )
+              }
               onApprove={handleApprove}
               onReject={handleReject}
               onDocumentAction={handleDocumentAction}

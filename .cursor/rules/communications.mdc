@@ -1,0 +1,38 @@
+---
+description: Admin Communications — driver push notifications, automations, help (no SMS inbox yet)
+globs: "{app/(admin)/communications/**,app/(admin)/notifications/**,app/api/admin/communications/**,lib/features/communications/**,components/communications/**}"
+alwaysApply: false
+---
+
+# Communications
+
+## Scope (v1)
+- Driver inbox (same as app): **All / Updates / Documents** — no Jobs tab in inbox
+- Automations config + doc-expiry candidates preview
+- Messages (live chat): inbox + operator reply + close/reopen ticket (`live_chat_*`)
+- Nav badge = unread driver messages on active sessions
+- **No** SMS/WhatsApp inbox in this module yet (`comms_*` stays separate)
+
+## Single source of truth
+- Full history (all driver-related events + delivery status): `admin_communications_send_history_v1`
+- Driver inbox mirror: `admin_driver_inbox_feed_v1`
+- Doc expiry candidates: `admin_doc_expiry_candidates_v1`
+- Messages inbox: `admin_driver_help_sessions_v1` (includes `unread_count`)
+- Messages / reply / close: `live_chat_sessions` + `live_chat_messages` (`sender_type=operator`)
+- Automation toggles: `notification_automation_rules`
+- Driver picker: `admin_drivers_list_v4`
+- Writes for send: RPC `admin_enqueue_driver_notification(p_type, …)`
+  (ledger → `notification_events` + inbox type → `enqueue_driver_inbox_message`)
+
+## Inbox sections (match driver NotificationsScreen)
+- **Updates**: `admin_message` | `app_update` | `announcement` | `system` | account_*
+- **Documents**: `document_approved` | `document_rejected` | `document_expired` | `document_required`
+- Jobs stay push/Jobs screen; Help stays Support/chat — not inbox tabs
+
+## Rules
+- Do not invent notification rows in React; read views
+- Org-scoped via `getCurrentOrg`
+- Secrets stay in env; no tokens in client
+- Prefer reusable `PageHeader`, `Button`, `Select`, `Badge`, toasts
+- Realtime: subscribe to `notifications` / `live_chat_*`, then refetch SSOT APIs
+- Send UI must show destination: Driver app → Notifications → Updates|Documents

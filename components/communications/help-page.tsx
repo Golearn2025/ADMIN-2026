@@ -1,0 +1,568 @@
+"use client";
+
+import { useEffect, useRef, useState } from "react";
+import { PageHeader } from "@/components/common";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
+import { useToast } from "@/hooks/use-toast";
+import {
+  useCommunicationsHelpRealtime,
+  type HelpMessageRow,
+  type HelpSessionRow,
+} from "@/lib/features/communications";
+import {
+  CheckCheck,
+  ChevronLeft,
+  ChevronRight,
+  MessageSquare,
+  RefreshCw,
+  Search,
+  Send,
+  XCircle,
+} from "lucide-react";
+
+type ListPayload = {
+  rows: HelpSessionRow[];
+  page: number;
+  pageSize: number;
+  total: number;
+  summary: { total: number; active: number; closed: number };
+};
+
+export function CommunicationsHelpPage() {
+  const { toast } = useToast();
+  const [loading, setLoading] = useState(true);
+  const [status, setStatus] = useState("all");
+  const [searchValue, setSearchValue] = useState("");
+  const [page, setPage] = useState(1);
+  const pageSize = 20;
+  const [data, setData] = useState<ListPayload | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [session, setSession] = useState<HelpSessionRow | null>(null);
+  const [messages, setMessages] = useState<HelpMessageRow[]>([]);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [reply, setReply] = useState("");
+  const [sending, setSending] = useState(false);
+  const [closing, setClosing] = useState(false);
+  const bottomRef = useRef<HTMLDivElement | null>(null);
+  const selectedIdRef = useRef<string | null>(null);
+  const openingRef = useRef(false);
+  const statusRef = useRef(status);
+  const searchRef = useRef(searchValue);
+  const pageRef = useRef(page);
+
+  selectedIdRef.current = selectedId;
+  statusRef.current = status;
+  searchRef.current = searchValue;
+  pageRef.current = page;
+
+  const totalPages = Math.max(1, Math.ceil((data?.total ?? 0) / pageSize));
+
+  async function loadList(opts?: {
+    status?: string;
+    q?: string;
+    page?: number;
+    silent?: boolean;
+  }) {
+    if (!opts?.silent) setLoading(true);
+    try {
+      const nextStatus = opts?.status ?? statusRef.current;
+      const nextQ = opts?.q ?? searchRef.current;
+      const nextPage = opts?.page ?? pageRef.current;
+      const params = new URLSearchParams({
+        status: nextStatus,
+        page: String(nextPage),
+        pageSize: String(pageSize),
+      });
+      if (nextQ.trim()) params.set("q", nextQ.trim());
+
+      const res = await fetch(`/api/admin/communications/help?${params.toString()}`);
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Failed to load");
+      setData(json);
+      if (!selectedIdRef.current && json.rows?.[0]?.id) {
+        void openSession(json.rows[0].id, { markRead: true });
+      }
+    } catch (err) {
+      if (!opts?.silent) {
+        toast({
+          title: "Load failed",
+          description: err instanceof Error ? err.message : "Unknown error",
+          variant: "destructive",
+        });
+      }
+    } finally {
+      if (!opts?.silent) setLoading(false);
+    }
+  }
+
+  async function openSession(
+    sessionId: string,
+    opts?: { markRead?: boolean; silent?: boolean }
+  ) {
+    if (openingRef.current && opts?.silent) return;
+    openingRef.current = true;
+    selectedIdRef.current = sessionId;
+    setSelectedId(sessionId);
+    if (!opts?.silent) setDetailLoading(true);
+    try {
+      const qs = opts?.markRead ? "?markRead=1" : "";
+      const res = await fetch(`/api/admin/communications/help/${sessionId}${qs}`);
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Failed to load chat");
+      setSession(json.session);
+      setMessages(json.messages || []);
+      if (opts?.markRead) {
+        setData((prev) =>
+          prev
+            ? {
+                ...prev,
+                rows: prev.rows.map((r) =>
+                  r.id === sessionId ? { ...r, unread_count: 0 } : r
+                ),
+              }
+            : prev
+        );
+      }
+      if (!opts?.silent) {
+        setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: "smooth" }), 50);
+      }
+    } catch (err) {
+      if (!opts?.silent) {
+        toast({
+          title: "Chat load failed",
+          description: err instanceof Error ? err.message : "Unknown error",
+          variant: "destructive",
+        });
+      }
+    } finally {
+      openingRef.current = false;
+      if (!opts?.silent) setDetailLoading(false);
+    }
+  }
+
+  async function sendReply() {
+    if (!selectedId || !reply.trim()) return;
+    setSending(true);
+    try {
+      const res = await fetch(`/api/admin/communications/help/${selectedId}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: reply.trim() }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Send failed");
+      setMessages((prev) => [...prev, json.message as HelpMessageRow]);
+      setReply("");
+      await loadList({ silent: true });
+      setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: "smooth" }), 50);
+    } catch (err) {
+      toast({
+        title: "Reply failed",
+        description: err instanceof Error ? err.message : "Unknown error",
+        variant: "destructive",
+      });
+    } finally {
+      setSending(false);
+    }
+  }
+
+  async function setSessionStatus(next: "active" | "closed") {
+    if (!selectedId) return;
+    setClosing(true);
+    try {
+      const res = await fetch(`/api/admin/communications/help/${selectedId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: next }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Update failed");
+
+      setSession((prev) =>
+        prev
+          ? {
+              ...prev,
+              status: json.session.status,
+              closed_at: json.session.closed_at,
+              updated_at: json.session.updated_at,
+            }
+          : prev
+      );
+
+      // Keep closed threads visible
+      if (statusRef.current === "active" && next === "closed") {
+        setStatus("all");
+        statusRef.current = "all";
+      }
+
+      setData((prev) =>
+        prev
+          ? {
+              ...prev,
+              rows: prev.rows.map((r) =>
+                r.id === selectedId
+                  ? {
+                      ...r,
+                      status: json.session.status,
+                      closed_at: json.session.closed_at,
+                      updated_at: json.session.updated_at,
+                    }
+                  : r
+              ),
+            }
+          : prev
+      );
+
+      toast({
+        title: next === "closed" ? "Conversation closed" : "Conversation reopened",
+        description:
+          next === "closed"
+            ? "Stays in the list as closed. Driver can start a new chat for a new topic."
+            : "Thread is open again for replies.",
+      });
+
+      await loadList({ status: statusRef.current, silent: true });
+    } catch (err) {
+      toast({
+        title: "Update failed",
+        description: err instanceof Error ? err.message : "Unknown error",
+        variant: "destructive",
+      });
+    } finally {
+      setClosing(false);
+    }
+  }
+
+  useEffect(() => {
+    void loadList({ page: 1 });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setPage(1);
+      pageRef.current = 1;
+      void loadList({ q: searchValue, page: 1 });
+    }, 300);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchValue]);
+
+  useCommunicationsHelpRealtime(
+    selectedId,
+    () => {
+      void loadList({ silent: true });
+    },
+    () => {
+      const id = selectedIdRef.current;
+      if (id) void openSession(id, { silent: true, markRead: false });
+    }
+  );
+
+  return (
+    <div className="space-y-0">
+      <div className="[&>div]:px-4 [&>div]:py-4 md:[&>div]:px-8 md:[&>div]:py-5">
+        <PageHeader
+          title="Messages"
+          subtitle="Close keeps history · new driver chat = new conversation"
+          actions={
+            <div className="flex items-center gap-2">
+              <Select
+                value={status}
+                onValueChange={(v) => {
+                  setStatus(v);
+                  statusRef.current = v;
+                  setPage(1);
+                  pageRef.current = 1;
+                  void loadList({ status: v, page: 1 });
+                }}
+              >
+                <SelectTrigger className="h-9 w-[120px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All</SelectItem>
+                  <SelectItem value="active">Open</SelectItem>
+                  <SelectItem value="closed">Closed</SelectItem>
+                </SelectContent>
+              </Select>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-9"
+                onClick={() => {
+                  void loadList();
+                  if (selectedId) void openSession(selectedId, { markRead: false });
+                }}
+                disabled={loading}
+              >
+                <RefreshCw className={`mr-1.5 h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
+                Refresh
+              </Button>
+            </div>
+          }
+        />
+      </div>
+
+      <div className="mx-auto grid max-w-7xl gap-3 px-4 pb-8 pt-3 lg:grid-cols-[320px_minmax(0,1fr)] lg:gap-4 lg:px-8">
+        <section className="overflow-hidden border border-border bg-card">
+          <div className="space-y-2 border-b border-border bg-muted/40 px-3 py-2">
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <MessageSquare className="h-3.5 w-3.5" />
+              <span>{data?.summary.active ?? 0} open</span>
+              <span>·</span>
+              <span>{data?.summary.closed ?? 0} closed</span>
+            </div>
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                className="h-8 pl-8 text-xs"
+                value={searchValue}
+                onChange={(e) => setSearchValue(e.target.value)}
+                placeholder="Search driver, topic, message…"
+              />
+            </div>
+          </div>
+
+          <div className="max-h-[55vh] overflow-y-auto lg:max-h-[calc(100vh-280px)]">
+            {loading && (
+              <div className="px-3 py-8 text-center text-sm text-muted-foreground">
+                Loading…
+              </div>
+            )}
+            {!loading && (data?.rows || []).length === 0 && (
+              <div className="px-3 py-8 text-center text-sm text-muted-foreground">
+                No conversations
+              </div>
+            )}
+            {(data?.rows || []).map((row) => {
+              const active = row.id === selectedId;
+              const unread = Number(row.unread_count) || 0;
+              const isClosed = row.status === "closed";
+              return (
+                <button
+                  key={row.id}
+                  type="button"
+                  onClick={() => void openSession(row.id, { markRead: true })}
+                  className={`w-full border-b border-border px-3 py-2.5 text-left transition-colors ${
+                    active ? "bg-muted/60" : "hover:bg-muted/30"
+                  } ${isClosed ? "opacity-80" : ""}`}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="truncate text-sm font-medium">
+                        {row.driver_name || "Driver"}
+                      </div>
+                      <div className="truncate text-xs text-muted-foreground">
+                        {row.topic || "Driver support"}
+                      </div>
+                    </div>
+                    <div className="flex shrink-0 flex-col items-end gap-1">
+                      {unread > 0 && (
+                        <span className="rounded-full bg-destructive px-1.5 py-0.5 text-[10px] font-medium text-destructive-foreground">
+                          {unread}
+                        </span>
+                      )}
+                      <Badge
+                        variant={isClosed ? "secondary" : "default"}
+                        className="px-1.5 py-0 text-[10px]"
+                      >
+                        {isClosed ? "closed" : "open"}
+                      </Badge>
+                    </div>
+                  </div>
+                  <div className="mt-1 line-clamp-1 text-xs text-muted-foreground">
+                    {row.last_sender_type === "driver" ? "Driver: " : ""}
+                    {row.last_message_preview || "—"}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+
+          {(data?.total ?? 0) > 0 && (
+            <div className="flex items-center justify-between gap-2 border-t border-border px-3 py-2 text-[11px] text-muted-foreground">
+              <span>
+                {(page - 1) * pageSize + 1}–{Math.min(page * pageSize, data?.total ?? 0)} /{" "}
+                {data?.total ?? 0}
+              </span>
+              <div className="flex items-center gap-1">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-7 px-2"
+                  disabled={page <= 1}
+                  onClick={() => {
+                    const p = page - 1;
+                    setPage(p);
+                    pageRef.current = p;
+                    void loadList({ page: p });
+                  }}
+                >
+                  <ChevronLeft className="h-3.5 w-3.5" />
+                </Button>
+                <span>
+                  {page}/{totalPages}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-7 px-2"
+                  disabled={page >= totalPages}
+                  onClick={() => {
+                    const p = page + 1;
+                    setPage(p);
+                    pageRef.current = p;
+                    void loadList({ page: p });
+                  }}
+                >
+                  <ChevronRight className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            </div>
+          )}
+        </section>
+
+        <section className="flex min-h-[60vh] flex-col border border-border bg-card lg:min-h-[calc(100vh-220px)]">
+          {!selectedId && (
+            <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">
+              Select a conversation
+            </div>
+          )}
+          {selectedId && (
+            <>
+              <div className="flex flex-wrap items-start justify-between gap-2 border-b border-border px-3 py-2.5">
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-sm font-semibold">
+                      {session?.driver_name || "Driver"}
+                    </span>
+                    <Badge
+                      variant={session?.status === "closed" ? "secondary" : "default"}
+                      className="text-[10px]"
+                    >
+                      {session?.status === "closed" ? "closed" : "open"}
+                    </Badge>
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    {session?.topic || "Driver support"}
+                    {session?.driver_email ? ` · ${session.driver_email}` : ""}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  {session?.status === "closed" ? (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-8"
+                      disabled={closing}
+                      onClick={() => void setSessionStatus("active")}
+                    >
+                      <CheckCheck className="mr-1.5 h-3.5 w-3.5" />
+                      Reopen
+                    </Button>
+                  ) : (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-8"
+                      disabled={closing}
+                      onClick={() => void setSessionStatus("closed")}
+                    >
+                      <XCircle className="mr-1.5 h-3.5 w-3.5" />
+                      Close
+                    </Button>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex-1 space-y-2.5 overflow-y-auto px-3 py-3">
+                {detailLoading && (
+                  <div className="text-sm text-muted-foreground">Loading messages…</div>
+                )}
+                {!detailLoading &&
+                  messages.map((m) => {
+                    const fromDriver = m.sender_type === "driver";
+                    return (
+                      <div
+                        key={m.id}
+                        className={`flex ${fromDriver ? "justify-start" : "justify-end"}`}
+                      >
+                        <div
+                          className={`max-w-[85%] rounded-lg px-2.5 py-1.5 text-sm sm:max-w-[75%] ${
+                            fromDriver
+                              ? "bg-muted text-foreground"
+                              : "bg-primary text-primary-foreground"
+                          }`}
+                        >
+                          <div className="mb-0.5 text-[10px] uppercase opacity-70">
+                            {m.sender_type}
+                          </div>
+                          {m.message_type === "image" && m.image_url ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={m.image_url}
+                              alt="attachment"
+                              className="mb-1 max-h-48 rounded"
+                            />
+                          ) : null}
+                          <div className="whitespace-pre-wrap">{m.message}</div>
+                          <div className="mt-0.5 text-[10px] opacity-70">
+                            {new Date(m.created_at).toLocaleString()}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                <div ref={bottomRef} />
+              </div>
+
+              <div className="border-t border-border p-3">
+                {session?.status === "closed" ? (
+                  <div className="space-y-1 text-sm text-muted-foreground">
+                    <div>Conversation closed — stays in history.</div>
+                    <div className="text-xs">
+                      Driver: closed chat goes to History. Opening Support again starts a{" "}
+                      <span className="font-medium text-foreground">new</span> conversation
+                      (new topic), without mixing into this one. Reopen here only if you want
+                      to continue <span className="font-medium text-foreground">this</span>{" "}
+                      thread.
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex gap-2">
+                    <Textarea
+                      value={reply}
+                      onChange={(e) => setReply(e.target.value)}
+                      placeholder="Reply as operator…"
+                      rows={2}
+                      className="min-h-[56px] text-sm"
+                    />
+                    <Button
+                      onClick={() => void sendReply()}
+                      disabled={sending || !reply.trim()}
+                      className="self-end"
+                      size="sm"
+                    >
+                      <Send className="h-4 w-4" />
+                    </Button>
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+        </section>
+      </div>
+    </div>
+  );
+}

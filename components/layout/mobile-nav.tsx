@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { X } from "lucide-react";
+import { useMessagesUnreadBadge } from "@/lib/features/communications";
 import { bottomNavItems, navConfig } from "@/lib/nav";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -14,6 +15,7 @@ interface MobileNavProps {
 
 export function MobileNav({ open, onClose }: MobileNavProps) {
   const pathname = usePathname();
+  const { unread } = useMessagesUnreadBadge();
 
   if (!open) return null;
 
@@ -35,13 +37,24 @@ export function MobileNav({ open, onClose }: MobileNavProps) {
         <nav className="flex-1 overflow-y-auto p-3">
           {navConfig.map((group) => (
             <div key={group.title} className="mb-4">
-              <p className="mb-2 px-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                {group.title}
+              <p className="mb-2 flex items-center gap-2 px-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                <span>{group.title}</span>
+                {group.title === "Communications" && unread > 0 && (
+                  <span className="rounded-full bg-destructive px-1.5 py-0.5 text-[10px] font-medium normal-case tracking-normal text-destructive-foreground">
+                    {unread > 99 ? "99+" : unread}
+                  </span>
+                )}
               </p>
               <div className="space-y-1">
                 {group.items.map((item) => {
                   const Icon = item.icon;
                   const isActive = pathname === item.href;
+                  const badge =
+                    item.href === "/communications/messages" && unread > 0
+                      ? unread > 99
+                        ? "99+"
+                        : String(unread)
+                      : item.badge;
                   return (
                     <Link
                       key={item.href}
@@ -55,7 +68,12 @@ export function MobileNav({ open, onClose }: MobileNavProps) {
                       )}
                     >
                       <Icon className="h-4 w-4 shrink-0" />
-                      {item.title}
+                      <span className="flex-1">{item.title}</span>
+                      {badge && (
+                        <span className="rounded-full bg-destructive px-2 py-0.5 text-xs text-destructive-foreground">
+                          {badge}
+                        </span>
+                      )}
                     </Link>
                   );
                 })}

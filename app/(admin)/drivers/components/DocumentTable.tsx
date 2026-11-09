@@ -44,7 +44,10 @@ export function DocumentTable({
     return <p className="p-6 text-sm text-muted-foreground">No documents found</p>;
   }
 
-  const allSelected = documents.length > 0 && selectedIds.length === documents.length;
+  const selectableDocs = documents.filter((d) => !d.id.startsWith("missing-"));
+  const allSelected =
+    selectableDocs.length > 0 &&
+    selectableDocs.every((d) => selectedIds.includes(d.id));
 
   return (
     <div className="overflow-x-auto">
@@ -65,6 +68,7 @@ export function DocumentTable({
               <Checkbox
                 checked={allSelected}
                 onCheckedChange={onToggleSelectAll}
+                disabled={selectableDocs.length === 0}
               />
             </th>
             <th className="p-4 text-center text-sm font-semibold">Preview</th>
@@ -120,7 +124,10 @@ function DocumentRow({
     return new Date(expiryDate) < new Date();
   };
 
+  const isMissing = document.status === "missing" || document.id.startsWith("missing-");
+
   const getStatusBadgeVariant = (status: string, expiryDate: string | null) => {
+    if (isMissing) return "destructive";
     if (isExpired(expiryDate)) return "destructive";
     
     switch (status) {
@@ -130,12 +137,15 @@ function DocumentRow({
         return "outline"; // yellow
       case "rejected":
         return "destructive"; // red
+      case "missing":
+        return "destructive";
       default:
         return "outline";
     }
   };
 
   const getStatusText = (status: string, expiryDate: string | null): string => {
+    if (isMissing) return "missing";
     if (isExpired(expiryDate)) return "expired";
     return status;
   };
@@ -143,7 +153,11 @@ function DocumentRow({
   return (
     <tr className="border-b border-border last:border-0 transition-colors hover:bg-muted/30">
       <td className="p-4 text-center">
-        <Checkbox checked={isSelected} onCheckedChange={onToggleSelect} />
+        {isMissing ? (
+          <span className="text-xs text-muted-foreground">—</span>
+        ) : (
+          <Checkbox checked={isSelected} onCheckedChange={onToggleSelect} />
+        )}
       </td>
       <td className="p-4">
         <div className="flex items-center justify-center">
@@ -221,20 +235,26 @@ function DocumentRow({
       </td>
       <td className="p-4">
         <div className="flex items-center justify-end gap-2">
-          <DocumentActions
-            documentId={document.id}
-            documentStatus={document.status}
-            onView={() => onDocumentAction('view', document.id)}
-            onDownload={() => onDocumentAction('download', document.id)}
-            onReplace={() => onDocumentAction('replace', document.id)}
-            onViewHistory={() => onDocumentAction('history', document.id)}
-            onEditExpiry={() => onDocumentAction('edit-expiry', document.id)}
-            onApprove={onApprove}
-            onReject={onReject}
-            onDelete={() => onDocumentAction('delete', document.id)}
-            disabled={isDownloading === document.id}
-            showDelete={false}
-          />
+          {isMissing ? (
+            <span className="text-xs text-muted-foreground">
+              Waiting for driver upload
+            </span>
+          ) : (
+            <DocumentActions
+              documentId={document.id}
+              documentStatus={document.status}
+              onView={() => onDocumentAction('view', document.id)}
+              onDownload={() => onDocumentAction('download', document.id)}
+              onReplace={() => onDocumentAction('replace', document.id)}
+              onViewHistory={() => onDocumentAction('history', document.id)}
+              onEditExpiry={() => onDocumentAction('edit-expiry', document.id)}
+              onApprove={onApprove}
+              onReject={onReject}
+              onDelete={() => onDocumentAction('delete', document.id)}
+              disabled={isDownloading === document.id}
+              showDelete={false}
+            />
+          )}
         </div>
       </td>
     </tr>

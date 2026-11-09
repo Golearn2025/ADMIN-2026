@@ -8,10 +8,11 @@ import {
     CreditCard,
     DollarSign,
     FileText,
-    Headphones,
     LayoutDashboard,
     LogOut,
     Map,
+    MessagesSquare,
+    MessageSquare,
     Plus,
     Receipt,
     RotateCcw,
@@ -22,6 +23,7 @@ import {
     Users,
     BarChart3,
     Wallet,
+    Zap,
     type LucideIcon
 } from "lucide-react";
 
@@ -167,19 +169,30 @@ export const navConfig: NavGroup[] = [
     ],
   },
   {
-    title: "Tools",
-    icon: Calculator,
+    title: "Communications",
+    icon: MessageSquare,
     items: [
       {
         title: "Notifications",
-        href: "/notifications",
+        href: "/communications/notifications",
         icon: Bell,
       },
       {
-        title: "Support",
-        href: "/support",
-        icon: Headphones,
+        title: "Automations",
+        href: "/communications/automations",
+        icon: Zap,
       },
+      {
+        title: "Messages",
+        href: "/communications/messages",
+        icon: MessagesSquare,
+      },
+    ],
+  },
+  {
+    title: "Tools",
+    icon: Calculator,
+    items: [
       {
         title: "Prices",
         href: "/prices",

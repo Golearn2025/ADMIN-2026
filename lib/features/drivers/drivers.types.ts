@@ -85,7 +85,7 @@ export type VehicleDocument = {
   id: string;
   vehicle_id: string;
   document_type: string;
-  status: "pending" | "approved" | "rejected" | "expired";
+  status: "pending" | "approved" | "rejected" | "expired" | "missing";
   expiry_date: string | null;
   created_at: string;
   uploaded_at?: string;

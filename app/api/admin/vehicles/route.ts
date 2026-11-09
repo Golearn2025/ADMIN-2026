@@ -165,12 +165,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Validate vehicle model exists in admin_driver_vehicles_v4
+    // Validate vehicle model from catalog (not from existing vehicles view)
     const { data: modelCheck, error: modelError } = await supabase
-      .from('admin_driver_vehicles_v4')
-      .select('model_id, category_id')
-      .eq('model_id', model_id)
-      .limit(1)
+      .from("vehicle_model_catalog")
+      .select("id, category_id")
+      .eq("id", model_id)
       .single();
 
     if (modelError || !modelCheck) {
@@ -207,7 +206,7 @@ export async function POST(request: NextRequest) {
         color_id,
         driver_id: driver_id || null,
         category_id: modelCheck.category_id,
-        status: 'available',
+        status: "pending",
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       })

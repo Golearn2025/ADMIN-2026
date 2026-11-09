@@ -46,10 +46,11 @@ interface VehicleFormData {
   allowed_categories: string[];
 }
 
-// Vehicle models from store database
+// Vehicle models from store / catalog
 const VEHICLE_MODELS = [
   { id: 'bmw-7-series', label: 'BMW 7 Series', category_id: 'luxury' },
   { id: 'mercedes-s-class', label: 'Mercedes S Class', category_id: 'luxury' },
+  { id: 'mercedes-eqs', label: 'Mercedes EQS', category_id: 'luxury' },
   { id: 'bmw-5-series', label: 'BMW 5 Series', category_id: 'executive' },
   { id: 'mercedes-e-class', label: 'Mercedes E Class', category_id: 'executive' },
   { id: 'range-rover', label: 'Range Rover', category_id: 'suv' },
@@ -84,6 +85,7 @@ const VALID_YEARS = [currentYear, currentYear - 1, currentYear - 2, currentYear 
 
 const STATUSES = [
   { value: 'active', label: 'Active' },
+  { value: 'pending', label: 'Pending' },
   { value: 'inactive', label: 'Inactive' },
   { value: 'maintenance', label: 'Maintenance' },
   { value: 'suspended', label: 'Suspended' },
@@ -101,7 +103,7 @@ export function VehicleEditModal({
     model_id: vehicle?.model_id || '',
     year: (vehicle?.year && VALID_YEARS.includes(vehicle.year)) ? vehicle.year : currentYear,
     color_id: vehicle?.color_id || '',
-    status: vehicle?.status || 'active',
+    status: vehicle?.status || 'pending',
     status_reason: vehicle?.status_reason || '',
     allowed_categories: vehicle?.allowed_categories || [],
   });
@@ -125,6 +127,11 @@ export function VehicleEditModal({
     e.preventDefault();
     if (!vehicle) return;
 
+    if (!formData.license_plate?.trim() || !formData.model_id || !formData.color_id || !formData.status) {
+      alert("Please fill in model, color, plate, and status");
+      return;
+    }
+
     // Validate year (must be from allowed years - max 3 years old)
     if (!VALID_YEARS.includes(formData.year)) {
       alert(`Year must be between ${VALID_YEARS[VALID_YEARS.length - 1]} and ${VALID_YEARS[0]} (max 3 years old per store rules)`);
@@ -137,7 +144,11 @@ export function VehicleEditModal({
       return;
     }
 
-    await onSave(vehicle.id, formData);
+    await onSave(vehicle.id, {
+      ...formData,
+      license_plate: formData.license_plate.trim().toUpperCase(),
+      allowed_categories: getAllowedCategories(),
+    });
     onOpenChange(false);
   };
 
@@ -179,13 +190,39 @@ export function VehicleEditModal({
 
   if (!vehicle) return null;
 
+  // Keep current DB model/status selectable even if not in hardcoded lists
+  const modelOptions = (() => {
+    const list = [...VEHICLE_MODELS];
+    if (
+      formData.model_id &&
+      !list.some((m) => m.id === formData.model_id)
+    ) {
+      list.unshift({
+        id: formData.model_id,
+        label: vehicle.model_name || formData.model_id,
+        category_id: vehicle.category_id || "executive",
+      });
+    }
+    return list;
+  })();
+  const statusOptions = (() => {
+    const list = [...STATUSES];
+    if (formData.status && !list.some((s) => s.value === formData.status)) {
+      list.unshift({
+        value: formData.status,
+        label: formData.status,
+      });
+    }
+    return list;
+  })();
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Car className="h-5 w-5" />
-            Edit Vehicle - {vehicle.model_name}
+            Edit Vehicle - {vehicle.model_name || vehicle.license_plate}
           </DialogTitle>
         </DialogHeader>
 
@@ -198,14 +235,14 @@ export function VehicleEditModal({
                 Vehicle Model
               </Label>
               <Select
-                value={formData.model_id}
+                value={formData.model_id || undefined}
                 onValueChange={(value) => setFormData(prev => ({ ...prev, model_id: value }))}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Select vehicle model" />
                 </SelectTrigger>
                 <SelectContent>
-                  {VEHICLE_MODELS.map((model) => (
+                  {modelOptions.map((model) => (
                     <SelectItem key={model.id} value={model.id}>
                       <div className="flex items-center gap-2">
                         <span>{model.label}</span>
@@ -269,7 +306,7 @@ export function VehicleEditModal({
                 Color
               </Label>
               <Select
-                value={formData.color_id}
+                value={formData.color_id || undefined}
                 onValueChange={(value) => setFormData(prev => ({ ...prev, color_id: value }))}
               >
                 <SelectTrigger>
@@ -297,14 +334,14 @@ export function VehicleEditModal({
                 Status
               </Label>
               <Select
-                value={formData.status}
+                value={formData.status || undefined}
                 onValueChange={(value) => setFormData(prev => ({ ...prev, status: value }))}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Select status" />
                 </SelectTrigger>
                 <SelectContent>
-                  {STATUSES.map((status) => (
+                  {statusOptions.map((status) => (
                     <SelectItem key={status.value} value={status.value}>
                       {status.label}
                     </SelectItem>

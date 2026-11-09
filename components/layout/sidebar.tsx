@@ -7,6 +7,7 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion";
 import { Button } from "@/components/ui/button";
+import { useMessagesUnreadBadge } from "@/lib/features/communications";
 import { bottomNavItems, navConfig } from "@/lib/nav";
 import { cn } from "@/lib/utils";
 import { useUIStore } from "@/stores/ui-store";
@@ -14,9 +15,17 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
+function navBadgeFor(href: string, unreadMessages: number): string | undefined {
+  if (href === "/communications/messages" && unreadMessages > 0) {
+    return unreadMessages > 99 ? "99+" : String(unreadMessages);
+  }
+  return undefined;
+}
+
 export function Sidebar() {
   const pathname = usePathname();
   const { sidebarCollapsed, toggleSidebar } = useUIStore();
+  const { unread: unreadMessages } = useMessagesUnreadBadge();
 
   return (
     <div
@@ -57,12 +66,13 @@ export function Sidebar() {
                 {group.items.map((item) => {
                   const Icon = item.icon;
                   const isActive = pathname === item.href;
+                  const badge = item.badge || navBadgeFor(item.href, unreadMessages);
                   return (
                     <Link
                       key={item.href}
                       href={item.href}
                       className={cn(
-                        "flex h-10 w-10 items-center justify-center rounded-md transition-colors",
+                        "relative flex h-10 w-10 items-center justify-center rounded-md transition-colors",
                         isActive
                           ? "bg-primary text-primary-foreground"
                           : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
@@ -70,6 +80,11 @@ export function Sidebar() {
                       title={item.title}
                     >
                       <Icon className="h-5 w-5" />
+                      {badge && (
+                        <span className="absolute right-0.5 top-0.5 min-w-[16px] rounded-full bg-destructive px-1 text-center text-[10px] leading-4 text-destructive-foreground">
+                          {badge}
+                        </span>
+                      )}
                     </Link>
                   );
                 })}
@@ -107,12 +122,18 @@ export function Sidebar() {
                       <div className="flex items-center gap-2">
                         {group.icon && <group.icon className="h-5 w-5 flex-shrink-0 text-primary" />}
                         <span>{group.title}</span>
+                        {group.title === "Communications" && unreadMessages > 0 && (
+                          <span className="rounded-full bg-destructive px-1.5 py-0.5 text-[10px] font-medium normal-case tracking-normal text-destructive-foreground">
+                            {unreadMessages > 99 ? "99+" : unreadMessages}
+                          </span>
+                        )}
                       </div>
                     </AccordionTrigger>
                     <AccordionContent className="space-y-1.5 pb-3 pt-1">
                       {group.items.map((item) => {
                         const Icon = item.icon;
                         const isActive = pathname === item.href;
+                        const badge = item.badge || navBadgeFor(item.href, unreadMessages);
                         return (
                           <Link
                             key={item.href}
@@ -126,9 +147,9 @@ export function Sidebar() {
                           >
                             <Icon className="h-5 w-5 flex-shrink-0" />
                             <span className="flex-1">{item.title}</span>
-                            {item.badge && (
-                              <span className="rounded-full bg-primary px-2 py-0.5 text-xs text-primary-foreground">
-                                {item.badge}
+                            {badge && (
+                              <span className="rounded-full bg-destructive px-2 py-0.5 text-xs text-destructive-foreground">
+                                {badge}
                               </span>
                             )}
                           </Link>

@@ -34,6 +34,7 @@ interface AddVehicleData {
 const VEHICLE_MODELS = [
   { id: 'bmw-7-series', label: 'BMW 7 Series', category_id: 'luxury' },
   { id: 'mercedes-s-class', label: 'Mercedes S Class', category_id: 'luxury' },
+  { id: 'mercedes-eqs', label: 'Mercedes EQS', category_id: 'luxury' },
   { id: 'bmw-5-series', label: 'BMW 5 Series', category_id: 'executive' },
   { id: 'mercedes-e-class', label: 'Mercedes E Class', category_id: 'executive' },
   { id: 'range-rover', label: 'Range Rover', category_id: 'suv' },
