@@ -37,7 +37,7 @@ export default function NewJobPage() {
   };
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain bg-background">
       <PageHeader
         title="New Job"
         subtitle="Create a booking manually from admin"
@@ -50,7 +50,7 @@ export default function NewJobPage() {
         }
       />
 
-      <div className="max-w-xl mx-auto px-4 py-6 space-y-5">
+      <div className="mx-auto w-full max-w-xl space-y-5 px-4 py-6 sm:px-6 md:max-w-2xl lg:max-w-3xl lg:px-8">
         <WizardProgress
           steps={STEPS}
           currentStep={step}

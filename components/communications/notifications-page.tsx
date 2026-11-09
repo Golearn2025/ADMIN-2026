@@ -253,8 +253,8 @@ export function CommunicationsNotificationsPage() {
   }
 
   return (
-    <div className="min-h-0 space-y-0">
-      <div className="[&>div]:px-4 [&>div]:py-4 md:[&>div]:px-8 md:[&>div]:py-5">
+    <div className="flex h-[calc(100dvh-4rem)] min-h-0 flex-col overflow-hidden md:h-full">
+      <div className="shrink-0 [&>div]:px-4 [&>div]:py-3 md:[&>div]:px-6 md:[&>div]:py-4">
         <PageHeader
           title="Notifications"
           subtitle="History + send · All / Updates / Documents"
@@ -272,9 +272,9 @@ export function CommunicationsNotificationsPage() {
         />
       </div>
 
-      <div className="mx-auto grid max-w-7xl gap-4 px-4 pb-8 pt-4 lg:grid-cols-[300px_minmax(0,1fr)] lg:gap-5 lg:px-8">
+      <div className="grid min-h-0 flex-1 gap-0 overflow-hidden lg:grid-cols-[minmax(260px,300px)_minmax(0,1fr)]">
         {/* Compose */}
-        <section className="border border-border bg-card lg:sticky lg:top-4 lg:self-start">
+        <section className="flex max-h-[45vh] min-h-0 flex-col overflow-hidden border-b border-border bg-card lg:max-h-none lg:border-b-0 lg:border-r">
           <button
             type="button"
             className="flex w-full items-center justify-between px-3 py-2.5 text-left lg:cursor-default"
@@ -292,7 +292,7 @@ export function CommunicationsNotificationsPage() {
           </button>
 
           <div
-            className={`space-y-3 border-t border-border px-3 pb-3 pt-3 ${
+            className={`min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain border-t border-border px-3 pb-3 pt-3 ${
               composeOpen ? "block" : "hidden lg:block"
             }`}
           >
@@ -403,95 +403,99 @@ export function CommunicationsNotificationsPage() {
         </section>
 
         {/* History */}
-        <section className="min-w-0 space-y-3">
-          <Tabs
-            value={tab}
-            onValueChange={(v) => {
-              const next = v as typeof tab;
-              setTab(next);
-              setPage(1);
-              void loadFeed({ tab: next, page: 1 });
-            }}
-          >
-            <TabsList className="h-auto w-full justify-start gap-4 overflow-x-auto">
-              <TabsTrigger value="all" className="text-xs sm:text-sm">
-                All ({feed?.summary.total ?? 0})
-              </TabsTrigger>
-              <TabsTrigger value="updates" className="text-xs sm:text-sm">
-                Updates ({feed?.summary.updates ?? 0})
-              </TabsTrigger>
-              <TabsTrigger value="documents" className="text-xs sm:text-sm">
-                Documents ({feed?.summary.documents ?? 0})
-              </TabsTrigger>
-            </TabsList>
-          </Tabs>
+        <section className="flex min-h-0 min-w-0 flex-col overflow-hidden">
+          <div className="shrink-0 space-y-3 border-b border-border px-3 py-3 sm:px-4">
+            <Tabs
+              value={tab}
+              onValueChange={(v) => {
+                const next = v as typeof tab;
+                setTab(next);
+                setPage(1);
+                void loadFeed({ tab: next, page: 1 });
+              }}
+            >
+              <TabsList className="h-auto w-full justify-start gap-4 overflow-x-auto">
+                <TabsTrigger value="all" className="text-xs sm:text-sm">
+                  All ({feed?.summary.total ?? 0})
+                </TabsTrigger>
+                <TabsTrigger value="updates" className="text-xs sm:text-sm">
+                  Updates ({feed?.summary.updates ?? 0})
+                </TabsTrigger>
+                <TabsTrigger value="documents" className="text-xs sm:text-sm">
+                  Documents ({feed?.summary.documents ?? 0})
+                </TabsTrigger>
+              </TabsList>
+            </Tabs>
 
-          <div className="relative">
-            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              className="h-9 pl-8 text-sm"
-              value={searchValue}
-              onChange={(e) => setSearchValue(e.target.value)}
-              placeholder="Search driver, title, type…"
-            />
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                className="h-9 pl-8 text-sm"
+                value={searchValue}
+                onChange={(e) => setSearchValue(e.target.value)}
+                placeholder="Search driver, title, type…"
+              />
+            </div>
           </div>
 
-          <div className="overflow-hidden border border-border bg-card">
-            {loading && (
-              <div className="px-3 py-8 text-center text-sm text-muted-foreground">
-                Loading…
-              </div>
-            )}
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-card">
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+              {loading && (
+                <div className="px-3 py-8 text-center text-sm text-muted-foreground">
+                  Loading…
+                </div>
+              )}
 
-            {!loading && (feed?.rows || []).length === 0 && (
-              <div className="px-3 py-8 text-center text-sm text-muted-foreground">
-                No notifications match this filter
-              </div>
-            )}
+              {!loading && (feed?.rows || []).length === 0 && (
+                <div className="px-3 py-8 text-center text-sm text-muted-foreground">
+                  No notifications match this filter
+                </div>
+              )}
 
-            <ul className="divide-y divide-border">
-              {!loading &&
-                (feed?.rows || []).map((row) => (
-                  <li key={row.id}>
-                    <button
-                      type="button"
-                      onClick={() => setSelected(row)}
-                      className="flex w-full flex-col gap-1 px-3 py-2.5 text-left transition-colors hover:bg-muted/40 sm:flex-row sm:items-start sm:justify-between sm:gap-3"
-                    >
-                      <div className="min-w-0 flex-1">
-                        <div className="flex flex-wrap items-center gap-1.5">
-                          <span className="truncate text-sm font-medium leading-tight">
-                            {row.title}
-                          </span>
-                          {statusBadge(row.status)}
-                          <Badge
-                            variant="outline"
-                            className="px-1.5 py-0 text-[10px] font-normal"
-                          >
-                            {row.section}
-                          </Badge>
-                        </div>
-                        <div className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">
-                          {row.body || "—"}
-                        </div>
-                        {row.failure_reason ? (
-                          <div className="mt-0.5 line-clamp-1 text-[11px] text-destructive">
-                            {row.failure_reason}
+              <ul className="divide-y divide-border">
+                {!loading &&
+                  (feed?.rows || []).map((row) => (
+                    <li key={row.id}>
+                      <button
+                        type="button"
+                        onClick={() => setSelected(row)}
+                        className="flex w-full flex-col gap-1 px-3 py-2.5 text-left transition-colors hover:bg-muted/40 sm:flex-row sm:items-start sm:justify-between sm:gap-3"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <span className="truncate text-sm font-medium leading-tight">
+                              {row.title}
+                            </span>
+                            {statusBadge(row.status)}
+                            <Badge
+                              variant="outline"
+                              className="px-1.5 py-0 text-[10px] font-normal"
+                            >
+                              {row.section}
+                            </Badge>
                           </div>
-                        ) : null}
-                      </div>
-                      <div className="shrink-0 text-[11px] text-muted-foreground sm:text-right">
-                        <div>{row.driver_name || "—"}</div>
-                        <div className="font-mono opacity-80">{row.inbox_type}</div>
-                        <div>{formatWhen(row.created_at)}</div>
-                      </div>
-                    </button>
-                  </li>
-                ))}
-            </ul>
+                          <div className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">
+                            {row.body || "—"}
+                          </div>
+                          {row.failure_reason ? (
+                            <div className="mt-0.5 line-clamp-1 text-[11px] text-destructive">
+                              {row.failure_reason}
+                            </div>
+                          ) : null}
+                        </div>
+                        <div className="shrink-0 text-[11px] text-muted-foreground sm:text-right">
+                          <div>{row.driver_name || "—"}</div>
+                          <div className="font-mono opacity-80">{row.inbox_type}</div>
+                          <div>{formatWhen(row.created_at)}</div>
+                        </div>
+                      </button>
+                    </li>
+                  ))}
+              </ul>
+            </div>
 
             {(feed?.total ?? 0) > 0 && (
-              <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border px-3 py-2 text-xs text-muted-foreground">
+              <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-t border-border px-3 py-2 text-xs text-muted-foreground">
                 <div className="flex items-center gap-2">
                   <span>
                     {(page - 1) * pageSize + 1}–

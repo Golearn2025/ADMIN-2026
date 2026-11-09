@@ -81,52 +81,59 @@ export default function BookingsPage() {
   };
 
   return (
-    <div className="space-y-6">
-      <PageHeader
-        title="Bookings"
-        subtitle="Manage all transportation bookings"
-        actions={
-          <Button asChild>
-            <Link href="/jobs/new">
-              <Plus className="h-4 w-4" />
-              New Booking
-            </Link>
-          </Button>
-        }
-      />
-      <div className="px-6">
-        <NextUpStrip
-          bookings={nextUp}
-          soonestUpcomingId={soonestUpcomingId}
-          onSelect={focusBooking}
+    <div className="flex h-[calc(100dvh-4rem)] min-h-0 flex-col overflow-hidden md:h-full">
+      <div className="shrink-0">
+        <PageHeader
+          title="Bookings"
+          subtitle="Manage all transportation bookings"
+          actions={
+            <Button asChild>
+              <Link href="/jobs/new">
+                <Plus className="h-4 w-4" />
+                New Booking
+              </Link>
+            </Button>
+          }
         />
-        <DataTableShell
-          columns={columns}
-          rows={bookings}
-          totalRows={total}
-          isLoading={isLoading}
-          searchValue={searchValue}
-          onSearchChange={(value) => {
-            setSearchValue(value);
-            setPage(1);
-          }}
-          searchPlaceholder="Search reference, customer, driver, email, phone, address or plate..."
-          page={page}
-          pageSize={pageSize}
-          onPageChange={setPage}
-          onPageSizeChange={setPageSize}
-          emptyIcon={Calendar}
-          emptyTitle="No bookings found"
-          emptyDescription="No bookings match your search criteria."
-          getRowCanExpand={() => true}
-          renderExpandedRow={(row) => <BookingExpandedRow booking={row} />}
-          getRowLeadingBarClassName={(row) => {
-            const tier = getBookingOpsTier(row);
-            if (!tier) return undefined;
-            const isSoonest = !!soonestUpcomingId && row.id === soonestUpcomingId;
-            return getBookingOpsTierMeta(tier, { isSoonest }).rowClass;
-          }}
-        />
+      </div>
+      <div className="flex min-h-0 flex-1 flex-col gap-3 px-3 pb-3 pt-3 sm:px-4 md:px-6 md:pb-4">
+        <div className="shrink-0">
+          <NextUpStrip
+            bookings={nextUp}
+            soonestUpcomingId={soonestUpcomingId}
+            onSelect={focusBooking}
+          />
+        </div>
+        <div className="min-h-0 flex-1">
+          <DataTableShell
+            fillHeight
+            columns={columns}
+            rows={bookings}
+            totalRows={total}
+            isLoading={isLoading}
+            searchValue={searchValue}
+            onSearchChange={(value) => {
+              setSearchValue(value);
+              setPage(1);
+            }}
+            searchPlaceholder="Search reference, customer, driver, email, phone, address or plate..."
+            page={page}
+            pageSize={pageSize}
+            onPageChange={setPage}
+            onPageSizeChange={setPageSize}
+            emptyIcon={Calendar}
+            emptyTitle="No bookings found"
+            emptyDescription="No bookings match your search criteria."
+            getRowCanExpand={() => true}
+            renderExpandedRow={(row) => <BookingExpandedRow booking={row} />}
+            getRowLeadingBarClassName={(row) => {
+              const tier = getBookingOpsTier(row);
+              if (!tier) return undefined;
+              const isSoonest = !!soonestUpcomingId && row.id === soonestUpcomingId;
+              return getBookingOpsTierMeta(tier, { isSoonest }).rowClass;
+            }}
+          />
+        </div>
       </div>
     </div>
   );

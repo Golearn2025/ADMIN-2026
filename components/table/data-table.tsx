@@ -83,7 +83,7 @@ export function DataTable<T>({
   return (
     <div className="overflow-x-auto" role="region" aria-label="Data table">
       <table className="w-full" role="table">
-        <thead>
+        <thead className="sticky top-0 z-10">
           <tr className="border-b border-border bg-muted/50" role="row">
             {hasLeadingBarColumn && (
               <th className="booking-ops-bar-cell p-0" scope="col" aria-hidden />
