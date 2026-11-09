@@ -31,7 +31,7 @@ export function NextUpStrip({ bookings, soonestUpcomingId, onSelect }: NextUpStr
   if (!bookings.length) return null;
 
   return (
-    <section className="mb-5 rounded-xl border border-border bg-muted/20 p-4">
+    <section className="rounded-xl border border-border bg-muted/20 p-3 sm:p-4">
       <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
         <div>
           <h2 className="text-sm font-semibold tracking-wide text-foreground">

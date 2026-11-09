@@ -75,7 +75,7 @@ export function DataTableShell<T>({
     <div
       className={cn(
         "flex flex-col rounded-lg border border-border bg-card",
-        fillHeight && "h-full min-h-0 overflow-hidden",
+        fillHeight && "h-full min-h-0 flex-1 overflow-hidden",
         className
       )}
     >
@@ -93,7 +93,7 @@ export function DataTableShell<T>({
         className={cn(
           fillHeight
             ? "min-h-0 flex-1 overflow-auto overscroll-contain"
-            : undefined
+            : "overflow-x-auto"
         )}
       >
         <DataTable
@@ -108,6 +108,7 @@ export function DataTableShell<T>({
           renderExpandedRow={renderExpandedRow}
           getRowClassName={getRowClassName}
           getRowLeadingBarClassName={getRowLeadingBarClassName}
+          embedInScrollParent={fillHeight}
         />
       </div>
 

@@ -253,7 +253,7 @@ export function CommunicationsNotificationsPage() {
   }
 
   return (
-    <div className="flex h-[calc(100dvh-4rem)] min-h-0 flex-col overflow-hidden md:h-full">
+    <div className="flex h-full min-h-0 flex-col overflow-hidden">
       <div className="shrink-0 [&>div]:px-4 [&>div]:py-3 md:[&>div]:px-6 md:[&>div]:py-4">
         <PageHeader
           title="Notifications"

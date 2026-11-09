@@ -1,5 +1,6 @@
 import { EmptyState } from "@/components/common/empty-state";
 import { LoadingSkeleton } from "@/components/common/loading-skeleton";
+import { cn } from "@/lib/utils";
 import { ChevronDown, ChevronRight, LucideIcon } from "lucide-react";
 import { Fragment, useState } from "react";
 
@@ -26,6 +27,11 @@ interface DataTableProps<T> {
   getRowClassName?: (row: T) => string | undefined;
   /** Left edge ops bar (bookings). Rendered in its own cell — animations do not work on `<tr>`. */
   getRowLeadingBarClassName?: (row: T) => string | undefined;
+  /**
+   * When parent already scrolls (fillHeight shell), skip own overflow wrapper —
+   * nested overflow-x-auto forces overflow-y:auto and expands past the viewport.
+   */
+  embedInScrollParent?: boolean;
 }
 
 export function DataTable<T>({
@@ -41,6 +47,7 @@ export function DataTable<T>({
   getRowKey = (_, index) => index,
   getRowClassName,
   getRowLeadingBarClassName,
+  embedInScrollParent = false,
 }: DataTableProps<T>) {
   const [expandedRows, setExpandedRows] = useState<Set<string | number>>(new Set());
 
@@ -81,9 +88,13 @@ export function DataTable<T>({
     columns.length + (hasExpandableRows ? 1 : 0) + (hasLeadingBarColumn ? 1 : 0);
 
   return (
-    <div className="overflow-x-auto" role="region" aria-label="Data table">
+    <div
+      className={cn(embedInScrollParent ? "min-w-0" : "overflow-x-auto")}
+      role="region"
+      aria-label="Data table"
+    >
       <table className="w-full" role="table">
-        <thead className="sticky top-0 z-10">
+        <thead className="sticky top-0 z-10 bg-muted/50">
           <tr className="border-b border-border bg-muted/50" role="row">
             {hasLeadingBarColumn && (
               <th className="booking-ops-bar-cell p-0" scope="col" aria-hidden />

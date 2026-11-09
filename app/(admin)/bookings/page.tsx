@@ -81,7 +81,7 @@ export default function BookingsPage() {
   };
 
   return (
-    <div className="flex h-[calc(100dvh-4rem)] min-h-0 flex-col overflow-hidden md:h-full">
+    <div className="flex h-full min-h-0 flex-col overflow-hidden">
       <div className="shrink-0">
         <PageHeader
           title="Bookings"
@@ -96,7 +96,7 @@ export default function BookingsPage() {
           }
         />
       </div>
-      <div className="flex min-h-0 flex-1 flex-col gap-3 px-3 pb-3 pt-3 sm:px-4 md:px-6 md:pb-4">
+      <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden px-3 pb-3 pt-3 sm:px-4 md:px-6 md:pb-4">
         <div className="shrink-0">
           <NextUpStrip
             bookings={nextUp}
@@ -104,7 +104,7 @@ export default function BookingsPage() {
             onSelect={focusBooking}
           />
         </div>
-        <div className="min-h-0 flex-1">
+        <div className="min-h-0 flex-1 overflow-hidden">
           <DataTableShell
             fillHeight
             columns={columns}
