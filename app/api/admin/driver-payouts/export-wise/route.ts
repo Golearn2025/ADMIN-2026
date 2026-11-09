@@ -98,7 +98,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    const jobs = (data || []) as ExportJobRow[];
+    const jobs = (data || []) as unknown as ExportJobRow[];
     const eligible = jobs.filter(
       (j) =>
         j.has_uk_bank_details &&
