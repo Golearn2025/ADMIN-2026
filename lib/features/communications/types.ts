@@ -160,6 +160,8 @@ export type HelpMessageRow = {
   driver_id: string;
   sender_id: string | null;
   sender_type: "driver" | "operator" | "admin" | string;
+  /** Denormalized at insert — industry chat label for both admin + driver UI */
+  sender_display_name?: string | null;
   message: string;
   message_type: "text" | "image" | "system" | string;
   image_url: string | null;

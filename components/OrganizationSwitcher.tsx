@@ -28,35 +28,31 @@ export const OrganizationSwitcher = memo(function OrganizationSwitcher({
   const [loading, setLoading] = useState(true);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
 
-  // ✅ useCallback WITHOUT dependencies - prevent re-fetch
+  // Light list for topbar — no member emails / Auth Admin N+1
   const fetchOrganizations = useCallback(async () => {
     try {
-      console.log('OrganizationSwitcher: Fetching organizations...');
-      
-      // Add organization header to API calls
       const headers: HeadersInit = {};
       if (currentOrgId) {
-        headers['x-organization-id'] = currentOrgId;
+        headers["x-organization-id"] = currentOrgId;
       }
-      
-      const response = await fetch('/api/admin/organizations', { headers });
+
+      const response = await fetch("/api/admin/organizations?light=1", {
+        headers,
+      });
       const data = await response.json();
-      
-      console.log('OrganizationSwitcher: Response:', { ok: response.ok, data });
-      
+
       if (response.ok) {
         setOrganizations(data.organizations || []);
         setIsSuperAdmin(data.isSuperAdmin || false);
-        console.log('OrganizationSwitcher: Organizations loaded:', data.organizations?.length, 'isSuperAdmin:', data.isSuperAdmin);
       } else {
-        console.error('OrganizationSwitcher: API error:', data.error);
+        console.error("OrganizationSwitcher: API error:", data.error);
       }
     } catch (error) {
-      console.error('OrganizationSwitcher: Fetch error:', error);
+      console.error("OrganizationSwitcher: Fetch error:", error);
     } finally {
       setLoading(false);
     }
-  }, []); // ✅ EMPTY deps - stable function
+  }, []);
 
   // Fetch organizations - ONLY ONCE
   useEffect(() => {
@@ -123,17 +119,21 @@ export const OrganizationSwitcher = memo(function OrganizationSwitcher({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="outline" size="sm" className="min-w-[220px] justify-between">
-          <div className="flex items-center gap-2">
-            <Building2 className="h-4 w-4" />
+        <Button
+          variant="outline"
+          size="sm"
+          className="w-full max-w-full min-w-0 justify-between sm:min-w-[180px] md:min-w-[220px]"
+        >
+          <div className="flex min-w-0 items-center gap-2">
+            <Building2 className="h-4 w-4 shrink-0" />
             <span className="truncate font-medium">
               {currentOrgId === "ALL" ? "All Organizations" : currentOrg ? currentOrg.name : "Select Organization"}
             </span>
           </div>
-          <ChevronDown className="h-4 w-4 ml-2 opacity-50" />
+          <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-[320px]">
+      <DropdownMenuContent align="start" className="w-[min(320px,calc(100vw-2rem))]">
         {/* Header */}
         <div className="px-3 py-2 border-b">
           <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">

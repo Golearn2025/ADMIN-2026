@@ -6,97 +6,129 @@ export async function GET(request: NextRequest) {
   try {
     const supabase = await createClient();
     const { searchParams } = new URL(request.url);
-    const includeDrivers = searchParams.get('includeDrivers') === 'true';
+    const includeDrivers = searchParams.get("includeDrivers") === "true";
+    const hasPagination =
+      searchParams.has("page") || searchParams.has("pageSize");
+    const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10) || 1);
+    const pageSize = Math.min(
+      Math.max(1, parseInt(searchParams.get("pageSize") || "20", 10) || 20),
+      100
+    );
+    const q = (searchParams.get("q") || searchParams.get("search") || "").trim();
+    const offset = (page - 1) * pageSize;
 
-    // Get current user
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
+
     if (!user || authError) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Get current organization from database (backend-controlled)
     const currentOrgId = await getCurrentOrg(supabase, user.id);
 
-    // Check if user is super admin
-    const { data: isSuperAdmin } = await supabase
-      .rpc('get_user_super_admin_status', { user_id: user.id });
+    const { data: isSuperAdmin } = await supabase.rpc(
+      "get_user_super_admin_status",
+      { user_id: user.id }
+    );
 
-    // Base query from VIEW - SINGLE SOURCE OF TRUTH
     let query = supabase
-      .from('admin_driver_vehicles_v4')
-      .select('*');
+      .from("admin_driver_vehicles_v4")
+      .select("*", { count: "exact" });
 
-    // Backend-controlled filtering
-    // Super admin with specific org selected: filter by that org
-    // Super admin with NULL org (ALL): no filter
-    // Normal user: always filter by their org
     if (isSuperAdmin) {
-      // Super admin: filter only if org is selected
       if (currentOrgId) {
         query = query.eq("organization_id", currentOrgId);
       }
-      // If currentOrgId is NULL, no filter (see ALL)
     } else {
-      // Normal user: must have org context
       if (!currentOrgId) {
-        return NextResponse.json({ error: "No organization context found" }, { status: 400 });
+        return NextResponse.json(
+          { error: "No organization context found" },
+          { status: 400 }
+        );
       }
       query = query.eq("organization_id", currentOrgId);
     }
 
-    query = query.order('created_at', { ascending: false });
+    if (q) {
+      const pattern = `%${q.replace(/[%_,]/g, "\\$&")}%`;
+      query = query.ilike("license_plate", pattern);
+    }
 
-    const { data: vehicles, error } = await query;
+    query = query.order("created_at", { ascending: false });
+
+    if (hasPagination) {
+      query = query.range(offset, offset + pageSize - 1);
+    }
+
+    const { data: vehicles, error, count } = await query;
 
     if (error) {
-      console.error('Error fetching vehicles:', error);
-      return NextResponse.json({ error: "Failed to fetch vehicles" }, { status: 500 });
+      console.error("Error fetching vehicles:", error);
+      return NextResponse.json(
+        { error: "Failed to fetch vehicles" },
+        { status: 500 }
+      );
     }
 
     let result = vehicles;
 
-    // If includeDrivers is requested, fetch driver info from VIEW
     if (includeDrivers && vehicles && vehicles.length > 0) {
       const driverIds = vehicles
-        .filter(v => v.driver_id)
-        .map(v => v.driver_id)
+        .filter((v) => v.driver_id)
+        .map((v) => v.driver_id)
         .filter(Boolean);
 
       if (driverIds.length > 0) {
-        // Use admin_drivers_list_v4 for driver info - SINGLE SOURCE OF TRUTH
         let driverQuery = supabase
-          .from('admin_drivers_list_v4')
-          .select('id, first_name, last_name, organization_id')
-          .in('id', driverIds);
+          .from("admin_drivers_list_v4")
+          .select("id, first_name, last_name, organization_id")
+          .in("id", driverIds);
 
-        // Apply organization filter for drivers too (backend-controlled)
         if (isSuperAdmin) {
           if (currentOrgId) {
-            driverQuery = driverQuery.eq('organization_id', currentOrgId);
+            driverQuery = driverQuery.eq("organization_id", currentOrgId);
           }
         } else {
-          driverQuery = driverQuery.eq('organization_id', currentOrgId);
+          driverQuery = driverQuery.eq("organization_id", currentOrgId);
         }
 
         const { data: drivers } = await driverQuery;
 
-        const driverMap: { [key: string]: string } = (drivers || []).reduce((acc: { [key: string]: string }, driver) => {
-          acc[driver.id] = `${driver.first_name} ${driver.last_name}`;
-          return acc;
-        }, {});
+        const driverMap: { [key: string]: string } = (drivers || []).reduce(
+          (acc: { [key: string]: string }, driver) => {
+            acc[driver.id] = `${driver.first_name} ${driver.last_name}`;
+            return acc;
+          },
+          {}
+        );
 
-        result = result.map(vehicle => ({
+        result = result!.map((vehicle) => ({
           ...vehicle,
-          driver_name: vehicle.driver_id ? driverMap[vehicle.driver_id] || 'Unknown Driver' : null
+          driver_name: vehicle.driver_id
+            ? driverMap[vehicle.driver_id] || "Unknown Driver"
+            : null,
         }));
       }
     }
 
+    if (hasPagination) {
+      return NextResponse.json({
+        vehicles: result || [],
+        total: count || 0,
+        page,
+        pageSize,
+      });
+    }
+
     return NextResponse.json({ vehicles: result || [] });
   } catch (error) {
-    console.error('Error in vehicles GET:', error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    console.error("Error in vehicles GET:", error);
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 }
+    );
   }
 }
 

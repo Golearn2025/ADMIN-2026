@@ -16,6 +16,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import {
   useCommunicationsHelpRealtime,
+  useHelpTyping,
   type HelpMessageRow,
   type HelpSessionRow,
 } from "@/lib/features/communications";
@@ -24,10 +25,12 @@ import {
   CheckCheck,
   ChevronLeft,
   ChevronRight,
+  ImagePlus,
   MessageSquare,
   RefreshCw,
   Search,
   Send,
+  X,
   XCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -53,10 +56,14 @@ export function CommunicationsHelpPage() {
   const [messages, setMessages] = useState<HelpMessageRow[]>([]);
   const [detailLoading, setDetailLoading] = useState(false);
   const [reply, setReply] = useState("");
+  const [pendingImage, setPendingImage] = useState<File | null>(null);
+  const [pendingPreview, setPendingPreview] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const [closing, setClosing] = useState(false);
   const bottomRef = useRef<HTMLDivElement | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const selectedIdRef = useRef<string | null>(null);
+  const { driverTyping, notifyTyping, stopTyping } = useHelpTyping(selectedId);
   const openingRef = useRef(false);
   const statusRef = useRef(status);
   const searchRef = useRef(searchValue);
@@ -91,7 +98,8 @@ export function CommunicationsHelpPage() {
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Failed to load");
       setData(json);
-      if (!selectedIdRef.current && json.rows?.[0]?.id) {
+      // Auto-open first thread only on first interactive load — not on silent realtime refresh
+      if (!opts?.silent && !selectedIdRef.current && json.rows?.[0]?.id) {
         void openSession(json.rows[0].id, { markRead: true });
       }
     } catch (err) {
@@ -134,6 +142,9 @@ export function CommunicationsHelpPage() {
               }
             : prev
         );
+        // Sync bell + nav badge with Messages (industry: open = read)
+        window.dispatchEvent(new CustomEvent("admin-messages-refresh"));
+        window.dispatchEvent(new CustomEvent("admin-messages-read"));
       }
       if (!opts?.silent) {
         setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: "smooth" }), 50);
@@ -152,19 +163,46 @@ export function CommunicationsHelpPage() {
     }
   }
 
+  function clearPendingImage() {
+    if (pendingPreview) URL.revokeObjectURL(pendingPreview);
+    setPendingImage(null);
+    setPendingPreview(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  }
+
+  function onPickImage(file: File | null) {
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      toast({ title: "Only images allowed", variant: "destructive" });
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      toast({ title: "Image too large (max 10MB)", variant: "destructive" });
+      return;
+    }
+    if (pendingPreview) URL.revokeObjectURL(pendingPreview);
+    setPendingImage(file);
+    setPendingPreview(URL.createObjectURL(file));
+  }
+
   async function sendReply() {
-    if (!selectedId || !reply.trim()) return;
+    if (!selectedId || (!reply.trim() && !pendingImage)) return;
     setSending(true);
     try {
+      const form = new FormData();
+      if (reply.trim()) form.set("message", reply.trim());
+      if (pendingImage) form.set("file", pendingImage);
+
       const res = await fetch(`/api/admin/communications/help/${selectedId}`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: reply.trim() }),
+        body: form,
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Send failed");
+      stopTyping();
       setMessages((prev) => [...prev, json.message as HelpMessageRow]);
       setReply("");
+      clearPendingImage();
       await loadList({ silent: true });
       setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: "smooth" }), 50);
     } catch (err) {
@@ -176,6 +214,19 @@ export function CommunicationsHelpPage() {
     } finally {
       setSending(false);
     }
+  }
+
+  function onComposerKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      if (!sending) void sendReply();
+    }
+  }
+
+  function senderLabel(m: HelpMessageRow): string {
+    if (m.sender_display_name?.trim()) return m.sender_display_name.trim();
+    if (m.sender_type === "driver") return session?.driver_name || "Driver";
+    return "Support";
   }
 
   async function setSessionStatus(next: "active" | "closed") {
@@ -270,6 +321,18 @@ export function CommunicationsHelpPage() {
       if (id) void openSession(id, { silent: true, markRead: false });
     }
   );
+
+  // Pulse/realtime bridge from topbar alerts — refresh inbox without full page reload
+  useEffect(() => {
+    const onRefresh = () => {
+      void loadList({ silent: true });
+      const id = selectedIdRef.current;
+      if (id) void openSession(id, { silent: true, markRead: false });
+    };
+    window.addEventListener("admin-messages-refresh", onRefresh);
+    return () => window.removeEventListener("admin-messages-refresh", onRefresh);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden">
@@ -517,6 +580,11 @@ export function CommunicationsHelpPage() {
                 {!detailLoading &&
                   messages.map((m) => {
                     const fromDriver = m.sender_type === "driver";
+                    const caption =
+                      m.message_type === "image" &&
+                      (m.message === "📷 Photo" || !m.message.trim())
+                        ? null
+                        : m.message;
                     return (
                       <div
                         key={m.id}
@@ -529,18 +597,22 @@ export function CommunicationsHelpPage() {
                               : "bg-primary text-primary-foreground"
                           }`}
                         >
-                          <div className="mb-0.5 text-[10px] uppercase opacity-70">
-                            {m.sender_type}
+                          <div className="mb-0.5 text-[11px] font-medium opacity-80">
+                            {senderLabel(m)}
                           </div>
-                          {m.message_type === "image" && m.image_url ? (
+                          {m.image_url ? (
                             // eslint-disable-next-line @next/next/no-img-element
-                            <img
-                              src={m.image_url}
-                              alt="attachment"
-                              className="mb-1 max-h-48 rounded"
-                            />
+                            <a href={m.image_url} target="_blank" rel="noreferrer">
+                              <img
+                                src={m.image_url}
+                                alt="attachment"
+                                className="mb-1 max-h-52 rounded object-cover"
+                              />
+                            </a>
                           ) : null}
-                          <div className="whitespace-pre-wrap">{m.message}</div>
+                          {caption ? (
+                            <div className="whitespace-pre-wrap">{caption}</div>
+                          ) : null}
                           <div className="mt-0.5 text-[10px] opacity-70">
                             {new Date(m.created_at).toLocaleString()}
                           </div>
@@ -549,6 +621,11 @@ export function CommunicationsHelpPage() {
                     );
                   })}
                 <div ref={bottomRef} />
+                {driverTyping && (
+                  <div className="px-1 pt-1 text-xs italic text-muted-foreground">
+                    {session?.driver_name || "Driver"} is typing…
+                  </div>
+                )}
               </div>
 
               <div className="shrink-0 border-t border-border p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
@@ -564,22 +641,70 @@ export function CommunicationsHelpPage() {
                     </div>
                   </div>
                 ) : (
-                  <div className="flex gap-2">
-                    <Textarea
-                      value={reply}
-                      onChange={(e) => setReply(e.target.value)}
-                      placeholder="Reply as operator…"
-                      rows={2}
-                      className="min-h-[56px] text-sm"
-                    />
-                    <Button
-                      onClick={() => void sendReply()}
-                      disabled={sending || !reply.trim()}
-                      className="self-end"
-                      size="sm"
-                    >
-                      <Send className="h-4 w-4" />
-                    </Button>
+                  <div className="space-y-2">
+                    {pendingPreview && (
+                      <div className="relative inline-block">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={pendingPreview}
+                          alt="Pending"
+                          className="h-20 rounded border border-border object-cover"
+                        />
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          size="icon"
+                          className="absolute -right-2 -top-2 h-6 w-6 rounded-full"
+                          onClick={clearPendingImage}
+                          aria-label="Remove image"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    )}
+                    <div className="flex gap-2">
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={(e) =>
+                          onPickImage(e.target.files?.[0] || null)
+                        }
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-9 shrink-0 self-end"
+                        disabled={sending}
+                        onClick={() => fileInputRef.current?.click()}
+                        aria-label="Attach photo"
+                      >
+                        <ImagePlus className="h-4 w-4" />
+                      </Button>
+                      <Textarea
+                        value={reply}
+                        onChange={(e) => {
+                          setReply(e.target.value);
+                          if (e.target.value.trim()) notifyTyping();
+                          else stopTyping();
+                        }}
+                        onBlur={() => stopTyping()}
+                        onKeyDown={onComposerKeyDown}
+                        placeholder="Reply… (Enter to send · Shift+Enter new line)"
+                        rows={2}
+                        className="min-h-[56px] text-sm"
+                      />
+                      <Button
+                        onClick={() => void sendReply()}
+                        disabled={sending || (!reply.trim() && !pendingImage)}
+                        className="self-end"
+                        size="sm"
+                      >
+                        <Send className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </div>
                 )}
               </div>

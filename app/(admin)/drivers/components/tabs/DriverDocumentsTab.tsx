@@ -7,6 +7,7 @@ import { AlertCircle, User as UserIcon, Car as CarIcon, Camera } from "lucide-re
 import { BulkActionsBar } from "../BulkActionsBar";
 import { InlineRejectPanel } from "../InlineRejectPanel";
 import { DocumentTable } from "../DocumentTable";
+import { ProfilePhotoCard } from "../ProfilePhotoCard";
 import { downloadFile } from "@/lib/utils/downloadFile";
 import type { DriverDocument, VehicleDocument } from "@/lib/features/drivers/drivers.types";
 import {
@@ -431,17 +432,69 @@ export function DriverDocumentsTab({
     }
   };
 
-  const handleDeleteDocument = (docId: string) => {
-    console.log('🗑️ Delete document:', docId);
-    // TODO: Show confirmation dialog and delete
-    // Example:
-    // if (confirm('Are you sure you want to delete this document?')) {
-    //   await deleteDocument(docId);
-    //   onRefresh();
-    // }
+  const handleDeleteDocument = async (docId: string) => {
+    if (docId.startsWith("missing-")) return;
+    if (!confirm("Delete this document?")) return;
+    const isDriverDoc = driverDocuments.some((d) => d.id === docId);
+    try {
+      const res = await fetch("/api/admin/documents", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          document_ids: [docId],
+          document_type: isDriverDoc ? "driver" : "vehicle",
+        }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        toast({
+          title: "Delete failed",
+          description: data.error || "Could not delete document",
+          variant: "destructive",
+        });
+        return;
+      }
+      onRefresh();
+    } catch {
+      toast({
+        title: "Delete failed",
+        description: "Network error",
+        variant: "destructive",
+      });
+    }
   };
 
-  // ✅ NO MORE FAKE PROFILE PHOTO HANDLERS - use real DB data only
+  const handleApproveProfilePhoto = async () => {
+    setIsPhotoProcessing(true);
+    try {
+      const res = await fetch(
+        `/api/admin/drivers/${driverId}/profile-photo/approve`,
+        { method: "POST" }
+      );
+      if (!res.ok) throw new Error("approve failed");
+      onRefresh();
+    } finally {
+      setIsPhotoProcessing(false);
+    }
+  };
+
+  const handleRejectProfilePhoto = async (reason: string) => {
+    setIsPhotoProcessing(true);
+    try {
+      const res = await fetch(
+        `/api/admin/drivers/${driverId}/profile-photo/reject`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ reason }),
+        }
+      );
+      if (!res.ok) throw new Error("reject failed");
+      onRefresh();
+    } finally {
+      setIsPhotoProcessing(false);
+    }
+  };
 
   return (
     <div className="space-y-8">
@@ -482,7 +535,20 @@ export function DriverDocumentsTab({
           </div>
         </div>
 
-        <div className="rounded-lg border border-border bg-card">
+        <ProfilePhotoCard
+          driverId={driverId}
+          photoUrl={profilePhotoUrl}
+          status={profilePhotoStatus}
+          reviewedBy={profilePhotoReviewedBy}
+          reviewedAt={profilePhotoReviewedAt}
+          rejectionReason={profilePhotoRejectionReason}
+          onApprove={handleApproveProfilePhoto}
+          onReject={handleRejectProfilePhoto}
+          onPhotoChange={onRefresh}
+          isProcessing={isPhotoProcessing}
+        />
+
+        <div className="rounded-lg border border-border bg-card overflow-x-auto">
           <DocumentTable
             documents={driverDocuments}
             selectedIds={bulkActions.selectedDocuments}

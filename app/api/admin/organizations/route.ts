@@ -47,11 +47,35 @@ async function getMembersByOrg(
   return byOrg;
 }
 
+/** Counts only — for topbar switcher (no Auth Admin N+1). */
+async function getMemberCountsByOrg(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  orgIds: string[]
+): Promise<Map<string, number>> {
+  const counts = new Map<string, number>();
+  if (!orgIds.length) return counts;
+
+  const admin = createAdminClient();
+  const { data: rows, error } = await (admin ?? supabase)
+    .from("organization_members")
+    .select("organization_id")
+    .in("organization_id", orgIds);
+
+  if (error) {
+    console.error("Error fetching organization member counts:", error);
+    return counts;
+  }
+
+  for (const row of rows || []) {
+    counts.set(row.organization_id, (counts.get(row.organization_id) || 0) + 1);
+  }
+  return counts;
+}
+
 export async function GET(request: NextRequest) {
   try {
     const { orgId, hasAccess, isSuperAdmin } = await getUserRole();
-
-    console.log('API: getUserRole result:', { orgId, hasAccess, isSuperAdmin });
+    const light = request.nextUrl.searchParams.get("light") === "1";
 
     if (!hasAccess) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -59,33 +83,54 @@ export async function GET(request: NextRequest) {
 
     const supabase = await createClient();
 
-    if (isSuperAdmin) {
-      console.log('🔍 SUPER ADMIN - Fetching ALL organizations...');
-      
-      // Super Admin can see all organizations - first get orgs without member restriction
-      const { data: organizations, error } = await supabase
-        .from('organizations')
-        .select('*')
-        .eq('is_active', true)
-        .order('created_at', { ascending: false });
+    const LIGHT_ORG_COLS =
+      "id, name, org_type, is_active, is_default, created_at" as const;
 
-      console.log('🔍 Organizations query result:', {
-        count: organizations?.length,
-        orgs: organizations?.map(o => ({ id: o.id, name: o.name })),
-        error
-      });
+    if (isSuperAdmin) {
+      const orgQuery = light
+        ? supabase
+            .from("organizations")
+            .select(LIGHT_ORG_COLS)
+            .eq("is_active", true)
+            .order("created_at", { ascending: false })
+        : supabase
+            .from("organizations")
+            .select("*")
+            .eq("is_active", true)
+            .order("created_at", { ascending: false });
+
+      const { data: organizations, error } = await orgQuery;
 
       if (error) {
-        console.error('Error fetching organizations:', error);
+        console.error("Error fetching organizations:", error);
         return NextResponse.json({ error: "Failed to fetch organizations" }, { status: 500 });
+      }
+
+      const orgs = organizations || [];
+
+      if (light) {
+        const counts = await getMemberCountsByOrg(
+          supabase,
+          orgs.map((org) => org.id)
+        );
+        return NextResponse.json({
+          organizations: orgs.map((org) => ({
+            ...org,
+            members: [],
+            organization_members: [],
+            member_count: counts.get(org.id) || 0,
+          })),
+          isSuperAdmin: true,
+          light: true,
+        });
       }
 
       const membersByOrg = await getMembersByOrg(
         supabase,
-        organizations.map((org) => org.id)
+        orgs.map((org) => org.id)
       );
 
-      const orgsWithMembers = organizations.map((org) => {
+      const orgsWithMembers = orgs.map((org) => {
         const members = membersByOrg.get(org.id) ?? [];
         return {
           ...org,
@@ -95,36 +140,65 @@ export async function GET(request: NextRequest) {
         };
       });
 
-      return NextResponse.json({ 
+      return NextResponse.json({
         organizations: orgsWithMembers,
-        isSuperAdmin: true 
-      });
-    } else {
-      // Regular users see only their organization
-      if (!orgId) {
-        return NextResponse.json({ error: "No organization context" }, { status: 400 });
-      }
-
-      const { data: organization, error } = await supabase
-        .from('organizations')
-        .select('*')
-        .eq('id', orgId)
-        .single();
-
-      if (error) {
-        console.error('Error fetching organization:', error);
-        return NextResponse.json({ error: "Failed to fetch organization" }, { status: 500 });
-      }
-
-      const members = (await getMembersByOrg(supabase, [organization.id])).get(organization.id) ?? [];
-
-      return NextResponse.json({ 
-        organizations: [{ ...organization, members, organization_members: members, member_count: members.length }],
-        isSuperAdmin: false 
+        isSuperAdmin: true,
       });
     }
+
+    // Regular users see only their organization
+    if (!orgId) {
+      return NextResponse.json({ error: "No organization context" }, { status: 400 });
+    }
+
+    const singleQuery = light
+      ? supabase
+          .from("organizations")
+          .select(LIGHT_ORG_COLS)
+          .eq("id", orgId)
+          .single()
+      : supabase.from("organizations").select("*").eq("id", orgId).single();
+
+    const { data: organization, error } = await singleQuery;
+
+    if (error) {
+      console.error("Error fetching organization:", error);
+      return NextResponse.json({ error: "Failed to fetch organization" }, { status: 500 });
+    }
+
+    if (light) {
+      const counts = await getMemberCountsByOrg(supabase, [organization.id]);
+      return NextResponse.json({
+        organizations: [
+          {
+            ...organization,
+            members: [],
+            organization_members: [],
+            member_count: counts.get(organization.id) || 0,
+          },
+        ],
+        isSuperAdmin: false,
+        light: true,
+      });
+    }
+
+    const members =
+      (await getMembersByOrg(supabase, [organization.id])).get(organization.id) ??
+      [];
+
+    return NextResponse.json({
+      organizations: [
+        {
+          ...organization,
+          members,
+          organization_members: members,
+          member_count: members.length,
+        },
+      ],
+      isSuperAdmin: false,
+    });
   } catch (error) {
-    console.error('Error in organizations GET:', error);
+    console.error("Error in organizations GET:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }

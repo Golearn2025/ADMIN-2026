@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { RefreshCw } from "lucide-react";
+import { fetchDedupe } from "@/lib/http/fetch-dedupe";
 
 type OrgEarnings = {
   organization_id: string;
@@ -45,7 +46,7 @@ export function DashboardEarningsPanel() {
     (async () => {
       setLoading(true);
       try {
-        const res = await fetch("/api/admin/analytics/earnings");
+        const res = await fetchDedupe("/api/admin/analytics/earnings");
         if (res.ok) {
           const json = await res.json();
           if (!cancelled) setData(json);

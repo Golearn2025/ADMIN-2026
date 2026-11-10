@@ -15,13 +15,19 @@ function emit() {
   listeners.forEach((l) => l());
 }
 
+function setUnread(next: number) {
+  const value = Number(next) || 0;
+  if (value === unreadCount) return;
+  unreadCount = value;
+  emit();
+}
+
 async function fetchUnread() {
   try {
     const res = await fetch("/api/admin/communications/messages/unread");
     const json = await res.json();
     if (res.ok) {
-      unreadCount = Number(json.unread) || 0;
-      emit();
+      setUnread(Number(json.unread) || 0);
     }
   } catch {
     // ignore badge errors
@@ -82,6 +88,21 @@ export function useMessagesUnreadBadge() {
   useEffect(() => {
     setReady(true);
     ensureSubscription();
+    const onRefresh = () => {
+      void fetchUnread();
+    };
+    const onSync = (event: Event) => {
+      const detail = (event as CustomEvent<{ unread?: number }>).detail;
+      if (detail && typeof detail.unread === "number") {
+        setUnread(detail.unread);
+      }
+    };
+    window.addEventListener("admin-messages-refresh", onRefresh);
+    window.addEventListener("admin-unread-sync", onSync);
+    return () => {
+      window.removeEventListener("admin-messages-refresh", onRefresh);
+      window.removeEventListener("admin-unread-sync", onSync);
+    };
   }, []);
 
   return {

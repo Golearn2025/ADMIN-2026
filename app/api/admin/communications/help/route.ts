@@ -1,12 +1,30 @@
 /**
  * GET /api/admin/communications/help
- * SSOT: admin_driver_help_sessions_v1 — search + pagination (max 20)
+ * SSOT: admin_driver_help_sessions_v1 (thin — stats denormalized on live_chat_sessions)
  */
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getCurrentOrg } from "@/lib/auth/org";
 import type { HelpSessionRow } from "@/lib/features/communications";
+
+const LIST_COLUMNS = [
+  "id",
+  "organization_id",
+  "driver_id",
+  "driver_name",
+  "driver_email",
+  "driver_phone",
+  "topic",
+  "status",
+  "started_at",
+  "closed_at",
+  "updated_at",
+  "message_count",
+  "unread_count",
+  "last_message_preview",
+  "last_sender_type",
+].join(",");
 
 export async function GET(req: NextRequest) {
   try {
@@ -41,7 +59,7 @@ export async function GET(req: NextRequest) {
 
     let query = admin
       .from("admin_driver_help_sessions_v1")
-      .select("*", { count: "exact" })
+      .select(LIST_COLUMNS, { count: "exact" })
       .eq("organization_id", orgId)
       .order("updated_at", { ascending: false })
       .range(from, to);
@@ -57,38 +75,38 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    const { data, error, count } = await query;
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+    // Summary counts hit base table (indexed) — not the view 3x
+    const [listResult, activeHead, closedHead, totalHead] = await Promise.all([
+      query,
+      admin
+        .from("live_chat_sessions")
+        .select("id", { count: "exact", head: true })
+        .eq("organization_id", orgId)
+        .eq("status", "active"),
+      admin
+        .from("live_chat_sessions")
+        .select("id", { count: "exact", head: true })
+        .eq("organization_id", orgId)
+        .eq("status", "closed"),
+      admin
+        .from("live_chat_sessions")
+        .select("id", { count: "exact", head: true })
+        .eq("organization_id", orgId),
+    ]);
+
+    if (listResult.error) {
+      return NextResponse.json({ error: listResult.error.message }, { status: 500 });
     }
 
-    const [{ count: activeCount }, { count: closedCount }, { count: totalCount }] =
-      await Promise.all([
-        admin
-          .from("admin_driver_help_sessions_v1")
-          .select("id", { count: "exact", head: true })
-          .eq("organization_id", orgId)
-          .eq("status", "active"),
-        admin
-          .from("admin_driver_help_sessions_v1")
-          .select("id", { count: "exact", head: true })
-          .eq("organization_id", orgId)
-          .eq("status", "closed"),
-        admin
-          .from("admin_driver_help_sessions_v1")
-          .select("id", { count: "exact", head: true })
-          .eq("organization_id", orgId),
-      ]);
-
     return NextResponse.json({
-      rows: (data || []) as HelpSessionRow[],
+      rows: (listResult.data || []) as unknown as HelpSessionRow[],
       page,
       pageSize,
-      total: count ?? 0,
+      total: listResult.count ?? 0,
       summary: {
-        total: totalCount ?? 0,
-        active: activeCount ?? 0,
-        closed: closedCount ?? 0,
+        total: totalHead.count ?? 0,
+        active: activeHead.count ?? 0,
+        closed: closedHead.count ?? 0,
       },
     });
   } catch (err) {

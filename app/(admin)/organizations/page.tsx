@@ -1,125 +1,118 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { Building2, Plus, Users, Settings, Trash2 } from "lucide-react";
+import { useDeferredValue, useEffect, useMemo, useState } from "react";
+import { Building2, Plus, Settings, Users } from "lucide-react";
 import { PageHeader } from "@/components/common";
+import { DataTableShell } from "@/components/table";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { OrganizationsTable } from "./components/OrganizationsTable";
+import { Card, CardContent } from "@/components/ui/card";
 import { AddOrganizationModal } from "./components/AddOrganizationModal";
-
-interface Organization {
-  id: string;
-  name: string;
-  org_type: string;
-  is_active: boolean;
-  is_default: boolean;
-  created_at: string;
-  members: Array<{
-    user_id: string;
-    role: string;
-    auth_users: {
-      email: string;
-    };
-  }>;
-  member_count: number;
-}
+import {
+  createColumns,
+  type Organization,
+} from "./organizations.columns";
 
 export default function OrganizationsPage() {
   const [organizations, setOrganizations] = useState<Organization[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(true);
   const [addModalOpen, setAddModalOpen] = useState(false);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
 
-  // Fetch organizations
+  const [searchValue, setSearchValue] = useState("");
+  const debouncedSearch = useDeferredValue(searchValue);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
+
   const fetchOrganizations = async () => {
+    setIsLoading(true);
     try {
-      console.log('OrganizationsPage: Fetching organizations...');
-      const response = await fetch('/api/admin/organizations');
+      const response = await fetch("/api/admin/organizations");
       const data = await response.json();
-      
-      console.log('OrganizationsPage: Response:', { ok: response.ok, data });
-      
+
       if (response.ok) {
         setOrganizations(data.organizations || []);
         setIsSuperAdmin(data.isSuperAdmin || false);
-        console.log('OrganizationsPage: Loaded', data.organizations?.length, 'organizations, isSuperAdmin:', data.isSuperAdmin);
       } else {
-        console.error('OrganizationsPage: Error:', data.error);
-        alert('Failed to fetch organizations: ' + (data.error || 'Unknown error'));
+        console.error("Failed to fetch organizations:", data.error);
       }
     } catch (error) {
-      console.error('OrganizationsPage: Fetch error:', error);
-      alert('Error fetching organizations');
+      console.error("Error fetching organizations:", error);
     } finally {
-      setLoading(false);
+      setIsLoading(false);
     }
   };
-
-  // Handle add organization
-  const handleAddOrganization = (orgData: any) => {
-    setAddModalOpen(false);
-    fetchOrganizations(); // Refresh list
-  };
-
-  // Calculate statistics
-  const totalOrgs = organizations.length;
-  const activeOrgs = organizations.filter(org => org.is_active).length;
-  const totalMembers = organizations.reduce((sum, org) => sum + (Number(org.member_count) || 0), 0);
-  const orgTypes = [...new Set(organizations.map(org => org.org_type))];
 
   useEffect(() => {
     fetchOrganizations();
   }, []);
 
-  if (loading) {
-    return (
-      <div>
-        <PageHeader
-          title="Organizations"
-          subtitle="Manage organization settings and structure"
-          actions={
-            <Button size="sm" onClick={() => setAddModalOpen(true)}>
-              <Plus className="h-4 w-4 mr-2" />
-              Add Organization
-            </Button>
-          }
-        />
-        <div className="flex items-center justify-center py-12">
-          <Building2 className="h-8 w-8 animate-spin text-muted-foreground" />
-        </div>
-      </div>
+  useEffect(() => {
+    setPage(1);
+  }, [debouncedSearch]);
+
+  const totalOrgs = organizations.length;
+  const activeOrgs = organizations.filter((org) => org.is_active).length;
+  const totalMembers = organizations.reduce(
+    (sum, org) => sum + (Number(org.member_count) || 0),
+    0
+  );
+  const orgTypes = [...new Set(organizations.map((org) => org.org_type))];
+
+  const filteredOrganizations = useMemo(() => {
+    const q = debouncedSearch.trim().toLowerCase();
+    if (!q) return organizations;
+    return organizations.filter(
+      (org) =>
+        org.name.toLowerCase().includes(q) ||
+        org.org_type.toLowerCase().includes(q) ||
+        org.members.some((m) =>
+          m.auth_users?.email?.toLowerCase().includes(q)
+        )
     );
-  }
+  }, [organizations, debouncedSearch]);
+
+  const pagedOrganizations = useMemo(() => {
+    const start = (page - 1) * pageSize;
+    return filteredOrganizations.slice(start, start + pageSize);
+  }, [filteredOrganizations, page, pageSize]);
+
+  const columns = createColumns({
+    isSuperAdmin,
+    onView: (org) => alert(`View ${org.name} details coming soon`),
+    onEdit: (org) => alert(`Edit ${org.name} coming soon`),
+    onDelete: (org) => {
+      if (confirm(`Are you sure you want to delete ${org.name}?`)) {
+        alert(`Delete ${org.name} coming soon`);
+      }
+    },
+  });
 
   return (
-    <div>
+    <div className="space-y-6">
       <PageHeader
         title="Organizations"
         subtitle="Manage organization settings and structure"
         actions={
           <Button size="sm" onClick={() => setAddModalOpen(true)}>
-            <Plus className="h-4 w-4 mr-2" />
+            <Plus className="mr-2 h-4 w-4" />
             Add Organization
           </Button>
         }
       />
 
-      <div className="space-y-4 md:space-y-6">
-        {/* Statistics Cards */}
-        <div className="grid gap-3 grid-cols-2 md:grid-cols-2 lg:grid-cols-4">
+      <div className="space-y-4 px-3 sm:px-4 md:px-6 md:space-y-6">
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-2 lg:grid-cols-4">
           <Card>
             <CardContent className="p-4 md:p-6">
-              <div className="text-center space-y-1 md:space-y-2">
+              <div className="space-y-1 text-center md:space-y-2">
                 <div className="flex justify-center">
-                  <Building2 className="h-6 w-6 md:h-8 md:w-8 text-primary" />
+                  <Building2 className="h-6 w-6 text-primary md:h-8 md:w-8" />
                 </div>
                 <div>
-                  <p className="text-xs md:text-sm font-medium text-muted-foreground">
+                  <p className="text-xs font-medium text-muted-foreground md:text-sm">
                     Total Organizations
                   </p>
-                  <p className="text-2xl md:text-3xl font-bold">{totalOrgs}</p>
+                  <p className="text-2xl font-bold md:text-3xl">{totalOrgs}</p>
                   <p className="text-xs text-muted-foreground">registered</p>
                 </div>
               </div>
@@ -128,15 +121,17 @@ export default function OrganizationsPage() {
 
           <Card>
             <CardContent className="p-4 md:p-6">
-              <div className="text-center space-y-1 md:space-y-2">
+              <div className="space-y-1 text-center md:space-y-2">
                 <div className="flex justify-center">
-                  <Settings className="h-6 w-6 md:h-8 md:w-8 text-green-500" />
+                  <Settings className="h-6 w-6 text-green-500 md:h-8 md:w-8" />
                 </div>
                 <div>
-                  <p className="text-xs md:text-sm font-medium text-muted-foreground">
+                  <p className="text-xs font-medium text-muted-foreground md:text-sm">
                     Active
                   </p>
-                  <p className="text-2xl md:text-3xl font-bold text-green-500">{activeOrgs}</p>
+                  <p className="text-2xl font-bold text-green-500 md:text-3xl">
+                    {activeOrgs}
+                  </p>
                   <p className="text-xs text-muted-foreground">organizations</p>
                 </div>
               </div>
@@ -145,15 +140,17 @@ export default function OrganizationsPage() {
 
           <Card>
             <CardContent className="p-4 md:p-6">
-              <div className="text-center space-y-1 md:space-y-2">
+              <div className="space-y-1 text-center md:space-y-2">
                 <div className="flex justify-center">
-                  <Users className="h-6 w-6 md:h-8 md:w-8 text-blue-500" />
+                  <Users className="h-6 w-6 text-blue-500 md:h-8 md:w-8" />
                 </div>
                 <div>
-                  <p className="text-xs md:text-sm font-medium text-muted-foreground">
+                  <p className="text-xs font-medium text-muted-foreground md:text-sm">
                     Total Members
                   </p>
-                  <p className="text-2xl md:text-3xl font-bold text-blue-500">{totalMembers}</p>
+                  <p className="text-2xl font-bold text-blue-500 md:text-3xl">
+                    {totalMembers}
+                  </p>
                   <p className="text-xs text-muted-foreground">users</p>
                 </div>
               </div>
@@ -162,15 +159,17 @@ export default function OrganizationsPage() {
 
           <Card>
             <CardContent className="p-4 md:p-6">
-              <div className="text-center space-y-1 md:space-y-2">
+              <div className="space-y-1 text-center md:space-y-2">
                 <div className="flex justify-center">
-                  <Building2 className="h-6 w-6 md:h-8 md:w-8 text-purple-500" />
+                  <Building2 className="h-6 w-6 text-purple-500 md:h-8 md:w-8" />
                 </div>
                 <div>
-                  <p className="text-xs md:text-sm font-medium text-muted-foreground">
+                  <p className="text-xs font-medium text-muted-foreground md:text-sm">
                     Organization Types
                   </p>
-                  <p className="text-2xl md:text-3xl font-bold text-purple-500">{orgTypes.length}</p>
+                  <p className="text-2xl font-bold text-purple-500 md:text-3xl">
+                    {orgTypes.length}
+                  </p>
                   <p className="text-xs text-muted-foreground">types</p>
                 </div>
               </div>
@@ -178,19 +177,34 @@ export default function OrganizationsPage() {
           </Card>
         </div>
 
-        {/* Organizations Table */}
-        <OrganizationsTable 
-          organizations={organizations}
-          onRefresh={fetchOrganizations}
-          isSuperAdmin={isSuperAdmin}
+        <DataTableShell
+          columns={columns}
+          rows={pagedOrganizations}
+          totalRows={filteredOrganizations.length}
+          isLoading={isLoading}
+          searchValue={searchValue}
+          onSearchChange={setSearchValue}
+          searchPlaceholder="Search by name or member email..."
+          page={page}
+          pageSize={pageSize}
+          onPageChange={setPage}
+          onPageSizeChange={(size) => {
+            setPageSize(size);
+            setPage(1);
+          }}
+          emptyIcon={Building2}
+          emptyTitle="No organizations found"
+          emptyDescription="No organizations match your search criteria."
         />
       </div>
 
-      {/* Add Organization Modal */}
       <AddOrganizationModal
         open={addModalOpen}
         onOpenChange={setAddModalOpen}
-        onSuccess={handleAddOrganization}
+        onSuccess={() => {
+          setAddModalOpen(false);
+          fetchOrganizations();
+        }}
       />
     </div>
   );

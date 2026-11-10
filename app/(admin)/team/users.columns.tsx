@@ -35,63 +35,90 @@ const getRoleBadgeVariant = (role: string) => {
   }
 };
 
-export const columns: DataTableColumn<TeamMember>[] = [
-  {
-    key: "email",
-    header: "Email",
-    cell: (row) => (
-      <div className="flex flex-col">
-        <span className="font-medium text-foreground">{row.email}</span>
-        <span className="text-xs text-muted-foreground">ID: {row.user_id.slice(0, 8)}...</span>
-      </div>
-    ),
-    width: "30%",
-  },
-  {
-    key: "role",
-    header: "Role",
-    cell: (row) => (
-      <Badge variant={getRoleBadgeVariant(row.role)}>
-        {row.role.toUpperCase()}
-      </Badge>
-    ),
-    width: "15%",
-  },
-  {
-    key: "last_sign_in",
-    header: "Last Sign In",
-    cell: (row) => (
-      <span className="text-sm text-muted-foreground">
-        {row.last_sign_in_at
-          ? formatTimeAgo(row.last_sign_in_at)
-          : "Never"}
-      </span>
-    ),
-    width: "20%",
-  },
-  {
-    key: "created_at",
-    header: "Added",
-    cell: (row) => (
-      <span className="text-sm text-muted-foreground">
-        {formatTimeAgo(row.created_at)}
-      </span>
-    ),
-    width: "20%",
-  },
-  {
-    key: "actions",
-    header: "Actions",
-    cell: (row) => (
-      <div className="flex items-center gap-2">
-        <button className="text-xs text-primary hover:underline">
-          Edit Role
-        </button>
-        <button className="text-xs text-destructive hover:underline">
-          Remove
-        </button>
-      </div>
-    ),
-    width: "15%",
-  },
-];
+export type TeamColumnHandlers = {
+  onEditRole: (member: TeamMember) => void;
+  onRemove: (member: TeamMember) => void;
+  onResetPassword: (member: TeamMember) => void;
+};
+
+export function createColumns({
+  onEditRole,
+  onRemove,
+  onResetPassword,
+}: TeamColumnHandlers): DataTableColumn<TeamMember>[] {
+  return [
+    {
+      key: "email",
+      header: "Email",
+      cell: (row) => (
+        <div className="flex flex-col">
+          <span className="font-medium text-foreground">{row.email}</span>
+          <span className="text-xs text-muted-foreground">
+            ID: {row.user_id.slice(0, 8)}...
+          </span>
+        </div>
+      ),
+      width: "28%",
+    },
+    {
+      key: "role",
+      header: "Role",
+      cell: (row) => (
+        <Badge variant={getRoleBadgeVariant(row.role)}>
+          {row.role.toUpperCase()}
+        </Badge>
+      ),
+      width: "12%",
+    },
+    {
+      key: "last_sign_in",
+      header: "Last Sign In",
+      cell: (row) => (
+        <span className="text-sm text-muted-foreground">
+          {row.last_sign_in_at ? formatTimeAgo(row.last_sign_in_at) : "Never"}
+        </span>
+      ),
+      width: "18%",
+    },
+    {
+      key: "created_at",
+      header: "Added",
+      cell: (row) => (
+        <span className="text-sm text-muted-foreground">
+          {row.created_at ? formatTimeAgo(row.created_at) : "—"}
+        </span>
+      ),
+      width: "18%",
+    },
+    {
+      key: "actions",
+      header: "Actions",
+      cell: (row) => (
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            className="text-xs text-primary hover:underline"
+            onClick={() => onEditRole(row)}
+          >
+            Edit Role
+          </button>
+          <button
+            type="button"
+            className="text-xs text-primary hover:underline"
+            onClick={() => onResetPassword(row)}
+          >
+            Reset password
+          </button>
+          <button
+            type="button"
+            className="text-xs text-destructive hover:underline"
+            onClick={() => onRemove(row)}
+          >
+            Remove
+          </button>
+        </div>
+      ),
+      width: "24%",
+    },
+  ];
+}

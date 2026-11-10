@@ -1,5 +1,8 @@
 "use client";
 
+import type { ReactNode } from "react";
+import { UserPlus } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import type { DriverFilterTab } from "@/lib/features/drivers/driverFilters";
 
 interface DriversPageHeaderProps {
@@ -13,6 +16,8 @@ interface DriversPageHeaderProps {
   expiringCount: number;
   activeFilter: DriverFilterTab;
   onFilterChange: (filter: DriverFilterTab) => void;
+  actions?: ReactNode;
+  onAddDriver?: () => void;
 }
 
 export function DriversPageHeader({
@@ -26,11 +31,23 @@ export function DriversPageHeader({
   expiringCount,
   activeFilter,
   onFilterChange,
+  actions,
+  onAddDriver,
 }: DriversPageHeaderProps) {
+  const headerActions =
+    actions ??
+    (onAddDriver ? (
+      <Button size="sm" onClick={onAddDriver}>
+        <UserPlus className="mr-2 h-4 w-4" />
+        Add Driver
+      </Button>
+    ) : null);
+
   return (
     <div className="border-b border-border bg-card">
-      <div className="flex items-center justify-between px-4 py-3 md:px-6 md:py-4">
+      <div className="flex items-center justify-between gap-3 px-4 py-3 md:px-6 md:py-4">
         <h1 className="text-xl font-bold md:text-2xl">Drivers</h1>
+        {headerActions}
       </div>
 
       <div className="px-4 pb-3 md:px-6 md:pb-4">

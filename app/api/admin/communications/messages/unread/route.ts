@@ -28,22 +28,16 @@ export async function GET() {
       return NextResponse.json({ error: "Server misconfiguration" }, { status: 500 });
     }
 
-    const { data, error } = await admin
-      .from("admin_driver_help_sessions_v1")
-      .select("unread_count")
-      .eq("organization_id", orgId)
-      .eq("status", "active");
+    // Fast SSOT: SUM(unread_driver_count) on sessions — not the inbox view
+    const { data, error } = await admin.rpc("admin_help_unread_total", {
+      p_organization_id: orgId,
+    });
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    const unread = (data || []).reduce(
-      (sum, row) => sum + (Number(row.unread_count) || 0),
-      0
-    );
-
-    return NextResponse.json({ unread });
+    return NextResponse.json({ unread: Number(data) || 0 });
   } catch (err) {
     console.error("[communications/messages/unread GET]", err);
     return NextResponse.json(

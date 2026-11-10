@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Calendar, CheckCircle, Clock, PoundSterling, TrendingUp, RefreshCw } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useDashboardPeriod } from "@/lib/hooks/useDashboardPeriod";
+import { fetchDedupe } from "@/lib/http/fetch-dedupe";
 
 interface DashboardStats {
   total_bookings: number;
@@ -56,8 +57,8 @@ export default function DashboardPage() {
       const chartsUrl = `/api/admin/dashboard/charts${queryString ? `?${queryString}` : ""}`;
 
       const [statsRes, chartsRes] = await Promise.all([
-        fetch(statsUrl),
-        fetch(chartsUrl),
+        fetchDedupe(statsUrl),
+        fetchDedupe(chartsUrl),
       ]);
 
       if (statsRes.ok) {

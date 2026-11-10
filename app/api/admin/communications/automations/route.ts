@@ -11,7 +11,7 @@ import type {
   DocExpiryCandidate,
 } from "@/lib/features/communications";
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
     const supabase = await createClient();
     const {
@@ -32,6 +32,29 @@ export async function GET() {
       return NextResponse.json({ error: "Server misconfiguration" }, { status: 500 });
     }
 
+    const q = (req.nextUrl.searchParams.get("q") || "").trim();
+    const page = Math.max(1, Number(req.nextUrl.searchParams.get("page") || 1));
+    const pageSize = Math.min(
+      Math.max(5, Number(req.nextUrl.searchParams.get("pageSize") || 20)),
+      50
+    );
+    const from = (page - 1) * pageSize;
+    const to = from + pageSize - 1;
+
+    let candidatesQuery = admin
+      .from("admin_doc_expiry_candidates_v1")
+      .select("*", { count: "exact" })
+      .eq("organization_id", orgId)
+      .order("days_until_expiry", { ascending: true })
+      .range(from, to);
+
+    if (q) {
+      const escaped = q.replace(/%/g, "\\%").replace(/_/g, "\\_");
+      candidatesQuery = candidatesQuery.or(
+        `driver_name.ilike.%${escaped}%,driver_email.ilike.%${escaped}%,document_type.ilike.%${escaped}%,license_plate.ilike.%${escaped}%`
+      );
+    }
+
     const [rulesRes, candidatesRes] = await Promise.all([
       admin
         .from("notification_automation_rules")
@@ -39,12 +62,7 @@ export async function GET() {
         .eq("organization_id", orgId)
         .order("category", { ascending: true })
         .order("title", { ascending: true }),
-      admin
-        .from("admin_doc_expiry_candidates_v1")
-        .select("*")
-        .eq("organization_id", orgId)
-        .order("days_until_expiry", { ascending: true })
-        .limit(100),
+      candidatesQuery,
     ]);
 
     if (rulesRes.error) {
@@ -57,6 +75,9 @@ export async function GET() {
     return NextResponse.json({
       rules: (rulesRes.data || []) as AutomationRule[],
       docExpiryCandidates: (candidatesRes.data || []) as DocExpiryCandidate[],
+      candidatesTotal: candidatesRes.count ?? 0,
+      page,
+      pageSize,
     });
   } catch (err) {
     console.error("[communications/automations GET]", err);

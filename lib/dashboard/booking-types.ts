@@ -16,8 +16,9 @@ function prettyUnknownType(id: string): string {
     .replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
-export function aggregateBookingTypes(
-  bookings: Array<DashboardBookingRow & { booking_type?: string | null }>
+/** Map SSOT type_id → count into chart series (labels stay in the app). */
+export function bookingTypesFromCounts(
+  countsRaw: Record<string, number>
 ): Array<{ name: string; value: number }> {
   const counts = new Map<string, number>();
 
@@ -25,10 +26,9 @@ export function aggregateBookingTypes(
     counts.set(type.id, 0);
   }
 
-  for (const booking of bookings) {
-    if (isCancelledBooking(booking)) continue;
-    const id = (booking.booking_type || "unknown").toLowerCase();
-    counts.set(id, (counts.get(id) || 0) + 1);
+  for (const [id, value] of Object.entries(countsRaw)) {
+    const key = (id || "unknown").toLowerCase();
+    counts.set(key, (counts.get(key) || 0) + (Number(value) || 0));
   }
 
   const known = DASHBOARD_BOOKING_TYPES.map((type) => ({
@@ -44,4 +44,18 @@ export function aggregateBookingTypes(
     }));
 
   return [...known, ...extra];
+}
+
+export function aggregateBookingTypes(
+  bookings: Array<DashboardBookingRow & { booking_type?: string | null }>
+): Array<{ name: string; value: number }> {
+  const countsRaw: Record<string, number> = {};
+
+  for (const booking of bookings) {
+    if (isCancelledBooking(booking)) continue;
+    const id = (booking.booking_type || "unknown").toLowerCase();
+    countsRaw[id] = (countsRaw[id] || 0) + 1;
+  }
+
+  return bookingTypesFromCounts(countsRaw);
 }

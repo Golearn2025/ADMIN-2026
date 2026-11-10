@@ -57,6 +57,8 @@ export function useCommunicationsHelpRealtime(
     const supabase = createClient();
     let inboxTimer: ReturnType<typeof setTimeout> | null = null;
     let messagesTimer: ReturnType<typeof setTimeout> | null = null;
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+    let cancelled = false;
 
     const scheduleInbox = () => {
       if (inboxTimer) clearTimeout(inboxTimer);
@@ -67,30 +69,51 @@ export function useCommunicationsHelpRealtime(
       messagesTimer = setTimeout(() => messagesRef.current(), 400);
     };
 
-    const channel = supabase
-      .channel(`admin_communications_help:${Date.now()}`)
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "live_chat_sessions" },
-        scheduleInbox
-      )
-      .on(
-        "postgres_changes",
-        { event: "INSERT", schema: "public", table: "live_chat_messages" },
-        (payload) => {
-          scheduleInbox();
-          const row = payload.new as { session_id?: string };
-          if (selectedRef.current && row.session_id === selectedRef.current) {
-            scheduleMessages();
+    const start = async () => {
+      const { data } = await supabase.auth.getSession();
+      if (cancelled) return;
+      if (!data.session) {
+        const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => {
+          if (session) {
+            sub.subscription.unsubscribe();
+            void start();
           }
-        }
-      )
-      .subscribe();
+        });
+        return;
+      }
+
+      channel = supabase
+        .channel(`admin_communications_help:${Date.now()}`)
+        .on(
+          "postgres_changes",
+          { event: "*", schema: "public", table: "live_chat_sessions" },
+          scheduleInbox
+        )
+        .on(
+          "postgres_changes",
+          { event: "INSERT", schema: "public", table: "live_chat_messages" },
+          (payload) => {
+            scheduleInbox();
+            const row = payload.new as { session_id?: string };
+            if (selectedRef.current && row.session_id === selectedRef.current) {
+              scheduleMessages();
+            }
+          }
+        )
+        .subscribe((status) => {
+          if (process.env.NODE_ENV === "development") {
+            console.log("[help-realtime]", status);
+          }
+        });
+    };
+
+    void start();
 
     return () => {
+      cancelled = true;
       if (inboxTimer) clearTimeout(inboxTimer);
       if (messagesTimer) clearTimeout(messagesTimer);
-      void supabase.removeChannel(channel);
+      if (channel) void supabase.removeChannel(channel);
     };
   }, []);
 }

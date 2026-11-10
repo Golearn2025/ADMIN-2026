@@ -31614,6 +31614,22 @@ export type Database = {
         }
         Returns: Json
       }
+      admin_dashboard_charts_v1: {
+        Args: {
+          p_from?: string | null
+          p_organization_id?: string | null
+          p_to?: string | null
+        }
+        Returns: Json
+      }
+      admin_dashboard_stats_v1: {
+        Args: {
+          p_from?: string | null
+          p_organization_id?: string | null
+          p_to?: string | null
+        }
+        Returns: Json
+      }
       admin_enqueue_driver_notification: {
         Args: {
           p_actor_id?: string
