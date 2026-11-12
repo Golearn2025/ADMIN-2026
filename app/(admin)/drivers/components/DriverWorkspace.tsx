@@ -9,6 +9,7 @@ import { DriverDetailsTab } from "./tabs/DriverDetailsTab";
 import { DriverVehiclesTab } from "./tabs/DriverVehiclesTab";
 import { DriverActivityTab } from "./tabs/DriverActivityTab";
 import { DriverComplianceTab } from "./tabs/DriverComplianceTab";
+import { DriverReviewsTab } from "./tabs/DriverReviewsTab";
 import { DriverDetailHeader } from "./DriverDetailHeader";
 import { DriverHeaderActions } from "./DriverHeaderActions";
 import { CompactDocumentsSummary } from "./CompactDocumentsSummary";
@@ -189,6 +190,7 @@ export function DriverWorkspace({
             <TabsTrigger value="documents" className="data-[state=active]:font-bold">Documents</TabsTrigger>
             <TabsTrigger value="vehicles" className="data-[state=active]:font-bold">Vehicles</TabsTrigger>
             <TabsTrigger value="activity" className="data-[state=active]:font-bold">Activity</TabsTrigger>
+            <TabsTrigger value="reviews" className="data-[state=active]:font-bold">Reviews</TabsTrigger>
             <TabsTrigger value="notes" className="data-[state=active]:font-bold">Notes</TabsTrigger>
           </TabsList>
 
@@ -227,6 +229,10 @@ export function DriverWorkspace({
         
         <TabsContent value="activity">
           <DriverActivityTab driverId={driver.id} organizationId={driver.organization_id} />
+        </TabsContent>
+
+        <TabsContent value="reviews">
+          <DriverReviewsTab driverId={driver.id} />
         </TabsContent>
 
         <TabsContent value="notes">

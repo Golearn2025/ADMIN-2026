@@ -53,6 +53,13 @@ export interface PriceForm {
 }
 
 export type WizardStep = "customer" | "trip" | "vehicle" | "price" | "confirm";
+export type DispatchMode = "open" | "direct";
+
+export type DispatchForm = {
+  mode: DispatchMode;
+  exclusiveDriverId: string;
+  exclusiveDriverName: string;
+};
 
 const STEPS: WizardStep[] = ["customer", "trip", "vehicle", "price", "confirm"];
 
@@ -94,6 +101,11 @@ export function useNewJob() {
 
   const [quoteLoading, setQuoteLoading] = useState(false);
   const [quoteError, setQuoteError] = useState<string | null>(null);
+  const [dispatch, setDispatch] = useState<DispatchForm>({
+    mode: "open",
+    exclusiveDriverId: "",
+    exclusiveDriverName: "",
+  });
   const [createLoading, setCreateLoading] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
   const [createdBooking, setCreatedBooking] = useState<{ bookingId: string; reference: string } | null>(null);
@@ -163,6 +175,10 @@ export function useNewJob() {
       setCreateError("No quote — calculate price first");
       return;
     }
+    if (dispatch.mode === "direct" && !dispatch.exclusiveDriverId) {
+      setCreateError("Select a driver for Direct mode");
+      return;
+    }
     setCreateLoading(true);
     setCreateError(null);
 
@@ -186,6 +202,9 @@ export function useNewJob() {
           bags: trip.bags,
           notes: trip.notes?.trim() || null,
           flightNumber: trip.flightNumber?.trim() || null,
+          dispatchMode: dispatch.mode,
+          exclusiveDriverId:
+            dispatch.mode === "direct" ? dispatch.exclusiveDriverId : undefined,
         }),
       });
       const data = await res.json();
@@ -197,27 +216,44 @@ export function useNewJob() {
     } finally {
       setCreateLoading(false);
     }
-  }, [price, customer, trip]);
+  }, [price, customer, trip, dispatch]);
 
   const markPaid = useCallback(async () => {
     if (!createdBooking) return;
+    if (dispatch.mode === "direct" && !dispatch.exclusiveDriverId) {
+      setActionResult({ type: "paid", message: "Select a driver for Direct mode" });
+      return;
+    }
     setActionLoading(true);
     try {
       const amountPence = Math.round((price.priceOverride ?? price.quotedPrice ?? 0) * 100);
       const res = await fetch("/api/admin/jobs/mark-paid", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ bookingId: createdBooking.bookingId, amountPence }),
+        body: JSON.stringify({
+          bookingId: createdBooking.bookingId,
+          amountPence,
+          dispatchMode: dispatch.mode,
+          exclusiveDriverId:
+            dispatch.mode === "direct" ? dispatch.exclusiveDriverId : undefined,
+        }),
       });
       const data = await res.json();
       if (!res.ok || !data.success) throw new Error(data.error || "Mark paid failed");
-      setActionResult({ type: "paid", message: "Job confirmed & published to drivers!" });
+      setActionResult({
+        type: "paid",
+        message:
+          data.message ||
+          (dispatch.mode === "direct"
+            ? `Job reserved for ${dispatch.exclusiveDriverName || "selected driver"} only`
+            : "Job confirmed & published to drivers!"),
+      });
     } catch (err) {
       setActionResult({ type: "paid", message: err instanceof Error ? err.message : "Error" });
     } finally {
       setActionLoading(false);
     }
-  }, [createdBooking, price]);
+  }, [createdBooking, price, dispatch]);
 
   const sendPaymentLink = useCallback(async () => {
     if (!createdBooking) return;
@@ -254,6 +290,7 @@ export function useNewJob() {
     trip, setTrip,
     vehicle, setVehicle,
     price, setPrice,
+    dispatch, setDispatch,
     quoteLoading, quoteError, fetchQuote,
     createLoading, createError, createJob,
     createdBooking,

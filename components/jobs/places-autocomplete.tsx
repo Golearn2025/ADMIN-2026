@@ -105,7 +105,8 @@ export function PlacesAutocomplete({
     onChange(null);
   }
 
-  const isResolved = value != null && value.lat !== 51.5074;
+  const isResolved =
+    value != null && Number.isFinite(value.lat) && Number.isFinite(value.lng) && value.lat !== 0;
 
   return (
     <div className={cn("space-y-1", className)} ref={containerRef}>

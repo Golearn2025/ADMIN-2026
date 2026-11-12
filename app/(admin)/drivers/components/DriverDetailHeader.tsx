@@ -100,18 +100,27 @@ export function DriverDetailHeader({ driver, onRefresh }: DriverDetailHeaderProp
               </div>
 
               <div className="mt-4 flex flex-wrap gap-2">
-                {/* Rating */}
+                {/* Rating from drivers.rating_average / rating_count */}
                 <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/40 px-3 py-2">
                   <Star className="h-4 w-4 text-yellow-500" />
-                  <span className="text-sm font-semibold">0.0</span>
+                  <span className="text-sm font-semibold">
+                    {Number(driver.rating_count || 0) > 0
+                      ? Number(driver.rating_average || 0).toFixed(1)
+                      : "—"}
+                  </span>
+                  <span className="text-xs text-muted-foreground">
+                    ({Number(driver.rating_count || 0)})
+                  </span>
                 </div>
                 <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/40 px-3 py-2">
                   <Car className="h-4 w-4 text-blue-500" />
-                  <span className="text-sm font-semibold">0</span>
+                  <span className="text-sm font-semibold">
+                    {Number(driver.total_vehicles || 0)}
+                  </span>
                 </div>
                 <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/40 px-3 py-2">
                   <PoundSterling className="h-4 w-4 text-green-500" />
-                  <span className="text-sm font-semibold">0</span>
+                  <span className="text-sm font-semibold">—</span>
                 </div>
               </div>
             </div>

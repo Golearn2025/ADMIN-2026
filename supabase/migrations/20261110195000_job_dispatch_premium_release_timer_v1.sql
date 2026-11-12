@@ -1,0 +1,3 @@
+-- Phase 4 docs: release_booking_dispatch_to_premium + advance_expired_job_dispatch_waves
+-- Applied remotely via MCP (job_dispatch_premium_release_and_timer_v1).
+-- Cron: advance_expired_job_dispatch_waves every minute.

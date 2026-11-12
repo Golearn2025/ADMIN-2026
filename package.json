@@ -9,6 +9,7 @@
     "lint": "next lint",
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,css,md}\"",
     "google-ads-oauth": "node scripts/google-ads-oauth.mjs",
+    "repeat-dispatch-test": "node scripts/repeat-dispatch-test.mjs",
     "types:supabase": "echo \"Regenerate via Supabase MCP generate_typescript_types → lib/supabase/database.types.ts\""
   },
   "dependencies": {

@@ -54,9 +54,12 @@ import {
   CreditCard,
   Contact,
   Share2,
+  Star,
+  Megaphone,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
+import { useToast } from "@/hooks/use-toast";
 
 interface BookingActionsDropdownProps {
   booking: Booking;
@@ -211,6 +214,7 @@ function NestedSection({
 export function BookingActionsDropdown({ booking, onOpsDone }: BookingActionsDropdownProps) {
   const router = useRouter();
   const narrow = useIsNarrow();
+  const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
   const [assignOpen, setAssignOpen] = useState(false);
   const [unassignOpen, setUnassignOpen] = useState(false);
@@ -222,6 +226,9 @@ export function BookingActionsDropdown({ booking, onOpsDone }: BookingActionsDro
   const [markPaidOpen, setMarkPaidOpen] = useState(false);
   const [paymentLinkOpen, setPaymentLinkOpen] = useState(false);
   const [extraChargeOpen, setExtraChargeOpen] = useState(false);
+  const [canReleasePremium, setCanReleasePremium] = useState(false);
+  const [dispatchWave, setDispatchWave] = useState<string | null>(null);
+  const [dispatchBusy, setDispatchBusy] = useState(false);
 
   // Mobile accordion sections
   const [editOpen, setEditOpen] = useState(false);
@@ -230,6 +237,18 @@ export function BookingActionsDropdown({ booking, onOpsDone }: BookingActionsDro
   const [customerOpen, setCustomerOpen] = useState(false);
   const [driverContactOpen, setDriverContactOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
+
+  async function refreshDispatchStatus() {
+    try {
+      const res = await fetch(`/api/admin/bookings/${booking.id}/dispatch`);
+      if (!res.ok) return;
+      const data = await res.json();
+      setCanReleasePremium(Boolean(data.canReleaseToPremium));
+      setDispatchWave(data.active?.wave ?? null);
+    } catch {
+      /* ignore */
+    }
+  }
 
   const customerPhone = normalizePhoneForLink(booking.customer_phone);
   const driverPhone = normalizePhoneForLink(booking.driver_phone);
@@ -282,11 +301,70 @@ export function BookingActionsDropdown({ booking, onOpsDone }: BookingActionsDro
     setShareOpen(false);
   }
 
+  async function handleReleaseToPremium() {
+    setDispatchBusy(true);
+    try {
+      const res = await fetch(`/api/admin/bookings/${booking.id}/dispatch`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "release_premium" }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Release failed");
+      }
+      toast({
+        title: "Released to Premium",
+        description: `Notified ${data.premium_drivers ?? "premium"} drivers. Auto-opens in ${data.premium_wait_minutes ?? 10} min if not taken.`,
+      });
+      await refreshDispatchStatus();
+      handleOpsDone();
+    } catch (err) {
+      toast({
+        title: "Release failed",
+        description: err instanceof Error ? err.message : "Error",
+        variant: "destructive",
+      });
+    } finally {
+      setDispatchBusy(false);
+    }
+  }
+
+  async function handleForceOpen() {
+    setDispatchBusy(true);
+    try {
+      const res = await fetch(`/api/admin/bookings/${booking.id}/dispatch`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "advance_now" }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Open failed");
+      }
+      toast({
+        title: "Opened to all drivers",
+        description: "Premium timer skipped — job is now on the open board.",
+      });
+      await refreshDispatchStatus();
+      handleOpsDone();
+    } catch (err) {
+      toast({
+        title: "Open failed",
+        description: err instanceof Error ? err.message : "Error",
+        variant: "destructive",
+      });
+    } finally {
+      setDispatchBusy(false);
+    }
+  }
+
   return (
     <>
       <DropdownMenu
         onOpenChange={(open) => {
           if (!open) resetSections();
+          else void refreshDispatchStatus();
         }}
       >
         <DropdownMenuTrigger asChild>
@@ -321,6 +399,22 @@ export function BookingActionsDropdown({ booking, onOpsDone }: BookingActionsDro
             )}
             <span>{hasDriver ? "Reassign driver" : "Assign driver"}</span>
           </DropdownMenuItem>
+          <DropdownMenuItem
+            disabled={isCancelled || !canReleasePremium || dispatchBusy || hasDriver}
+            onClick={() => void handleReleaseToPremium()}
+          >
+            <Star className="mr-2 h-4 w-4 shrink-0 text-amber-500" />
+            <span>Release to Premium</span>
+          </DropdownMenuItem>
+          {dispatchWave === "premium" && !hasDriver && (
+            <DropdownMenuItem
+              disabled={isCancelled || dispatchBusy}
+              onClick={() => void handleForceOpen()}
+            >
+              <Megaphone className="mr-2 h-4 w-4 shrink-0" />
+              <span>Open to all now</span>
+            </DropdownMenuItem>
+          )}
           <DropdownMenuItem onClick={() => setStatusOpen(true)}>
             <CircleDot className="mr-2 h-4 w-4 shrink-0" />
             <span>Change status</span>

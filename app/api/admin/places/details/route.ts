@@ -22,9 +22,24 @@ export async function GET(req: NextRequest) {
     const result = data.result;
     if (!result) return NextResponse.json({ error: "Place not found" }, { status: 404 });
 
+    // Prefer "Hotel Name, street address" so bookings show the place name
+    // (formatted_address alone is often only the street / postcode).
+    const name = typeof result.name === "string" ? result.name.trim() : "";
+    const formatted =
+      typeof result.formatted_address === "string" ? result.formatted_address.trim() : "";
+    let address = formatted || name;
+    if (name && formatted) {
+      const nameLower = name.toLowerCase();
+      const formattedLower = formatted.toLowerCase();
+      if (!formattedLower.startsWith(nameLower) && !formattedLower.includes(`, ${nameLower}`)) {
+        address = `${name}, ${formatted}`;
+      }
+    }
+
     return NextResponse.json({
       placeId: result.place_id,
-      address: result.formatted_address || result.name,
+      name: name || null,
+      address,
       lat: result.geometry?.location?.lat ?? null,
       lng: result.geometry?.location?.lng ?? null,
     });

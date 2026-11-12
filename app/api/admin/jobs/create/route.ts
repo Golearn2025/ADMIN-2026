@@ -9,11 +9,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { startDirectDispatchRuns } from "@/lib/bookings/start-direct-dispatch";
 
 const DEFAULT_ORG_ID = "9a5caade-4791-4860-93b5-12b1c4fa9830";
 
 export async function POST(req: NextRequest) {
   try {
+    const body = await req.json();
     const {
       quoteId,
       customer,       // { email, phone, firstName, lastName } OR { customerId }
@@ -24,7 +26,16 @@ export async function POST(req: NextRequest) {
       bags,           // number — luggage/bag count from admin trip form
       notes,          // string | null — special requirements → bookings.custom_requirements
       flightNumber,   // string | null — optional flight number
-    } = await req.json();
+    } = body;
+    const dispatchMode = body.dispatchMode === "direct" ? "direct" : "open";
+    const exclusiveDriverId =
+      typeof body.exclusiveDriverId === "string" ? body.exclusiveDriverId.trim() : "";
+    if (dispatchMode === "direct" && !exclusiveDriverId) {
+      return NextResponse.json(
+        { success: false, error: "exclusiveDriverId is required for Direct mode" },
+        { status: 400 }
+      );
+    }
 
     const passengerCount = Number.isFinite(Number(passengers))
       ? Math.max(1, Math.round(Number(passengers)))
@@ -264,12 +275,43 @@ export async function POST(req: NextRequest) {
         .eq("id", bookingId);
     }
 
+    // Direct: lock legs before payment so Stripe/mark-paid notify only that driver
+    if (dispatchMode === "direct") {
+      const { data: settings } = await admin
+        .from("dispatch_org_settings")
+        .select("direct_wait_minutes")
+        .eq("organization_id", DEFAULT_ORG_ID)
+        .maybeSingle();
+
+      const started = await startDirectDispatchRuns({
+        admin,
+        bookingId,
+        organizationId: DEFAULT_ORG_ID,
+        exclusiveDriverId,
+        createdBy: user.id,
+        waitMinutes: settings?.direct_wait_minutes ?? 10,
+      });
+      if (!started.ok) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: `Booking created (${booking?.reference || bookingId}) but Direct lock failed: ${started.error}`,
+            bookingId,
+            reference: booking?.reference || null,
+          },
+          { status: 500 }
+        );
+      }
+    }
+
     return NextResponse.json({
       success: true,
       bookingId,
       reference: booking?.reference || null,
       customerId,
       status: booking?.status || result.booking_status,
+      dispatchMode,
+      exclusiveDriverId: dispatchMode === "direct" ? exclusiveDriverId : null,
     });
   } catch (err) {
     console.error("[admin/jobs/create] error:", err);

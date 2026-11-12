@@ -21,6 +21,7 @@ export default function NewJobPage() {
     trip, setTrip,
     vehicle, setVehicle,
     price, setPrice,
+    dispatch, setDispatch,
     quoteLoading, quoteError, fetchQuote,
     createLoading, createError, createJob,
     createdBooking,
@@ -111,6 +112,8 @@ export default function NewJobPage() {
                 trip={trip}
                 vehicle={vehicle}
                 price={price}
+                dispatch={dispatch}
+                onDispatchChange={setDispatch}
                 createLoading={createLoading}
                 createError={createError}
                 createdBooking={createdBooking}

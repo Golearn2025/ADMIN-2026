@@ -303,7 +303,11 @@ export async function POST(
       const fromValue = {
         scheduledAt: mainLeg.scheduled_at,
         pickupAddress: mainLeg.pickup_address,
+        pickupLat: mainLeg.pickup_lat,
+        pickupLng: mainLeg.pickup_lng,
         dropoffAddress: mainLeg.dropoff_address,
+        dropoffLat: mainLeg.dropoff_lat,
+        dropoffLng: mainLeg.dropoff_lng,
         flightNumber: mainLeg.flight_number,
         hoursRequested: booking.hours_requested,
         daysRequested: booking.days_requested,
@@ -313,13 +317,33 @@ export async function POST(
       if (scheduledLocal) legPatch.scheduled_at = londonLocalToUtcIso(scheduledLocal);
       if (pickupAddress !== undefined) {
         legPatch.pickup_address = pickupAddress || null;
-        if (body.pickupLat != null) legPatch.pickup_lat = Number(body.pickupLat);
-        if (body.pickupLng != null) legPatch.pickup_lng = Number(body.pickupLng);
+        if (body.pickupLat != null && body.pickupLng != null) {
+          legPatch.pickup_lat = Number(body.pickupLat);
+          legPatch.pickup_lng = Number(body.pickupLng);
+        } else if (!pickupAddress) {
+          legPatch.pickup_lat = null;
+          legPatch.pickup_lng = null;
+        }
+        if (typeof body.pickupPlaceId === "string") {
+          legPatch.pickup_place_id = body.pickupPlaceId.trim() || null;
+        } else if (!pickupAddress) {
+          legPatch.pickup_place_id = null;
+        }
       }
       if (dropoffAddress !== undefined) {
         legPatch.dropoff_address = dropoffAddress || null;
-        if (body.dropoffLat != null) legPatch.dropoff_lat = Number(body.dropoffLat);
-        if (body.dropoffLng != null) legPatch.dropoff_lng = Number(body.dropoffLng);
+        if (body.dropoffLat != null && body.dropoffLng != null) {
+          legPatch.dropoff_lat = Number(body.dropoffLat);
+          legPatch.dropoff_lng = Number(body.dropoffLng);
+        } else if (!dropoffAddress) {
+          legPatch.dropoff_lat = null;
+          legPatch.dropoff_lng = null;
+        }
+        if (typeof body.dropoffPlaceId === "string") {
+          legPatch.dropoff_place_id = body.dropoffPlaceId.trim() || null;
+        } else if (!dropoffAddress) {
+          legPatch.dropoff_place_id = null;
+        }
       }
       if (flightNumber !== undefined) {
         legPatch.flight_number = flightNumber || null;
@@ -376,7 +400,11 @@ export async function POST(
         toValue: {
           scheduledAt: legPatch.scheduled_at ?? fromValue.scheduledAt,
           pickupAddress: legPatch.pickup_address ?? fromValue.pickupAddress,
+          pickupLat: legPatch.pickup_lat ?? fromValue.pickupLat,
+          pickupLng: legPatch.pickup_lng ?? fromValue.pickupLng,
           dropoffAddress: legPatch.dropoff_address ?? fromValue.dropoffAddress,
+          dropoffLat: legPatch.dropoff_lat ?? fromValue.dropoffLat,
+          dropoffLng: legPatch.dropoff_lng ?? fromValue.dropoffLng,
           flightNumber: legPatch.flight_number ?? fromValue.flightNumber,
           hoursRequested: bookingPatch.hours_requested ?? fromValue.hoursRequested,
           daysRequested: bookingPatch.days_requested ?? fromValue.daysRequested,

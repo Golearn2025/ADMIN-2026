@@ -38,7 +38,7 @@ export async function GET(
     const { data: legs } = await admin
       .from("booking_legs")
       .select(
-        "id, leg_number, leg_kind, status, scheduled_at, pickup_address, pickup_lat, pickup_lng, dropoff_address, dropoff_lat, dropoff_lng, flight_number, vehicle_category_id, vehicle_model_id, assigned_driver_id"
+        "id, leg_number, leg_kind, status, scheduled_at, pickup_address, pickup_lat, pickup_lng, pickup_place_id, dropoff_address, dropoff_lat, dropoff_lng, dropoff_place_id, flight_number, vehicle_category_id, vehicle_model_id, assigned_driver_id"
       )
       .eq("booking_id", bookingId)
       .is("deleted_at", null)
@@ -101,9 +101,11 @@ export async function GET(
             pickupAddress: main.pickup_address,
             pickupLat: main.pickup_lat,
             pickupLng: main.pickup_lng,
+            pickupPlaceId: main.pickup_place_id,
             dropoffAddress: main.dropoff_address,
             dropoffLat: main.dropoff_lat,
             dropoffLng: main.dropoff_lng,
+            dropoffPlaceId: main.dropoff_place_id,
             flightNumber: main.flight_number,
             vehicleCategoryId: main.vehicle_category_id,
             vehicleModelId: main.vehicle_model_id,

@@ -28,6 +28,12 @@ const LINKS = [
     description: "Messages, notifications, and automation settings.",
     icon: MessageSquare,
   },
+  {
+    href: "/dispatch",
+    title: "Job Dispatch",
+    description: "Direct / Premium / Open wave rules and premium driver list.",
+    icon: BellOff,
+  },
 ] as const;
 
 export default function SettingsPage() {

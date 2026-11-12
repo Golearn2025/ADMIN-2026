@@ -25,8 +25,37 @@ import {
   VEHICLE_MODELS,
 } from "@/lib/bookings/admin-ops";
 import { DateTimeField } from "@/components/jobs/datetime-field";
+import { PlacesAutocomplete } from "@/components/jobs/places-autocomplete";
+import type { LocationPoint } from "@/hooks/use-new-job";
 import { cn } from "@/lib/utils";
 import { Check, Copy, Loader2 } from "lucide-react";
+
+function toLocationPoint(args: {
+  address?: string | null;
+  lat?: number | null;
+  lng?: number | null;
+  placeId?: string | null;
+}): LocationPoint | null {
+  const address = args.address?.trim() || "";
+  if (!address) return null;
+  const lat = args.lat != null ? Number(args.lat) : 0;
+  const lng = args.lng != null ? Number(args.lng) : 0;
+  return {
+    address,
+    lat: Number.isFinite(lat) ? lat : 0,
+    lng: Number.isFinite(lng) ? lng : 0,
+    placeId: args.placeId || undefined,
+  };
+}
+
+function hasResolvedPlace(point: LocationPoint | null): boolean {
+  return Boolean(
+    point?.address &&
+      Number.isFinite(point.lat) &&
+      Number.isFinite(point.lng) &&
+      point.lat !== 0
+  );
+}
 
 type DriverOption = { id: string; name: string; phone: string };
 
@@ -68,7 +97,13 @@ type OpsContext = {
     id: string;
     scheduledAtLocal: string;
     pickupAddress: string | null;
+    pickupLat?: number | null;
+    pickupLng?: number | null;
+    pickupPlaceId?: string | null;
     dropoffAddress: string | null;
+    dropoffLat?: number | null;
+    dropoffLng?: number | null;
+    dropoffPlaceId?: string | null;
     flightNumber: string | null;
     vehicleCategoryId: string | null;
     vehicleModelId: string | null;
@@ -474,8 +509,9 @@ export function EditTripDialog({
   const [ctxLoading, setCtxLoading] = useState(false);
   const [scheduledAtLocal, setScheduledAtLocal] = useState("");
   const [returnAtLocal, setReturnAtLocal] = useState("");
-  const [pickupAddress, setPickupAddress] = useState("");
-  const [dropoffAddress, setDropoffAddress] = useState("");
+  const [pickup, setPickup] = useState<LocationPoint | null>(null);
+  const [dropoff, setDropoff] = useState<LocationPoint | null>(null);
+  const [hadDropoff, setHadDropoff] = useState(false);
   const [flightNumber, setFlightNumber] = useState("");
   const [hoursRequested, setHoursRequested] = useState("");
   const [daysRequested, setDaysRequested] = useState("");
@@ -494,8 +530,22 @@ export function EditTripDialog({
     void fetchOpsContext(bookingId).then((ctx) => {
       if (ctx?.mainLeg) {
         setScheduledAtLocal(ctx.mainLeg.scheduledAtLocal || "");
-        setPickupAddress(ctx.mainLeg.pickupAddress || "");
-        setDropoffAddress(ctx.mainLeg.dropoffAddress || "");
+        setPickup(
+          toLocationPoint({
+            address: ctx.mainLeg.pickupAddress,
+            lat: ctx.mainLeg.pickupLat,
+            lng: ctx.mainLeg.pickupLng,
+            placeId: ctx.mainLeg.pickupPlaceId,
+          })
+        );
+        const nextDropoff = toLocationPoint({
+          address: ctx.mainLeg.dropoffAddress,
+          lat: ctx.mainLeg.dropoffLat,
+          lng: ctx.mainLeg.dropoffLng,
+          placeId: ctx.mainLeg.dropoffPlaceId,
+        });
+        setDropoff(nextDropoff);
+        setHadDropoff(Boolean(ctx.mainLeg.dropoffAddress));
         setFlightNumber(ctx.mainLeg.flightNumber || "");
       }
       setHasReturn(Boolean(ctx?.returnLeg));
@@ -511,14 +561,29 @@ export function EditTripDialog({
   }, [open, bookingId]);
 
   async function submit() {
-    setLoading(true);
     setError(null);
+    if (!hasResolvedPlace(pickup)) {
+      setError("Select pickup from Google suggestions (so the pin updates).");
+      return;
+    }
+    if ((hadDropoff || dropoff?.address) && !hasResolvedPlace(dropoff)) {
+      setError("Select dropoff from Google suggestions (so the pin updates).");
+      return;
+    }
+
+    setLoading(true);
     const result = await postOps(bookingId, {
       action: "edit_trip",
       scheduledAtLocal,
       returnAtLocal: hasReturn ? returnAtLocal : undefined,
-      pickupAddress,
-      dropoffAddress,
+      pickupAddress: pickup?.address || "",
+      pickupLat: pickup?.lat,
+      pickupLng: pickup?.lng,
+      pickupPlaceId: pickup?.placeId || "",
+      dropoffAddress: dropoff?.address || "",
+      dropoffLat: dropoff?.lat,
+      dropoffLng: dropoff?.lng,
+      dropoffPlaceId: dropoff?.placeId || "",
       flightNumber,
       hoursRequested: hoursRequested || undefined,
       daysRequested: daysRequested || undefined,
@@ -540,7 +605,7 @@ export function EditTripDialog({
         <DialogHeader>
           <DialogTitle>Edit trip</DialogTitle>
           <DialogDescription>
-            Update pickup time, addresses, flight or duration. Logged to activity.
+            Pick addresses from Google so the driver pin updates. Price stays unchanged.
           </DialogDescription>
         </DialogHeader>
         {ctxLoading ? (
@@ -561,22 +626,21 @@ export function EditTripDialog({
                 onChange={setReturnAtLocal}
               />
             )}
-            <div className="space-y-1.5">
-              <Label>Pickup address</Label>
-              <Input
-                value={pickupAddress}
-                onChange={(e) => setPickupAddress(e.target.value)}
-                className="h-11"
+            <PlacesAutocomplete
+              label="Pickup address"
+              value={pickup}
+              onChange={setPickup}
+              placeholder="Search hotel / address in Google..."
+              required
+            />
+            {(hadDropoff || dropoff) && (
+              <PlacesAutocomplete
+                label="Dropoff address"
+                value={dropoff}
+                onChange={setDropoff}
+                placeholder="Search hotel / address in Google..."
               />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Dropoff address</Label>
-              <Input
-                value={dropoffAddress}
-                onChange={(e) => setDropoffAddress(e.target.value)}
-                className="h-11"
-              />
-            </div>
+            )}
             <div className="space-y-1.5">
               <Label>Flight number</Label>
               <Input

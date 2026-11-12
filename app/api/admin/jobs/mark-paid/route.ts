@@ -3,19 +3,37 @@
  * Admin bypass: marks booking as CONFIRMED + payment as succeeded
  * without a real Stripe transaction. Job becomes visible to drivers immediately.
  *
- * Body: { bookingId: string, amountPence: number, note?: string }
+ * Body: {
+ *   bookingId, amountPence, note?,
+ *   dispatchMode?: 'open' | 'direct',
+ *   exclusiveDriverId?: string  // required when dispatchMode=direct
+ * }
  */
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { startDirectDispatchRuns } from "@/lib/bookings/start-direct-dispatch";
 
 export async function POST(req: NextRequest) {
   try {
-    const { bookingId, amountPence, note } = await req.json();
+    const body = await req.json();
+    const { bookingId, amountPence, note } = body;
+    const dispatchMode =
+      body.dispatchMode === "direct" ? "direct" : ("open" as const);
+    const exclusiveDriverId =
+      typeof body.exclusiveDriverId === "string"
+        ? body.exclusiveDriverId.trim()
+        : "";
 
     if (!bookingId || amountPence == null) {
       return NextResponse.json(
         { success: false, error: "bookingId and amountPence are required" },
+        { status: 400 }
+      );
+    }
+    if (dispatchMode === "direct" && !exclusiveDriverId) {
+      return NextResponse.json(
+        { success: false, error: "exclusiveDriverId is required for Direct mode" },
         { status: 400 }
       );
     }
@@ -38,6 +56,35 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, error: "Booking not found" }, { status: 404 });
     }
 
+    // 0. Direct lock BEFORE payment so notify + offer views see exclusive wave
+    let directDriverName: string | null = null;
+    if (dispatchMode === "direct") {
+      const { data: settings } = await admin
+        .from("dispatch_org_settings")
+        .select("direct_wait_minutes")
+        .eq("organization_id", booking.organization_id)
+        .maybeSingle();
+
+      const started = await startDirectDispatchRuns({
+        admin,
+        bookingId,
+        organizationId: booking.organization_id,
+        exclusiveDriverId,
+        createdBy: user.id,
+        waitMinutes: settings?.direct_wait_minutes ?? 10,
+      });
+      if (!started.ok) {
+        return NextResponse.json({ success: false, error: started.error }, { status: 400 });
+      }
+
+      const { data: driver } = await admin
+        .from("drivers")
+        .select("first_name, last_name")
+        .eq("id", exclusiveDriverId)
+        .maybeSingle();
+      directDriverName = `${driver?.first_name || ""} ${driver?.last_name || ""}`.trim() || "driver";
+    }
+
     // 1. Insert payment record with status = succeeded (cash / admin bypass)
     const { data: payment, error: payErr } = await admin
       .from("booking_payments")
@@ -52,6 +99,8 @@ export async function POST(req: NextRequest) {
           created_by: "admin",
           note: note || "Marked paid by admin",
           bypass: true,
+          dispatch_mode: dispatchMode,
+          exclusive_driver_id: dispatchMode === "direct" ? exclusiveDriverId : null,
         },
         livemode: false,
       })
@@ -78,11 +127,18 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const message =
+      dispatchMode === "direct"
+        ? `Job confirmed — reserved for ${directDriverName} only (Direct). Others cannot see it.`
+        : "Booking confirmed and job published to drivers";
+
     return NextResponse.json({
       success: true,
       bookingId,
       paymentId: payment.id,
-      message: "Booking confirmed and job published to drivers",
+      dispatchMode,
+      exclusiveDriverId: dispatchMode === "direct" ? exclusiveDriverId : null,
+      message,
     });
   } catch (err) {
     console.error("[admin/jobs/mark-paid] error:", err);

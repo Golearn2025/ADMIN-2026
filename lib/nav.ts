@@ -73,6 +73,11 @@ export const navConfig: NavGroup[] = [
         badge: "New",
       },
       {
+        title: "Job Dispatch",
+        href: "/dispatch",
+        icon: Zap,
+      },
+      {
         title: "Live Map",
         href: "/live-map",
         icon: Map,
