@@ -56,8 +56,15 @@ BEGIN
     ORDER BY r.started_at DESC
     LIMIT 1;
 
-    -- A) Direct exclusive: single-driver event only — never fan-out
-    IF dispatch.wave = 'direct' AND dispatch.exclusive_driver_id IS NOT NULL THEN
+    -- A) Direct wave: exclusivity REQUIRED. If exclusive_driver_id missing
+    --    (failed save), do NOT fan-out to Premium/Open/legacy broadcast.
+    IF dispatch.wave = 'direct' THEN
+      IF dispatch.exclusive_driver_id IS NULL THEN
+        CONTINUE; -- eșec salvare exclusivitate — zero notify
+      END IF;
+      IF NOT public.job_leg_is_offerable(bl.id) THEN
+        CONTINUE;
+      END IF;
       INSERT INTO public.notification_events (
         organization_id, event_type, source_module, priority, status,
         idempotency_key, booking_id, job_id, driver_id, payload

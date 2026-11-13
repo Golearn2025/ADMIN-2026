@@ -109,7 +109,8 @@ WITH latest_payment AS (
   WHERE bl.deleted_at IS NULL AND bl.status = 'PENDING'::leg_status AND bl.assigned_driver_id IS NULL AND bl.scheduled_at >= (now() - '01:00:00'::interval) AND (EXISTS ( SELECT 1
            FROM drivers d
              JOIN vehicles v ON v.driver_id = d.id AND v.status = 'active'::text AND v.deleted_at IS NULL
+             JOIN driver_app_vehicle dav ON dav.vehicle_id = v.id AND dav.driver_id = d.id AND dav.can_receive_jobs IS TRUE
           WHERE d.auth_user_id = auth.uid() AND d.deleted_at IS NULL AND d.organization_id = bl.organization_id AND (bl.vehicle_model_id IS NOT NULL AND v.model_id = bl.vehicle_model_id OR bl.vehicle_model_id IS NULL AND bl.vehicle_category_id IS NOT NULL AND v.category_id = bl.vehicle_category_id) AND job_offer_wave_allows_driver(bl.id, d.id)));
 
 COMMENT ON VIEW public.driver_job_offers_v2 IS
-  'REVIEW: live body + org filter on EXISTS; wave+vehicle match unchanged.';
+  'REVIEW: live body + org filter + can_receive_jobs aligned with notify/accept.';

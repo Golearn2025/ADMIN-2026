@@ -6,7 +6,9 @@
 -- =============================================================================
 
 -- -----------------------------------------------------------------------------
--- 0a) Helpers: vehicle match (any eligible vehicle of driver) — offers / waves
+-- 0a) Helpers: vehicle match — ALIGNED with Jobs list + notify + both Accepts
+--     Model/category alone is insufficient: require can_receive_jobs (docs+year).
+--     Difference: model/category = "right class"; can_receive_jobs = "allowed to work".
 -- -----------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION public.driver_vehicle_matches_leg(
   p_driver_id uuid,
@@ -22,9 +24,13 @@ AS $function$
   SELECT EXISTS (
     SELECT 1
     FROM public.vehicles v
+    JOIN public.driver_app_vehicle dav
+      ON dav.vehicle_id = v.id
+     AND dav.driver_id = p_driver_id
     WHERE v.driver_id = p_driver_id
       AND v.status = 'active'
       AND v.deleted_at IS NULL
+      AND dav.can_receive_jobs IS TRUE
       AND (
         (p_vehicle_model_id IS NOT NULL AND v.model_id = p_vehicle_model_id)
         OR (
@@ -120,8 +126,10 @@ GRANT EXECUTE ON FUNCTION public.booking_parent_is_accept_ready(uuid) TO service
 
 -- -----------------------------------------------------------------------------
 -- 0d) Authorization for internal dispatch RPCs
---     Cron advance_expired runs as DB role (no JWT) — must allow postgres /
---     supabase_admin. Admin API uses service_role. Org members via is_org_member.
+--     NEVER trust current_user here: SECURITY DEFINER elevates it to the owner,
+--     which would turn any caller into "backend". Use JWT role / session_user.
+--     Cron (no JWT): session_user postgres|supabase_admin AND no JWT claims.
+--     Human callers: service_role JWT OR super-admin OR org owner|admin|operator.
 -- -----------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION public.dispatch_caller_is_backend()
 RETURNS boolean
@@ -132,8 +140,14 @@ AS $function$
   SELECT
     public.is_service_role()
     OR coalesce(auth.role(), '') = 'service_role'
-    OR current_user IN ('postgres', 'supabase_admin', 'supabase_cron')
-    OR session_user IN ('postgres', 'supabase_admin');
+    OR coalesce(current_setting('request.jwt.claim.role', true), '') = 'service_role'
+    OR (
+      -- pg_cron / maintenance login only — NOT current_user (definer-safe)
+      auth.uid() IS NULL
+      AND coalesce(current_setting('request.jwt.claim.sub', true), '') = ''
+      AND coalesce(current_setting('request.jwt.claim.role', true), '') = ''
+      AND session_user IN ('postgres', 'supabase_admin')
+    );
 $function$;
 
 CREATE OR REPLACE FUNCTION public.dispatch_caller_can_manage_org(p_organization_id uuid)
@@ -149,9 +163,61 @@ AS $function$
     OR (
       auth.uid() IS NOT NULL
       AND p_organization_id IS NOT NULL
-      AND public.is_org_member(p_organization_id)
+      AND public.has_org_role(
+        p_organization_id,
+        ARRAY['owner', 'admin', 'operator']::text[]
+      )
     );
 $function$;
+
+-- Offerability gate for enqueue + worker retry (accept/cancel must stop sends)
+CREATE OR REPLACE FUNCTION public.job_leg_is_offerable(p_booking_leg_id uuid)
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path TO 'public'
+AS $function$
+  SELECT EXISTS (
+    SELECT 1
+    FROM public.booking_legs bl
+    WHERE bl.id = p_booking_leg_id
+      AND bl.deleted_at IS NULL
+      AND bl.status = 'PENDING'::leg_status
+      AND bl.assigned_driver_id IS NULL
+      AND public.booking_parent_is_accept_ready(bl.booking_id)
+  );
+$function$;
+
+CREATE OR REPLACE FUNCTION public.cancel_pending_job_available_notifications(p_booking_leg_id uuid)
+RETURNS integer
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO 'public'
+AS $function$
+DECLARE
+  v_n integer := 0;
+BEGIN
+  UPDATE public.notification_events
+  SET status = 'cancelled',
+      updated_at = now()
+  WHERE job_id = p_booking_leg_id
+    AND event_type = 'driver_job_available'
+    AND status IN ('pending', 'ready', 'failed_retryable', 'processing');
+
+  GET DIAGNOSTICS v_n = ROW_COUNT;
+  RETURN v_n;
+END;
+$function$;
+
+REVOKE ALL ON FUNCTION public.job_leg_is_offerable(uuid) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.job_leg_is_offerable(uuid) FROM anon;
+GRANT EXECUTE ON FUNCTION public.job_leg_is_offerable(uuid) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.job_leg_is_offerable(uuid) TO service_role;
+
+REVOKE ALL ON FUNCTION public.cancel_pending_job_available_notifications(uuid) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.cancel_pending_job_available_notifications(uuid) FROM anon;
+GRANT EXECUTE ON FUNCTION public.cancel_pending_job_available_notifications(uuid) TO service_role;
 
 REVOKE ALL ON FUNCTION public.dispatch_caller_is_backend() FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.dispatch_caller_is_backend() FROM anon;
@@ -259,6 +325,9 @@ BEGIN
       updated_at = now()
   WHERE booking_leg_id = p_leg_id
     AND status = 'active';
+
+  -- Stop remaining / retryable pushes for this job
+  PERFORM public.cancel_pending_job_available_notifications(p_leg_id);
 
   SELECT jsonb_build_object(
     'job_id', id,
@@ -377,6 +446,8 @@ BEGIN
   WHERE booking_leg_id = p_booking_leg_id
     AND status = 'active';
 
+  PERFORM public.cancel_pending_job_available_notifications(p_booking_leg_id);
+
   RETURN true;
 END;
 $function$;
@@ -428,19 +499,13 @@ BEGIN
       USING ERRCODE = '42501';
   END IF;
 
-  IF bl.status IS DISTINCT FROM 'PENDING'::leg_status OR bl.assigned_driver_id IS NOT NULL THEN
+  -- Availability before any notify insert (also used conceptually on worker retry)
+  IF NOT public.job_leg_is_offerable(bl.id) THEN
     RETURN 0;
   END IF;
 
   SELECT * INTO b FROM public.bookings WHERE id = bl.booking_id AND deleted_at IS NULL;
-  IF b.id IS NULL OR b.status IS DISTINCT FROM 'CONFIRMED'::booking_status THEN
-    RETURN 0;
-  END IF;
-
-  IF NOT EXISTS (
-    SELECT 1 FROM public.booking_payments bp
-    WHERE bp.booking_id = b.id AND bp.deleted_at IS NULL AND bp.status = 'succeeded'::payment_status
-  ) THEN
+  IF b.id IS NULL THEN
     RETURN 0;
   END IF;
 
@@ -494,6 +559,9 @@ BEGIN
       WHERE pd.organization_id = bl.organization_id
         AND public.driver_vehicle_matches_leg(pd.driver_id, bl.vehicle_category_id, bl.vehicle_model_id)
     LOOP
+      IF NOT public.job_leg_is_offerable(bl.id) THEN
+        RETURN v_count;
+      END IF;
       INSERT INTO public.notification_events (
         organization_id, event_type, source_module, priority, status,
         idempotency_key, booking_id, job_id, driver_id, payload
@@ -532,6 +600,9 @@ BEGIN
             AND ne.status IS DISTINCT FROM 'cancelled'
         )
     LOOP
+      IF NOT public.job_leg_is_offerable(bl.id) THEN
+        RETURN v_count;
+      END IF;
       INSERT INTO public.notification_events (
         organization_id, event_type, source_module, priority, status,
         idempotency_key, booking_id, job_id, driver_id, payload

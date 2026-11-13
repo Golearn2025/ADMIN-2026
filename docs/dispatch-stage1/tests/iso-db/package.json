@@ -1,0 +1,13 @@
+{
+  "name": "iso-db",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "test": "node run-isolated-real.mjs"
+  },
+  "private": true,
+  "description": "Isolated PGlite Stage1 dispatch tests — no production",
+  "dependencies": {
+    "@electric-sql/pglite": "^0.2.17"
+  }
+}
