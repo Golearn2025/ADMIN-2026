@@ -74,7 +74,38 @@ export async function POST(req: NextRequest) {
         waitMinutes: settings?.direct_wait_minutes ?? 10,
       });
       if (!started.ok) {
-        return NextResponse.json({ success: false, error: started.error }, { status: 400 });
+        // No payment / no confirm / no broadcast when Direct lock fails completely
+        return NextResponse.json(
+          {
+            success: false,
+            error: started.error,
+            bookingId,
+            bookingStatus: booking.status,
+            dispatchLocked: false,
+          },
+          { status: 400 }
+        );
+      }
+
+      // Defense: refuse payment if no active Direct run with exclusive_driver_id
+      const { data: directRun } = await admin
+        .from("job_dispatch_runs")
+        .select("id, exclusive_driver_id, wave")
+        .eq("booking_id", bookingId)
+        .eq("status", "active")
+        .eq("wave", "direct")
+        .maybeSingle();
+      if (!directRun?.exclusive_driver_id) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: "Direct exclusivity was not saved — payment aborted to prevent public broadcast",
+            bookingId,
+            bookingStatus: booking.status,
+            dispatchLocked: false,
+          },
+          { status: 400 }
+        );
       }
 
       const { data: driver } = await admin

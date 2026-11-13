@@ -1,113 +1,77 @@
-# Raport Stage 1 — actualizat (fără apply / deploy / notificări reale)
+# Raport Stage 1 — review testing (fără producție)
 
-**Data:** 2026-11-13 (revizie review)  
-**Branch review:** `review/dispatch-stage1-corrections-2026-11-12`  
-**Artefacte:** `docs/dispatch-stage1/**` (NU în `supabase/migrations` de apply)
-
----
-
-## 1. Deploy-uri Render / live
-
-| Serviciu | GitHub `main` | Live |
-|----------|---------------|------|
-| Admin | `af06efa` | confirmat `af06efa` |
-| Backend notificări | `6502611` (fix targeting `11a34779`) | confirmat `6502611` |
-| Driver | `4986126` | `4986126` |
-
-Stage1 **neaplicat** pe VL NEW. `waves_enabled_automatic=false`. Fără deploy nou din acest run.
+**Data:** 2026-11-13  
+**Admin review:** `review/dispatch-stage1-corrections-2026-11-12`  
+**Backend review:** `review/dispatch-offerability-guard` (din `origin/main` @ `6502611`)
 
 ---
 
-## 2. Autorizare dispatch (fix SECURITY DEFINER)
+## A. Implementare reală — executat
 
-**Bug anterior:** `dispatch_caller_is_backend()` folosea `current_user IN ('postgres',…)`. În interiorul unui `SECURITY DEFINER`, `current_user` devine owner-ul funcției → orice caller părea „backend”.
+### A1. Migrări 600/601/602 încărcate din fișiere (Postgres local izolat :55432)
 
-**Corecție:**
-- Backend = JWT `service_role` **sau** (fără JWT + `session_user` ∈ `{postgres,supabase_admin}`) — **niciodată** `current_user`
-- Human = `has_org_role(org, {owner,admin,operator})` sau super-admin
-- Refuzat: șoferi, `member`, admin din altă org
+Harness: `docs/dispatch-stage1/tests/iso-db/run-with-real-migrations.mjs`  
+Bootstrap: `bootstrap-schema.sql` + **exact** SQL din `migrations/20261112*.sql` (fără rescriere a corpurilor Stage1).
 
-Testat în PGlite izolat (vezi §8).
+| Test | Rezultat |
+|------|----------|
+| 600 loaded + GRANT/REVOKE (enqueue: anon/auth false, service_role true) | **PASS** |
+| 602 view + `can_receive_jobs` + org filter | **PASS** |
+| Auth deny driver/member/other-org pe `start_premium` | **PASS** |
+| waves OFF = flux general (broadcast legacy, fără Premium auto) | **PASS** |
+| waves ON = Premium → Open via `advance` | **PASS** |
+| Admin Open (Option A) independent de waves website | **PASS** |
+| Admin Direct exclusiv (Accept) | **PASS** |
+| Driver card (`driver_job_offers_v2`) + Accept `vehicle_id` | **PASS** |
+| Direct fără exclusive → 0 notify | **PASS** |
+| **2 conexiuni PG + 2 auth.uid()** → 1 câștigător | **PASS** |
 
----
+**SUMMARY:** passed=10 failed=0 skipped=0
 
-## 3. Eligibilitate vehicul — aliniere Jobs / notify / Accept
+### A2. Backend handler offerability (review branch, provider fals)
 
-| Strat | Regulă |
-|-------|--------|
-| Model/categorie | mașina e din clasa cerută de leg |
-| `can_receive_jobs` | activ + an valid + docs approved (view `driver_app_vehicle`) |
+Cod: `job_leg_is_offerable` RPC înainte de send; `markEventCancelled`; skip pe `cancelled`.
 
-**Diferență:** model/categorie ≠ drept de lucru. Ambele sunt obligatorii.
+Vitest: `process-driver-job-available.offerability.test.ts` + targeting  
+**PASS** (retry / accepted / cancelled / processing / send OK)
 
-Aliniat în:
-- `driver_vehicle_matches_leg` (acum cere `can_receive_jobs`)
-- `driver_selected_vehicle_matches_leg` (mașina selectată)
-- `driver_job_offers_v2` EXISTS (Jobs list)
-- enqueue Premium/Open
+### A3. mark-paid Direct fail fără `job_dispatch_run`
 
----
-
-## 4. Disponibilitate înainte de notify + retry
-
-- `job_leg_is_offerable(leg)` — PENDING, neasignat, booking ready
-- Enqueue re-check înainte de fiecare insert
-- Accept → `cancel_pending_job_available_notifications` (`pending/ready/failed_retryable/processing` → `cancelled`)
-- Worker: vezi `backend-patches/WORKER_OFFERABILITY_GUARD.md` (skip send dacă nu e offerable)
-- Direct fără `exclusive_driver_id` → **zero** notify (fără fan-out)
+Gate în `app/api/admin/jobs/mark-paid/route.ts`: eșec lock sau lipsă exclusive → **fără** payment/confirm/broadcast; booking rămâne pe statusul anterior.  
+Test: `docs/dispatch-stage1/tests/mark-paid-direct-fail.test.mjs` → **PASS**
 
 ---
 
-## 5. Opțiunea A / Open / Direct
+## B. Simulări (nu DB migrări live / nu HTTP Admin)
 
-Neschimbat ca business: empty Premium → Open imediat; Direct exclusiv; Open pentru ne-notificați (inclusiv Premium adăugat mid-wave).
+| Suită | Rezultat |
+|-------|----------|
+| `dispatch-stage1.isolated.test.mjs` | 18/18 (simulator) |
+| `concurrent-accept-semantics.test.mjs` | PASS |
+| `run-isolated-real.mjs` (PGlite cu funcții copiate) | **înlocuit** de A1 — nu mai e sursa de adevăr |
 
 ---
 
-## 6–7. Fișiere + teste unitare
+## C. Nerulat
+
+| Caz | Motiv |
+|-----|-------|
+| Apply Stage1 pe VL NEW / staging Supabase branch | Interzis / cost branch neconfirmat |
+| Deploy Render Admin sau worker | Interzis |
+| OneSignal/Resend reale | Interzis |
+| HTTP end-to-end New Job pe Admin live | Fără staging Admin URL |
+| Driver app UI nativă (card ecran) | Verificat view+Accept SQL; UI mobil nerulat |
+| Merge pe `main` (Admin sau Backend) | Interzis |
+
+---
+
+## D. Fișiere cheie
 
 ```
-docs/dispatch-stage1/migrations/20261112060000_…sql   ← auth + vehicle + cancel
-docs/dispatch-stage1/migrations/20261112060100_…sql   ← Direct exclusivity fail-safe
-docs/dispatch-stage1/migrations/20261112060200_…sql   ← Jobs + can_receive_jobs
-docs/dispatch-stage1/backend-patches/WORKER_OFFERABILITY_GUARD.md
-docs/dispatch-stage1/tests/iso-db/run-isolated-real.mjs
+ADMIN docs/dispatch-stage1/tests/iso-db/{bootstrap-schema.sql,run-with-real-migrations.mjs}
+ADMIN app/api/admin/jobs/mark-paid/route.ts  ← abort payment dacă Direct fără exclusive
+Backend review/dispatch-offerability-guard
+  handler + repository + offerability.test.ts
 ```
 
-Unit: `dispatch-stage1.isolated.test.mjs` **18/18**, `concurrent-accept-semantics` **PASS**.
-
----
-
-## 8. Execuție DB izolată (PGlite) — 2026-11-13
-
-Mediu: Postgres WASM local, provider fals, conturi fictive. **Nu** VL NEW. **Nu** OneSignal.
-
-| # | Scenariu | Rezultat |
-|---|----------|----------|
-| 1 | Șofer → `start_premium` denied (fără escalate DEFINER) | **PASS** |
-| 2 | `member` fără admin/operator denied | **PASS** |
-| 3 | Admin altă org denied | **PASS** |
-| 4 | Operator org allowed | **PASS** |
-| 5 | Advance denied pentru driver JWT | **PASS** |
-| 6 | `can_receive_jobs=false` exclus din match | **PASS** |
-| 7 | Accept `vehicle_id` respinge mașină neeligibilă | **PASS** |
-| 8 | Admin New Job Direct + plată → 1 notify | **PASS** |
-| 9 | Eșec salvare exclusivitate Direct → 0 notify | **PASS** |
-| 10 | Premium → doar premium eligibil | **PASS** |
-| 11 | Open după expiry → ne-notificați | **PASS** |
-| 12 | Empty Premium → Open imediat | **PASS** |
-| 13 | Accept simultan 2 auth → 1 câștigător | **PASS** |
-| 14 | Accept anulează pending/retry; retry skip | **PASS** |
-
-**Skipped (nerulat):**
-- Cursă FOR UPDATE pe 2 conexiuni Postgres reale (PGlite single-conn)
-- Supabase branch full schema (necesită confirmare cost plătită)
-- Admin UI HTTP pe Render (fără staging URL / fără deploy)
-
-**failed = 0**
-
-Comandă: `node docs/dispatch-stage1/tests/iso-db/run-isolated-real.mjs`
-
----
-
-**Nimic aplicat pe VL NEW. Niciun merge pe main. Niciun deploy. Nicio notificare reală.**
+**Nimic aplicat pe VL NEW. Niciun deploy. Nicio notificare reală.**

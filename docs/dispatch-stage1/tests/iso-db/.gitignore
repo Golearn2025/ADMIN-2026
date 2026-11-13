@@ -1,3 +1,5 @@
 node_modules/
 LAST_RUN.json
+LAST_RUN_REAL_MIGRATIONS.json
 package-lock.json
+pgdata/
