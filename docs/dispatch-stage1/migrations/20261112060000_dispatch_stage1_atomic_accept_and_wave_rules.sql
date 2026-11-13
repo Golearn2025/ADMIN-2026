@@ -1,11 +1,12 @@
 -- =============================================================================
 -- REVIEW ONLY — DO NOT APPLY TO PRODUCTION / VL NEW WITHOUT EXPLICIT APPROVAL
--- Corrected Stage 1: atomic accept + wave notify rules
+-- Stage 1 corrected: atomic accept + vehicle/booking guards + authorized dispatch
+-- + empty-Premium → Open (option A) + Open notify for previously-unnotified drivers
 -- Compared against LIVE VL NEW definitions (read 2026-11-12).
 -- =============================================================================
 
 -- -----------------------------------------------------------------------------
--- 0) Helper: vehicle match (same rules as driver_job_offers_v2)
+-- 0a) Helpers: vehicle match (any eligible vehicle of driver) — offers / waves
 -- -----------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION public.driver_vehicle_matches_leg(
   p_driver_id uuid,
@@ -35,13 +36,135 @@ AS $function$
   );
 $function$;
 
+REVOKE ALL ON FUNCTION public.driver_vehicle_matches_leg(uuid, text, text) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.driver_vehicle_matches_leg(uuid, text, text) FROM anon;
+GRANT EXECUTE ON FUNCTION public.driver_vehicle_matches_leg(uuid, text, text) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.driver_vehicle_matches_leg(uuid, text, text) TO service_role;
+
 -- -----------------------------------------------------------------------------
--- 1a) JSONB overload used by Driver App — MUST bind caller identity
--- LIVE BUGS confirmed:
---   - accepts arbitrary p_driver_id (impersonation)
---   - UPDATE lacks assigned_driver_id IS NULL (race)
---   - no org / vehicle checks
---   - EXECUTE granted to PUBLIC/anon/authenticated
+-- 0b) Exact selected vehicle: owner, org, can_receive_jobs, model/category of leg
+--     can_receive_jobs alone is NOT enough.
+-- -----------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.driver_selected_vehicle_matches_leg(
+  p_driver_id uuid,
+  p_vehicle_id uuid,
+  p_organization_id uuid,
+  p_vehicle_category_id text,
+  p_vehicle_model_id text
+)
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path TO 'public'
+AS $function$
+  SELECT EXISTS (
+    SELECT 1
+    FROM public.vehicles v
+    JOIN public.driver_app_vehicle dav
+      ON dav.vehicle_id = v.id
+     AND dav.driver_id = p_driver_id
+    WHERE v.id = p_vehicle_id
+      AND v.driver_id = p_driver_id
+      AND v.organization_id = p_organization_id
+      AND v.deleted_at IS NULL
+      AND v.status = 'active'
+      AND dav.can_receive_jobs IS TRUE
+      AND dav.organization_id = p_organization_id
+      AND (
+        (p_vehicle_model_id IS NOT NULL AND v.model_id = p_vehicle_model_id)
+        OR (
+          p_vehicle_model_id IS NULL
+          AND p_vehicle_category_id IS NOT NULL
+          AND v.category_id = p_vehicle_category_id
+        )
+      )
+  );
+$function$;
+
+REVOKE ALL ON FUNCTION public.driver_selected_vehicle_matches_leg(uuid, uuid, uuid, text, text) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.driver_selected_vehicle_matches_leg(uuid, uuid, uuid, text, text) FROM anon;
+GRANT EXECUTE ON FUNCTION public.driver_selected_vehicle_matches_leg(uuid, uuid, uuid, text, text) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.driver_selected_vehicle_matches_leg(uuid, uuid, uuid, text, text) TO service_role;
+
+-- -----------------------------------------------------------------------------
+-- 0c) Parent booking: not deleted, CONFIRMED, succeeded payment (offers rules)
+-- -----------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.booking_parent_is_accept_ready(p_booking_id uuid)
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path TO 'public'
+AS $function$
+  SELECT EXISTS (
+    SELECT 1
+    FROM public.bookings b
+    WHERE b.id = p_booking_id
+      AND b.deleted_at IS NULL
+      AND b.status = 'CONFIRMED'::booking_status
+      AND EXISTS (
+        SELECT 1
+        FROM public.booking_payments bp
+        WHERE bp.booking_id = b.id
+          AND bp.deleted_at IS NULL
+          AND bp.status = 'succeeded'::payment_status
+      )
+  );
+$function$;
+
+REVOKE ALL ON FUNCTION public.booking_parent_is_accept_ready(uuid) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.booking_parent_is_accept_ready(uuid) FROM anon;
+GRANT EXECUTE ON FUNCTION public.booking_parent_is_accept_ready(uuid) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.booking_parent_is_accept_ready(uuid) TO service_role;
+
+-- -----------------------------------------------------------------------------
+-- 0d) Authorization for internal dispatch RPCs
+--     Cron advance_expired runs as DB role (no JWT) — must allow postgres /
+--     supabase_admin. Admin API uses service_role. Org members via is_org_member.
+-- -----------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.dispatch_caller_is_backend()
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SET search_path TO 'public'
+AS $function$
+  SELECT
+    public.is_service_role()
+    OR coalesce(auth.role(), '') = 'service_role'
+    OR current_user IN ('postgres', 'supabase_admin', 'supabase_cron')
+    OR session_user IN ('postgres', 'supabase_admin');
+$function$;
+
+CREATE OR REPLACE FUNCTION public.dispatch_caller_can_manage_org(p_organization_id uuid)
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path TO 'public'
+AS $function$
+  SELECT
+    public.dispatch_caller_is_backend()
+    OR public.is_super_admin()
+    OR (
+      auth.uid() IS NOT NULL
+      AND p_organization_id IS NOT NULL
+      AND public.is_org_member(p_organization_id)
+    );
+$function$;
+
+REVOKE ALL ON FUNCTION public.dispatch_caller_is_backend() FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.dispatch_caller_is_backend() FROM anon;
+GRANT EXECUTE ON FUNCTION public.dispatch_caller_is_backend() TO authenticated;
+GRANT EXECUTE ON FUNCTION public.dispatch_caller_is_backend() TO service_role;
+
+REVOKE ALL ON FUNCTION public.dispatch_caller_can_manage_org(uuid) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.dispatch_caller_can_manage_org(uuid) FROM anon;
+GRANT EXECUTE ON FUNCTION public.dispatch_caller_can_manage_org(uuid) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.dispatch_caller_can_manage_org(uuid) TO service_role;
+
+-- -----------------------------------------------------------------------------
+-- 1a) JSONB overload used by Driver App — bind caller identity + booking parent
 -- -----------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION public.driver_accept_job(
   p_leg_id uuid,
@@ -56,6 +179,7 @@ DECLARE
   job_data jsonb;
   v_caller uuid := auth.uid();
   v_driver_id uuid;
+  v_driver_org uuid;
   v_leg record;
   v_updated integer;
 BEGIN
@@ -63,9 +187,8 @@ BEGIN
     RETURN jsonb_build_object('success', false, 'error', 'Authentication required');
   END IF;
 
-  -- Caller may ONLY accept as themselves. Ignore / reject foreign driver ids.
-  SELECT d.id
-    INTO v_driver_id
+  SELECT d.id, d.organization_id
+    INTO v_driver_id, v_driver_org
   FROM public.drivers d
   WHERE d.auth_user_id = v_caller
     AND d.is_active = true
@@ -92,10 +215,12 @@ BEGIN
     RETURN jsonb_build_object('success', false, 'error', 'Job not found');
   END IF;
 
-  IF v_leg.organization_id IS DISTINCT FROM (
-    SELECT d.organization_id FROM public.drivers d WHERE d.id = v_driver_id
-  ) THEN
+  IF v_leg.organization_id IS DISTINCT FROM v_driver_org THEN
     RETURN jsonb_build_object('success', false, 'error', 'Organization mismatch');
+  END IF;
+
+  IF NOT public.booking_parent_is_accept_ready(v_leg.booking_id) THEN
+    RETURN jsonb_build_object('success', false, 'error', 'Booking not confirmed or payment invalid');
   END IF;
 
   IF v_leg.status IS DISTINCT FROM 'PENDING'::leg_status OR v_leg.assigned_driver_id IS NOT NULL THEN
@@ -154,9 +279,7 @@ GRANT EXECUTE ON FUNCTION public.driver_accept_job(uuid, uuid) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.driver_accept_job(uuid, uuid) TO service_role;
 
 -- -----------------------------------------------------------------------------
--- 1b) Boolean overload (driver_id, vehicle_id, leg_id) — keep FOR UPDATE,
---     bind caller, keep vehicle ownership, atomic WHERE.
--- LIVE: allows arbitrary p_driver_id; uses status 'ACCEPTED' (verify enum).
+-- 1b) Boolean overload (driver_id, vehicle_id, leg_id) — exact selected vehicle
 -- -----------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION public.driver_accept_job(
   p_driver_id uuid,
@@ -171,10 +294,8 @@ AS $function$
 DECLARE
   v_caller uuid := auth.uid();
   v_self uuid;
-  v_already_assigned uuid;
-  v_vehicle_valid boolean;
   v_org uuid;
-  v_leg_org uuid;
+  v_leg record;
   v_updated integer;
 BEGIN
   IF v_caller IS NULL THEN
@@ -194,18 +315,26 @@ BEGIN
     RETURN false;
   END IF;
 
-  SELECT assigned_driver_id, organization_id
-    INTO v_already_assigned, v_leg_org
-  FROM public.booking_legs
-  WHERE id = p_booking_leg_id
-    AND deleted_at IS NULL
+  SELECT bl.*
+    INTO v_leg
+  FROM public.booking_legs bl
+  WHERE bl.id = p_booking_leg_id
+    AND bl.deleted_at IS NULL
   FOR UPDATE;
 
-  IF NOT FOUND OR v_already_assigned IS NOT NULL THEN
+  IF NOT FOUND OR v_leg.assigned_driver_id IS NOT NULL THEN
     RETURN false;
   END IF;
 
-  IF v_leg_org IS DISTINCT FROM v_org THEN
+  IF v_leg.organization_id IS DISTINCT FROM v_org THEN
+    RETURN false;
+  END IF;
+
+  IF NOT public.booking_parent_is_accept_ready(v_leg.booking_id) THEN
+    RETURN false;
+  END IF;
+
+  IF v_leg.status IS DISTINCT FROM 'PENDING'::leg_status THEN
     RETURN false;
   END IF;
 
@@ -213,13 +342,14 @@ BEGIN
     RETURN false;
   END IF;
 
-  SELECT can_receive_jobs
-    INTO v_vehicle_valid
-  FROM public.driver_app_vehicle
-  WHERE vehicle_id = p_vehicle_id
-    AND driver_id = p_driver_id;
-
-  IF v_vehicle_valid IS NOT TRUE THEN
+  -- Exact vehicle: owner + org + can_receive_jobs + model/category of leg
+  IF NOT public.driver_selected_vehicle_matches_leg(
+    p_driver_id,
+    p_vehicle_id,
+    v_leg.organization_id,
+    v_leg.vehicle_category_id,
+    v_leg.vehicle_model_id
+  ) THEN
     RETURN false;
   END IF;
 
@@ -257,9 +387,11 @@ GRANT EXECUTE ON FUNCTION public.driver_accept_job(uuid, uuid, uuid) TO authenti
 GRANT EXECUTE ON FUNCTION public.driver_accept_job(uuid, uuid, uuid) TO service_role;
 
 -- -----------------------------------------------------------------------------
--- 2) Wave notifications: vehicle filter + Open excludes currently-listed Premium
---    Snapshot recipients at enqueue time; Premium list changes after enqueue do
---    not rewrite past events (document in RAPORT).
+-- 2) Wave notifications
+--    Open: every eligible org driver NOT previously notified for this job
+--    (includes drivers added to Premium after Premium enqueue).
+--    Skip is by prior notification_events, NOT by current Premium membership.
+--    Direct remains exclusive (notified elsewhere).
 -- -----------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION public.enqueue_dispatch_wave_notifications(
   p_booking_leg_id uuid,
@@ -281,8 +413,21 @@ DECLARE
   v_base integer;
   v_extras integer;
 BEGIN
+  IF p_wave IS DISTINCT FROM 'direct'
+     AND p_wave IS DISTINCT FROM 'premium'
+     AND p_wave IS DISTINCT FROM 'open' THEN
+    RAISE EXCEPTION 'invalid dispatch wave: %', p_wave
+      USING ERRCODE = '22023';
+  END IF;
+
   SELECT * INTO bl FROM public.booking_legs WHERE id = p_booking_leg_id AND deleted_at IS NULL;
   IF bl.id IS NULL THEN RETURN 0; END IF;
+
+  IF NOT public.dispatch_caller_can_manage_org(bl.organization_id) THEN
+    RAISE EXCEPTION 'not authorized to enqueue dispatch notifications'
+      USING ERRCODE = '42501';
+  END IF;
+
   IF bl.status IS DISTINCT FROM 'PENDING'::leg_status OR bl.assigned_driver_id IS NOT NULL THEN
     RETURN 0;
   END IF;
@@ -368,9 +513,9 @@ BEGIN
       IF FOUND THEN v_count := v_count + 1; END IF;
     END LOOP;
   ELSIF p_wave = 'open' THEN
-    -- Recipients = eligible org drivers NOT on Premium list AT ENQUEUE TIME.
-    -- If Premium list changes later, past Premium notifies stay; new Premium
-    -- members may still receive Open (document + optional snapshot table later).
+    -- Eligible org drivers who were NEVER notified for this job (any wave).
+    -- Includes drivers added to Premium after Premium enqueue (missed Premium push).
+    -- Does NOT re-notify drivers who already have a non-cancelled event.
     FOR v_driver IN
       SELECT d.id AS driver_id
       FROM public.drivers d
@@ -378,11 +523,6 @@ BEGIN
         AND d.deleted_at IS NULL
         AND d.status = 'approved'
         AND public.driver_vehicle_matches_leg(d.id, bl.vehicle_category_id, bl.vehicle_model_id)
-        AND NOT EXISTS (
-          SELECT 1 FROM public.dispatch_premium_drivers pd
-          WHERE pd.organization_id = bl.organization_id AND pd.driver_id = d.id
-        )
-        -- Also skip anyone already notified for this leg (any prior wave)
         AND NOT EXISTS (
           SELECT 1 FROM public.notification_events ne
           WHERE ne.organization_id = bl.organization_id
@@ -416,8 +556,14 @@ BEGIN
 END;
 $function$;
 
+REVOKE ALL ON FUNCTION public.enqueue_dispatch_wave_notifications(uuid, text) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.enqueue_dispatch_wave_notifications(uuid, text) FROM anon;
+REVOKE ALL ON FUNCTION public.enqueue_dispatch_wave_notifications(uuid, text) FROM authenticated;
+GRANT EXECUTE ON FUNCTION public.enqueue_dispatch_wave_notifications(uuid, text) TO service_role;
+
 -- -----------------------------------------------------------------------------
--- 3) start_premium_dispatch_run — NO auto-Open when Premium empty (await decision)
+-- 3) start_premium_dispatch_run — Option A: empty Premium → Open immediately
+--    Always creates an active run (premium or open). Direct stays exclusive.
 -- -----------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION public.start_premium_dispatch_run(
   p_booking_leg_id uuid,
@@ -440,8 +586,17 @@ BEGIN
   IF bl.id IS NULL THEN
     RETURN jsonb_build_object('success', false, 'error', 'Leg not found');
   END IF;
+
+  IF NOT public.dispatch_caller_can_manage_org(bl.organization_id) THEN
+    RETURN jsonb_build_object('success', false, 'error', 'Not authorized');
+  END IF;
+
   IF bl.status IS DISTINCT FROM 'PENDING'::leg_status OR bl.assigned_driver_id IS NOT NULL THEN
     RETURN jsonb_build_object('success', false, 'error', 'Leg not dispatchable');
+  END IF;
+
+  IF NOT public.booking_parent_is_accept_ready(bl.booking_id) THEN
+    RETURN jsonb_build_object('success', false, 'error', 'Booking not confirmed or payment invalid');
   END IF;
 
   IF EXISTS (
@@ -462,24 +617,30 @@ BEGIN
   WHERE pd.organization_id = bl.organization_id
     AND public.driver_vehicle_matches_leg(pd.driver_id, bl.vehicle_category_id, bl.vehicle_model_id);
 
-  -- DECISION REQUIRED (see RAPORT §5). Until decided: refuse auto-Open.
-  IF v_premium_count = 0 THEN
-    RETURN jsonb_build_object(
-      'success', false,
-      'error', 'no_eligible_premium',
-      'action_required', true,
-      'options', jsonb_build_array(
-        'open_immediately',
-        'wait_manual_open',
-        'widen_vehicle_match',
-        'cancel_dispatch'
-      )
-    );
-  END IF;
-
   UPDATE public.job_dispatch_runs
   SET status = 'cancelled', released_at = v_now, updated_at = v_now
   WHERE booking_leg_id = bl.id AND status = 'active';
+
+  -- Option A: no eligible Premium → Open immediately (keep model/category filter).
+  -- Never leave the leg without an active run while still PENDING.
+  IF v_premium_count = 0 THEN
+    INSERT INTO public.job_dispatch_runs (
+      organization_id, booking_id, booking_leg_id, mode, wave,
+      exclusive_driver_id, status, started_at, created_by, updated_at
+    ) VALUES (
+      bl.organization_id, bl.booking_id, bl.id, 'waves', 'open',
+      NULL, 'active', v_now, p_actor_id, v_now
+    );
+
+    v_n := public.enqueue_dispatch_wave_notifications(bl.id, 'open');
+    RETURN jsonb_build_object(
+      'success', true,
+      'wave', 'open',
+      'reason', 'no_eligible_premium_open_immediately',
+      'premium_eligible', 0,
+      'notifications', v_n
+    );
+  END IF;
 
   INSERT INTO public.job_dispatch_runs (
     organization_id, booking_id, booking_leg_id, mode, wave,
@@ -500,8 +661,16 @@ BEGIN
 END;
 $function$;
 
+REVOKE ALL ON FUNCTION public.start_premium_dispatch_run(uuid, uuid) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.start_premium_dispatch_run(uuid, uuid) FROM anon;
+REVOKE ALL ON FUNCTION public.start_premium_dispatch_run(uuid, uuid) FROM authenticated;
+GRANT EXECUTE ON FUNCTION public.start_premium_dispatch_run(uuid, uuid) TO service_role;
+-- Org admins may call via user JWT (Admin API preferably uses service_role).
+GRANT EXECUTE ON FUNCTION public.start_premium_dispatch_run(uuid, uuid) TO authenticated;
+
 -- -----------------------------------------------------------------------------
 -- 4) Advance Premium → Open only (Direct NEVER auto-advances)
+--    Compatible with pg_cron: SELECT advance_expired_job_dispatch_waves();
 -- -----------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION public.advance_expired_job_dispatch_waves()
 RETURNS jsonb
@@ -513,9 +682,23 @@ DECLARE
   v_run record;
   v_advanced integer := 0;
   v_notified integer := 0;
+  v_skipped_auth integer := 0;
   v_n integer;
   v_now timestamptz := now();
 BEGIN
+  -- Backend / cron / super-admin only. Not a public driver RPC.
+  IF NOT (
+    public.dispatch_caller_is_backend()
+    OR public.is_super_admin()
+  ) THEN
+    RETURN jsonb_build_object(
+      'success', false,
+      'error', 'Not authorized',
+      'advanced', 0,
+      'notifications', 0
+    );
+  END IF;
+
   FOR v_run IN
     SELECT r.*
     FROM public.job_dispatch_runs r
@@ -529,6 +712,12 @@ BEGIN
       AND bl.assigned_driver_id IS NULL
     FOR UPDATE OF r SKIP LOCKED
   LOOP
+    -- Org sanity (cron is global backend; still require org present)
+    IF v_run.organization_id IS NULL THEN
+      v_skipped_auth := v_skipped_auth + 1;
+      CONTINUE;
+    END IF;
+
     UPDATE public.job_dispatch_runs
     SET status = 'expired',
         released_at = v_now,
@@ -552,7 +741,15 @@ BEGIN
   RETURN jsonb_build_object(
     'success', true,
     'advanced', v_advanced,
-    'notifications', v_notified
+    'notifications', v_notified,
+    'skipped', v_skipped_auth
   );
 END;
 $function$;
+
+REVOKE ALL ON FUNCTION public.advance_expired_job_dispatch_waves() FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.advance_expired_job_dispatch_waves() FROM anon;
+REVOKE ALL ON FUNCTION public.advance_expired_job_dispatch_waves() FROM authenticated;
+GRANT EXECUTE ON FUNCTION public.advance_expired_job_dispatch_waves() TO service_role;
+-- pg_cron executes as DB owner; EXECUTE for postgres/supabase_admin is implicit for owner.
+-- Keep authenticated revoked: Admin UI must use service-role client (already does).

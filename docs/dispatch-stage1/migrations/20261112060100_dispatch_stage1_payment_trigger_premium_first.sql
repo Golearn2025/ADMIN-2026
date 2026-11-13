@@ -1,10 +1,10 @@
--- NOTE: start_premium_dispatch_run now returns action_required when no eligible Premium.
--- Payment trigger must NOT treat that as success/open. See RAPORT §5 — awaiting decision.
-
 -- =============================================================================
 -- REVIEW ONLY — DO NOT APPLY TO PRODUCTION WITHOUT EXPLICIT APPROVAL
--- Payment-succeeded enqueue: respect Direct; for automatic waves start Premium
--- instead of broadcasting Open to everyone.
+-- Payment-succeeded enqueue: Direct exclusive; automatic waves → Premium first;
+-- empty Premium (Option A) → start_premium_dispatch_run opens immediately.
+-- Trigger remains SECURITY DEFINER (fires on booking_payments); it calls
+-- start_premium_dispatch_run which authorizes via dispatch_caller_is_backend()
+-- (definer owner / service_role). Compatible with waves_enabled_automatic flag.
 -- =============================================================================
 
 CREATE OR REPLACE FUNCTION public.enqueue_driver_job_available_on_payment_succeeded()
@@ -56,7 +56,7 @@ BEGIN
     ORDER BY r.started_at DESC
     LIMIT 1;
 
-    -- A) Direct exclusive: single-driver event only
+    -- A) Direct exclusive: single-driver event only — never fan-out
     IF dispatch.wave = 'direct' AND dispatch.exclusive_driver_id IS NOT NULL THEN
       INSERT INTO public.notification_events (
         organization_id, event_type, source_module, priority, status,
@@ -89,19 +89,19 @@ BEGIN
       CONTINUE;
     END IF;
 
-    -- B) Automatic waves: Premium first (timer starts now)
+    -- B) Automatic waves: Premium first; Option A opens immediately if empty Premium
     IF coalesce(v_auto, false) = true THEN
       v_started := public.start_premium_dispatch_run(bl.id, NULL);
-      -- If no eligible premium, do NOT silently Open (await product decision).
+      -- success=true covers premium OR open_immediately (no_eligible_premium_open_immediately)
       IF coalesce((v_started->>'success')::boolean, false) IS NOT TRUE THEN
-        -- Leave without Open broadcast; ops can release manually.
         CONTINUE;
       END IF;
       CONTINUE;
     END IF;
 
-    -- C) Fallback Open broadcast event (legacy) — backend MUST still filter by
-    --    vehicle + org; Stage1 backend patch requires honouring driver_id when set.
+    -- C) Fallback Open broadcast event (legacy) — only when automatic waves OFF.
+    --    Prefer per-driver Open via start_premium / advance once Stage1 is applied
+    --    and waves are enabled. Backend must still honour driver_id when set.
     INSERT INTO public.notification_events (
       organization_id, event_type, source_module, priority, status,
       idempotency_key, booking_id, job_id, driver_id, payload
@@ -135,4 +135,4 @@ END;
 $function$;
 
 COMMENT ON FUNCTION public.enqueue_driver_job_available_on_payment_succeeded() IS
-  'REVIEW: Direct → single driver; automatic waves → Premium first; else Open fallback.';
+  'REVIEW: Direct → single driver; automatic waves → Premium then Open (Option A if empty Premium).';

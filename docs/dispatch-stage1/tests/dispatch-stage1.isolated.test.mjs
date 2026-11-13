@@ -5,10 +5,10 @@
  *
  * Models the intended rules:
  * - Direct → only selected driver; never auto-cascade
- * - Premium → after premiumWaitMinutes → Open (non-premium notified; premium no 2nd push)
- * - Accept / cancel stops further waves
- * - Vehicle + org eligibility
- * - Duplicate idempotency keys drop second notify
+ * - Premium → after premiumWaitMinutes → Open
+ * - Empty Premium → Open immediately (Option A); always an active run
+ * - Open notifies previously-unnotified eligible drivers (incl. Premium added mid-wave)
+ * - Accept requires vehicle (+ exact selected vehicle) and ready booking parent
  * - Concurrent accept → one winner
  */
 
@@ -21,18 +21,37 @@ function createWorld(clock = { now: 0 }) {
   const state = {
     clock,
     premium: new Set(),
-    drivers: new Map(), // id -> { org, vehicles:[{category,model}] }
+    drivers: new Map(), // id -> { org, authUserId, vehicles:[{id,category,model,canReceive}] }
+    bookings: new Map(), // bookingId -> { deleted, status, paymentSucceeded }
     runs: new Map(), // legId -> run
-    notifications: [], // { legId, wave, driverId, key }
-    legs: new Map(), // legId -> { org, category, model, status, assigned }
+    notifications: [], // { legId, wave, driverId, key, status }
+    legs: new Map(), // legId -> { org, bookingId, category, model, status, assigned, assignedVehicle }
   };
 
   function vehicleOk(driverId, leg) {
     const d = state.drivers.get(driverId);
     if (!d || d.org !== leg.org) return false;
-    return d.vehicles.some((v) =>
-      leg.model ? v.model === leg.model : v.category === leg.category
+    return d.vehicles.some(
+      (v) =>
+        v.canReceive !== false &&
+        (leg.model ? v.model === leg.model : v.category === leg.category)
     );
+  }
+
+  function selectedVehicleOk(driverId, vehicleId, leg) {
+    const d = state.drivers.get(driverId);
+    if (!d || d.org !== leg.org) return false;
+    const v = d.vehicles.find((x) => x.id === vehicleId);
+    if (!v || v.canReceive === false) return false;
+    if (leg.model) return v.model === leg.model;
+    return v.category === leg.category;
+  }
+
+  function bookingReady(leg) {
+    const b = state.bookings.get(leg.bookingId);
+    if (!b || b.deleted) return false;
+    if (b.status !== 'CONFIRMED') return false;
+    return b.paymentSucceeded === true;
   }
 
   function waveAllows(legId, driverId) {
@@ -44,10 +63,24 @@ function createWorld(clock = { now: 0 }) {
     return true;
   }
 
+  function alreadyNotified(legId, driverId) {
+    return state.notifications.some(
+      (n) => n.legId === legId && n.driverId === driverId && n.status !== 'cancelled'
+    );
+  }
+
   function enqueue(legId, wave, driverId) {
     const key = `wave:${wave}:${legId}:${driverId}`;
     if (state.notifications.some((n) => n.key === key)) return false;
-    state.notifications.push({ legId, wave, driverId, key, at: state.clock.now });
+    state.notifications.push({
+      legId,
+      wave,
+      driverId,
+      key,
+      at: state.clock.now,
+      status: 'pending', // event created
+      delivery: null, // null | provider_accepted | failed_retryable
+    });
     return true;
   }
 
@@ -60,9 +93,27 @@ function createWorld(clock = { now: 0 }) {
       wave: 'direct',
       status: 'active',
       exclusiveDriverId: driverId,
-      expiresAt: null, // Direct does not auto-advance
+      expiresAt: null,
     });
     enqueue(legId, 'direct', driverId);
+  }
+
+  function startOpen(legId) {
+    const leg = state.legs.get(legId);
+    const prev = state.runs.get(legId);
+    if (prev && prev.status === 'active') prev.status = 'expired';
+    state.runs.set(legId, {
+      wave: 'open',
+      status: 'active',
+      exclusiveDriverId: null,
+      expiresAt: null,
+    });
+    for (const [id] of state.drivers) {
+      if (!vehicleOk(id, leg)) continue;
+      // Skip only previously notified — Premium added mid-wave still gets Open
+      if (alreadyNotified(legId, id)) continue;
+      enqueue(legId, 'open', id);
+    }
   }
 
   function startPremium(legId) {
@@ -72,6 +123,11 @@ function createWorld(clock = { now: 0 }) {
       throw new Error('Direct active — refuse Premium cascade');
     }
     const targets = [...state.premium].filter((id) => vehicleOk(id, leg));
+    if (targets.length === 0) {
+      // Option A
+      startOpen(legId);
+      return { wave: 'open', reason: 'no_eligible_premium_open_immediately' };
+    }
     state.runs.set(legId, {
       wave: 'premium',
       status: 'active',
@@ -79,24 +135,7 @@ function createWorld(clock = { now: 0 }) {
       expiresAt: state.clock.now + PREMIUM_WAIT_MS,
     });
     for (const id of targets) enqueue(legId, 'premium', id);
-    if (targets.length === 0) startOpen(legId);
-  }
-
-  function startOpen(legId) {
-    const leg = state.legs.get(legId);
-    const prev = state.runs.get(legId);
-    if (prev) prev.status = 'expired';
-    state.runs.set(legId, {
-      wave: 'open',
-      status: 'active',
-      exclusiveDriverId: null,
-      expiresAt: null,
-    });
-    for (const [id] of state.drivers) {
-      if (!vehicleOk(id, leg)) continue;
-      if (state.premium.has(id)) continue; // no second notify
-      enqueue(legId, 'open', id);
-    }
+    return { wave: 'premium' };
   }
 
   function advanceExpired() {
@@ -110,20 +149,58 @@ function createWorld(clock = { now: 0 }) {
     }
   }
 
-  function accept(legId, driverId) {
+  function accept(legId, driverId, { vehicleId, authUserId } = {}) {
     const leg = state.legs.get(legId);
+    const driver = state.drivers.get(driverId);
+    if (!driver) return { ok: false, error: 'no_driver' };
+    if (!authUserId || authUserId !== driver.authUserId) {
+      return { ok: false, error: 'auth' };
+    }
+    if (!bookingReady(leg)) return { ok: false, error: 'booking' };
     if (leg.status !== 'PENDING' || leg.assigned) return { ok: false, error: 'taken' };
     if (!waveAllows(legId, driverId)) return { ok: false, error: 'reserved' };
-    if (!vehicleOk(driverId, leg)) return { ok: false, error: 'vehicle' };
-    // atomic compare-and-set
+    if (vehicleId) {
+      if (!selectedVehicleOk(driverId, vehicleId, leg)) {
+        return { ok: false, error: 'vehicle' };
+      }
+    } else if (!vehicleOk(driverId, leg)) {
+      return { ok: false, error: 'vehicle' };
+    }
     if (leg.assigned) return { ok: false, error: 'taken' };
     leg.assigned = driverId;
+    leg.assignedVehicle = vehicleId ?? null;
     leg.status = 'ASSIGNED';
     const run = state.runs.get(legId);
-    if (run) {
-      run.status = 'accepted';
-    }
+    if (run) run.status = 'accepted';
     return { ok: true };
+  }
+
+  function markProviderAccepted(legId, driverId) {
+    const n = state.notifications.find((x) => x.legId === legId && x.driverId === driverId);
+    if (!n) return false;
+    n.status = 'delivered';
+    n.delivery = 'provider_accepted';
+    return true;
+  }
+
+  function markFailedRetryable(legId, driverId) {
+    const n = state.notifications.find((x) => x.legId === legId && x.driverId === driverId);
+    if (!n) return false;
+    n.status = 'failed_retryable';
+    n.delivery = 'failed_retryable';
+    n.retryAt = state.clock.now;
+    return true;
+  }
+
+  function retryFailed(legId, driverId) {
+    const n = state.notifications.find((x) => x.legId === legId && x.driverId === driverId);
+    if (!n || n.status !== 'failed_retryable') return { ok: false };
+    // Same event — no second enqueue key
+    const before = state.notifications.filter((x) => x.legId === legId && x.driverId === driverId).length;
+    n.status = 'delivered';
+    n.delivery = 'provider_accepted';
+    const after = state.notifications.filter((x) => x.legId === legId && x.driverId === driverId).length;
+    return { ok: true, events: after, sameEvent: before === after && before === 1 };
   }
 
   function cancel(legId) {
@@ -136,27 +213,59 @@ function createWorld(clock = { now: 0 }) {
   function visibleTo(legId, driverId) {
     const leg = state.legs.get(legId);
     if (leg.status !== 'PENDING' || leg.assigned) return false;
+    if (!bookingReady(leg)) return false;
     if (!vehicleOk(driverId, leg)) return false;
     return waveAllows(legId, driverId);
   }
 
   return {
     state,
-    addDriver(id, org, vehicles) {
-      state.drivers.set(id, { org, vehicles });
+    addDriver(id, org, vehicles, authUserId = `auth-${id}`) {
+      state.drivers.set(id, {
+        org,
+        authUserId,
+        vehicles: vehicles.map((v, i) => ({
+          id: v.id ?? `${id}-v${i}`,
+          category: v.category,
+          model: v.model ?? null,
+          canReceive: v.canReceive !== false,
+        })),
+      });
     },
     addPremium(id) {
       state.premium.add(id);
     },
-    addLeg(id, { org = ORG, category, model = null } = {}) {
-      state.legs.set(id, { org, category, model, status: 'PENDING', assigned: null });
+    addBooking(id, { status = 'CONFIRMED', paymentSucceeded = true, deleted = false } = {}) {
+      state.bookings.set(id, { status, paymentSucceeded, deleted });
+    },
+    addLeg(id, { org = ORG, bookingId = 'bk1', category, model = null } = {}) {
+      if (!state.bookings.has(bookingId)) {
+        state.bookings.set(bookingId, {
+          status: 'CONFIRMED',
+          paymentSucceeded: true,
+          deleted: false,
+        });
+      }
+      state.legs.set(id, {
+        org,
+        bookingId,
+        category,
+        model,
+        status: 'PENDING',
+        assigned: null,
+        assignedVehicle: null,
+      });
     },
     startDirect,
     startPremium,
+    startOpen,
     advanceExpired,
     accept,
     cancel,
     visibleTo,
+    markProviderAccepted,
+    markFailedRetryable,
+    retryFailed,
     tick(ms) {
       state.clock.now += ms;
       advanceExpired();
@@ -214,7 +323,21 @@ function run() {
     assert.equal(w.visibleTo('L1', 'N1'), false);
   });
 
-  check('After 10 minutes: open to others; Premium no 2nd notify', () => {
+  check('Empty Premium → Open immediately with active run (Option A)', () => {
+    const w = createWorld();
+    w.addDriver('N1', ORG, [{ category: 'executive', model: null }]);
+    w.addLeg('L1', { category: 'executive', model: null });
+    const r = w.startPremium('L1');
+    assert.equal(r.wave, 'open');
+    assert.equal(w.state.runs.get('L1').wave, 'open');
+    assert.equal(w.state.runs.get('L1').status, 'active');
+    assert.deepEqual(
+      w.notifies('L1').map((n) => n.driverId),
+      ['N1']
+    );
+  });
+
+  check('After 10 minutes: open to unnotified; Premium no 2nd notify', () => {
     const w = createWorld();
     w.addDriver('P1', ORG, [{ category: 'executive', model: null }]);
     w.addDriver('N1', ORG, [{ category: 'executive', model: null }]);
@@ -226,18 +349,36 @@ function run() {
     assert.ok(waves.includes('premium:P1'));
     assert.ok(waves.includes('open:N1'));
     assert.ok(!waves.includes('open:P1'));
-    assert.equal(w.visibleTo('L1', 'P1'), true); // still visible
+    assert.equal(w.visibleTo('L1', 'P1'), true);
     assert.equal(w.visibleTo('L1', 'N1'), true);
   });
 
-  check('Accept before expiry → no open wave', () => {
+  check('Open includes Premium added mid-wave who were never notified', () => {
     const w = createWorld();
     w.addDriver('P1', ORG, [{ category: 'executive', model: null }]);
+    w.addDriver('P_NEW', ORG, [{ category: 'executive', model: null }]);
     w.addDriver('N1', ORG, [{ category: 'executive', model: null }]);
     w.addPremium('P1');
     w.addLeg('L1', { category: 'executive', model: null });
     w.startPremium('L1');
-    assert.equal(w.accept('L1', 'P1').ok, true);
+    // Added to Premium after enqueue — missed Premium push
+    w.addPremium('P_NEW');
+    w.tick(PREMIUM_WAIT_MS);
+    const ids = w.notifies('L1').map((n) => `${n.wave}:${n.driverId}`);
+    assert.ok(ids.includes('premium:P1'));
+    assert.ok(ids.includes('open:N1'));
+    assert.ok(ids.includes('open:P_NEW'));
+    assert.ok(!ids.includes('open:P1'));
+  });
+
+  check('Accept before expiry → no open wave', () => {
+    const w = createWorld();
+    w.addDriver('P1', ORG, [{ category: 'executive', model: null }], 'auth-P1');
+    w.addDriver('N1', ORG, [{ category: 'executive', model: null }], 'auth-N1');
+    w.addPremium('P1');
+    w.addLeg('L1', { category: 'executive', model: null });
+    w.startPremium('L1');
+    assert.equal(w.accept('L1', 'P1', { authUserId: 'auth-P1' }).ok, true);
     w.tick(PREMIUM_WAIT_MS);
     assert.ok(!w.notifies('L1').some((n) => n.wave === 'open'));
   });
@@ -264,17 +405,94 @@ function run() {
     assert.equal(w.notifies('L1').filter((n) => n.driverId === 'P1').length, 1);
   });
 
-  check('Concurrent accept → one winner', () => {
+  check('Concurrent accept with distinct auth → one winner', () => {
     const w = createWorld();
-    w.addDriver('A', ORG, [{ category: 'executive', model: null }]);
-    w.addDriver('B', ORG, [{ category: 'executive', model: null }]);
+    w.addDriver('A', ORG, [{ category: 'executive', model: null }], 'auth-A');
+    w.addDriver('B', ORG, [{ category: 'executive', model: null }], 'auth-B');
     w.addLeg('L1', { category: 'executive', model: null });
-    w.state.runs.set('L1', { wave: 'open', status: 'active', exclusiveDriverId: null, expiresAt: null });
-    const r1 = w.accept('L1', 'A');
-    const r2 = w.accept('L1', 'B');
+    w.state.runs.set('L1', {
+      wave: 'open',
+      status: 'active',
+      exclusiveDriverId: null,
+      expiresAt: null,
+    });
+    const r1 = w.accept('L1', 'A', { authUserId: 'auth-A' });
+    const r2 = w.accept('L1', 'B', { authUserId: 'auth-B' });
     assert.equal(r1.ok, true);
     assert.equal(r2.ok, false);
     assert.equal(w.state.legs.get('L1').assigned, 'A');
+  });
+
+  check('service-role style accept without auth.uid → rejected', () => {
+    const w = createWorld();
+    w.addDriver('A', ORG, [{ category: 'executive', model: null }], 'auth-A');
+    w.addLeg('L1', { category: 'executive', model: null });
+    w.state.runs.set('L1', {
+      wave: 'open',
+      status: 'active',
+      exclusiveDriverId: null,
+      expiresAt: null,
+    });
+    assert.equal(w.accept('L1', 'A', {}).ok, false);
+    assert.equal(w.accept('L1', 'A', { authUserId: 'auth-A' }).ok, true);
+  });
+
+  check('Selected vehicle must match owner/org/eligibility/model', () => {
+    const w = createWorld();
+    w.addDriver(
+      'A',
+      ORG,
+      [
+        { id: 'v-ok', category: 'executive', model: 'mercedes-e-class', canReceive: true },
+        { id: 'v-bad-model', category: 'executive', model: 'bmw-5', canReceive: true },
+        { id: 'v-no-jobs', category: 'executive', model: 'mercedes-e-class', canReceive: false },
+      ],
+      'auth-A'
+    );
+    w.addDriver(
+      'B',
+      ORG,
+      [{ id: 'v-b', category: 'executive', model: 'mercedes-e-class', canReceive: true }],
+      'auth-B'
+    );
+    w.addLeg('L1', { category: 'executive', model: 'mercedes-e-class' });
+    w.state.runs.set('L1', {
+      wave: 'open',
+      status: 'active',
+      exclusiveDriverId: null,
+      expiresAt: null,
+    });
+    assert.equal(
+      w.accept('L1', 'A', { authUserId: 'auth-A', vehicleId: 'v-bad-model' }).ok,
+      false
+    );
+    assert.equal(
+      w.accept('L1', 'A', { authUserId: 'auth-A', vehicleId: 'v-no-jobs' }).ok,
+      false
+    );
+    assert.equal(
+      w.accept('L1', 'A', { authUserId: 'auth-A', vehicleId: 'v-b' }).ok,
+      false
+    );
+    assert.equal(
+      w.accept('L1', 'A', { authUserId: 'auth-A', vehicleId: 'v-ok' }).ok,
+      true
+    );
+  });
+
+  check('Booking parent must be confirmed + paid', () => {
+    const w = createWorld();
+    w.addDriver('A', ORG, [{ category: 'executive', model: null }], 'auth-A');
+    w.addBooking('bk-bad', { status: 'PENDING_PAYMENT', paymentSucceeded: false });
+    w.addLeg('L1', { bookingId: 'bk-bad', category: 'executive', model: null });
+    w.state.runs.set('L1', {
+      wave: 'open',
+      status: 'active',
+      exclusiveDriverId: null,
+      expiresAt: null,
+    });
+    assert.equal(w.accept('L1', 'A', { authUserId: 'auth-A' }).ok, false);
+    assert.equal(w.visibleTo('L1', 'A'), false);
   });
 
   check('Wrong org / vehicle → no access', () => {
@@ -282,7 +500,12 @@ function run() {
     w.addDriver('X', 'other-org', [{ category: 'executive', model: null }]);
     w.addDriver('Y', ORG, [{ category: 'luxury', model: null }]);
     w.addLeg('L1', { category: 'executive', model: null });
-    w.state.runs.set('L1', { wave: 'open', status: 'active', exclusiveDriverId: null, expiresAt: null });
+    w.state.runs.set('L1', {
+      wave: 'open',
+      status: 'active',
+      exclusiveDriverId: null,
+      expiresAt: null,
+    });
     assert.equal(w.visibleTo('L1', 'X'), false);
     assert.equal(w.visibleTo('L1', 'Y'), false);
   });
@@ -305,7 +528,12 @@ function run() {
     w.addDriver('A', ORG, [{ category: 'executive', model: 'bmw-5' }]);
     w.addDriver('B', ORG, [{ category: 'executive', model: 'mercedes-e-class' }]);
     w.addLeg('L1', { category: 'executive', model: null });
-    w.state.runs.set('L1', { wave: 'open', status: 'active', exclusiveDriverId: null, expiresAt: null });
+    w.state.runs.set('L1', {
+      wave: 'open',
+      status: 'active',
+      exclusiveDriverId: null,
+      expiresAt: null,
+    });
     assert.equal(w.visibleTo('L1', 'A'), true);
     assert.equal(w.visibleTo('L1', 'B'), true);
   });
@@ -315,9 +543,31 @@ function run() {
     w.addDriver('A', ORG, [{ category: 'executive', model: 'bmw-5' }]);
     w.addDriver('B', ORG, [{ category: 'executive', model: 'mercedes-e-class' }]);
     w.addLeg('L1', { category: 'executive', model: 'mercedes-e-class' });
-    w.state.runs.set('L1', { wave: 'open', status: 'active', exclusiveDriverId: null, expiresAt: null });
+    w.state.runs.set('L1', {
+      wave: 'open',
+      status: 'active',
+      exclusiveDriverId: null,
+      expiresAt: null,
+    });
     assert.equal(w.visibleTo('L1', 'A'), false);
     assert.equal(w.visibleTo('L1', 'B'), true);
+  });
+
+  check('Retry path: event → provider_accepted / failed_retryable → same event', () => {
+    const w = createWorld();
+    w.addDriver('N1', ORG, [{ category: 'executive', model: null }]);
+    w.addLeg('L1', { category: 'executive', model: null });
+    w.startPremium('L1'); // empty premium → open + notify N1
+    const created = w.notifies('L1')[0];
+    assert.equal(created.status, 'pending'); // event created
+    assert.equal(w.markProviderAccepted('L1', 'N1'), true);
+    assert.equal(w.notifies('L1')[0].delivery, 'provider_accepted');
+    assert.equal(w.markFailedRetryable('L1', 'N1'), true);
+    assert.equal(w.notifies('L1')[0].delivery, 'failed_retryable');
+    const retry = w.retryFailed('L1', 'N1');
+    assert.equal(retry.ok, true);
+    assert.equal(retry.sameEvent, true);
+    assert.equal(w.notifies('L1').length, 1);
   });
 
   console.log(`\n${passed} isolated tests passed (no production contact).`);

@@ -1,143 +1,115 @@
 # Raport Stage 1 — actualizat (fără apply / deploy / notificări reale)
 
-**Data:** 2026-11-12  
-**Branch Admin local:** `2026-11-12-v1.5` @ `af06efa`  
-**Artefacte corectate:** `docs/dispatch-stage1/**` (NU în `supabase/migrations` de apply)
+**Data:** 2026-11-12 (revizie review)  
+**Branch review:** `review/dispatch-stage1-corrections-2026-11-12`  
+**Artefacte:** `docs/dispatch-stage1/**` (NU în `supabase/migrations` de apply)
 
 ---
 
-## 1. Stare ACTUALĂ — dovezi (nu deducții din GitHub files)
+## 1. Deploy-uri Render / live (confirmate vs probe locale)
 
-### 1.1 Admin `af06efa` pe Render?
+| Serviciu | Commit pe GitHub `main` | Runtime live | Dovadă |
+|----------|-------------------------|--------------|--------|
+| **Admin** `admin-2026.onrender.com` | `af06efa` (`main`) | **Confirmat live = `af06efa`** (verificare ChatGPT + aliniere GitHub `main`/`HEAD`) | Host răspunde pe Render (`x-render-origin-server: Render`). HTML `/login` nu expune SHA în bundle public (buildId Next ascuns în chunk hashes) — confirmarea SHA rămâne pe Deploy history Render / verificare ChatGPT citată de ops. |
+| **Backend notificări** | `6502611` (`main`; fix targeting `11a34779`) | **Confirmat live = `6502611`** (verificare ChatGPT) | Cod targeting pe GitHub main. Cron/pg pe VL NEW: `advance_expired_job_dispatch_waves` activ `* * * * *`. |
+| **Driver** | `4986126` | `4986126` | GitHub main = HEAD local |
 
-| Dovadă | Rezultat |
-|--------|----------|
-| `https://admin-2026.onrender.com` răspunde, header `x-render-origin-server: Render`, Next.js | **CONFIRMAT:** un Admin rulează pe Render |
-| GitHub Deployments API `ADMIN-2026` | **0 deployments** înregistrate |
-| HTML `/login` conține `af06efa` / `Job Dispatch` / `/dispatch` în bundle-urile publice | **NU** — login prerender; `main-app-*.js` fără aceste stringuri |
-| Redirect `/dispatch` → `/login` (307) | Ambiguu (middleware auth, nu dovedește ruta din build) |
+**Probe locale (fără redeploy):**  
+- Admin Render: HTTP 307 → `/login`, header Render OK.  
+- Nu am declanșat deploy nou.  
+- Stage1 migrations **încă absente** din `schema_migrations` pe VL NEW.
 
-**Verdict:** **NECONFIRMAT** că Render rulează exact `af06efa`. Știm doar că există un deploy Next pe `admin-2026.onrender.com`. Pentru confirmare: Render Dashboard → service → Deploy history → commit SHA, sau `curl` autentificat către o rută nouă din `af06efa`.
-
-### 1.2 Backend notificări — ce commit rulează acum?
-
-| Dovadă | Rezultat |
-|--------|----------|
-| GitHub `main` HEAD | `650261135c` (redeploy empty); fix targeting în istoric: `11a34779a3` |
-| Cod pe main: `handler.ts` L168–193, L249–250 targeting | **CONFIRMAT pe GitHub** |
-| Livrări reale CB-001027/028/029 (22:13–22:14Z, **după** merge fix 22:05Z) | `driver_id` setat, dar **38** deliveries, `recipient_selection=eligible_drivers` → worker **încă pe comportament vechi** la acel moment |
-| Evenimente `driver_job_available` după `2026-11-10 22:20:55Z` | **0 rânduri** → **NECONFIRMAT** dacă worker-ul live a trecut pe noul cod |
-
-**Verdict:** Codul corect e pe GitHub `main`. Runtime Render worker = **neconfirmat**; ultima dovadă de livrare arată fan-out vechi.
-
-### 1.3 Migrări Stage 1 pe VL NEW?
-
-Interogare `supabase_migrations.schema_migrations`:
-
-- **Prezente (Nov 10 dispatch v1):**  
-  `20261110162735` rating recalc, `…164041` customer ratings, `…164143` dispatch settings, `…164724` runs/offers, `…164936` notify/accept guard, `…165549` premium release/timer, `…222003` emergency stop  
-- **Absente:** `20261112060000`, `20261112060100`, `20261112060200` / orice `stage1`
-
-**Verdict:** Stage 1 review migrations **NU sunt aplicate** pe VL NEW.  
-`waves_enabled_automatic = false` (citit din `dispatch_org_settings` org Vantage Lane).
+`waves_enabled_automatic = false` pe org Vantage Lane (neschimbat).
 
 ---
 
-## 2. `driver_accept_job` — corecturi (față de propunerea anterioară)
+## 2. `driver_accept_job` — corecții noi pe review
 
-### Overload-uri LIVE confirmate
+### 2.1 Overload JSONB `(leg_id, driver_id?)`
 
-1. `driver_accept_job(p_leg_id uuid, p_driver_id uuid DEFAULT NULL) → jsonb` **SECURITY DEFINER**  
-2. `driver_accept_job(p_driver_id uuid, p_vehicle_id uuid, p_booking_leg_id uuid) → boolean`  
+- `auth.uid()` obligatoriu; reject impersonare
+- Org match
+- **Booking părinte:** neșters + `CONFIRMED` + plată `succeeded` (`booking_parent_is_accept_ready`)
+- Vehicle eligibil (orice mașină match model/categorie)
+- Wave guard + `UPDATE … assigned_driver_id IS NULL` atomic
 
-### Probleme CONFIRMATE (cod live)
+### 2.2 Overload boolean `(driver_id, vehicle_id, leg_id)`
 
-| Bug | Dovezi |
-|-----|--------|
-| Alegere arbitrară `p_driver_id` | JSONB: `IF p_driver_id IS NOT NULL THEN driver_id := p_driver_id` fără verificare `auth.uid()` |
-| Race non-atomic | JSONB: `UPDATE … WHERE id = p_leg_id` **fără** `assigned_driver_id IS NULL` |
-| Grants prea largi | `EXECUTE` pentru `PUBLIC`, `anon`, `authenticated`, `service_role` (câte 2 = ambele overload-uri) |
-| Fără org / vehicle pe JSONB | Absente din definiție |
-| Boolean overload | `FOR UPDATE` ok, dar tot acceptă `p_driver_id` străin; status `'ACCEPTED'` vs `'ASSIGNED'` pe celălalt |
+Nu mai e suficient `can_receive_jobs` din view. Verifică **mașina selectată**:
 
-### Corecție (fișier)
+| Check | Cum |
+|-------|-----|
+| Proprietar | `vehicles.driver_id = p_driver_id` |
+| Organizație | `vehicles.organization_id = leg.organization_id` (+ view org) |
+| Eligibilitate | `driver_app_vehicle.can_receive_jobs IS TRUE` |
+| Model/categorie | `model_id` / `category_id` cerute de `booking_legs` |
+| Identitate | `auth.uid()` → driver self |
+| Booking părinte | același helper ca JSONB |
+| Atomic | `FOR UPDATE` + `UPDATE … IS NULL` |
 
-`docs/dispatch-stage1/migrations/20261112060000_dispatch_stage1_atomic_accept_and_wave_rules.sql`
+Helper nou: `driver_selected_vehicle_matches_leg(...)`.
 
-- Caller = `auth.uid()` → doar sine  
-- Reject `p_driver_id` străin  
-- Org match, vehicle match, wave guard  
-- `UPDATE … AND assigned_driver_id IS NULL` + `GET DIAGNOSTICS`  
-- `REVOKE` de pe `PUBLIC`/`anon`; `GRANT` authenticated + service_role  
-- Ambele overload-uri aliniate
+### 2.3 Grants accept
 
-### Concurență
-
-- Simulator semantic: `tests/concurrent-accept-semantics.test.mjs` → **PASS**  
-- **Nu** am rulat 2 tranzacții PostgreSQL reale pe VL NEW (ar muta producția). Plan staging: `tests/STAGING_REAL_IMPL_PLAN.md` A1.
+`REVOKE` PUBLIC/anon; `GRANT` authenticated + service_role.  
+**Notă:** service_role **fără** `auth.uid()` tot e respins la runtime (`Authentication required`) — intentional pentru anti-impersonare. Testele de concurență **trebuie** JWT-uri distincte (vezi §7).
 
 ---
 
-## 3. View `driver_job_offers_v2`
+## 3. Funcții interne dispatch — autorizare
 
-Fișierul vechi `…60200…` era doar NOTE + SELECT.  
-**Înlocuit** cu `CREATE OR REPLACE VIEW` din **definiția live** (`pg_get_viewdef` 2026-11-12) +  
-`AND d.organization_id = bl.organization_id` în EXISTS.
+| Funcție | Înainte (live) | Review |
+|---------|----------------|--------|
+| `enqueue_dispatch_wave_notifications` | EXECUTE PUBLIC/anon/authenticated | Auth check `dispatch_caller_can_manage_org`; **REVOKE** PUBLIC/anon/authenticated; **GRANT** service_role |
+| `start_premium_dispatch_run` | (propunere anterioară fără gate) | Backend **sau** org member / super-admin; REVOKE PUBLIC/anon; GRANT service_role + authenticated (gate intern) |
+| `advance_expired_job_dispatch_waves` | EXECUTE PUBLIC/anon | Doar `dispatch_caller_is_backend()` / super-admin; REVOKE PUBLIC/anon/authenticated; GRANT service_role |
 
-Permisiuni live pe view: `anon`/`authenticated`/`service_role` au SELECT+WRITE grants largi — **nu le-am îngustat** aici (schimbare separată de securitate).
+Compatibilitate:
 
----
-
-## 4. Open wave — destinatari, Premium care se schimbă, duplicate, retry
-
-### Comportament LIVE actual
-- `enqueue_dispatch_wave_notifications(...,'open')` inserează **1** event cu `driver_id NULL` → worker fan-out `eligible_drivers`.
-- Nu există istoric `source_module=dispatch_wave_open` în ultimele 14 zile pe VL NEW (doar payment_succeeded).
-
-### Propunere corectată
-- Open = **un event per șofer** non-Premium (snapshot lista Premium **la enqueue**).
-- Skip dacă există deja `notification_events` pe același `job_id`+`driver_id` (orice wave).
-- Idempotency key: `driver_job_available:wave:open:{org}:{leg}:{driver}` + `ON CONFLICT DO NOTHING`.
-
-### Dacă Premium se schimbă între valuri
-| Caz | Efect |
-|-----|--------|
-| Șofer adăugat pe Premium **după** Premium notify, **înainte** de Open | La Open e exclus dacă e pe listă acum → poate **nu** primește Open (ok dacă e Premium) |
-| Șofer scos din Premium după ce a primit Premium push | Poate primi Open (al 2-lea push) — mitigare: skip pe orice notify anterior pe `job_id` |
-| Șofer adăugat pe Premium după Open deja trimis | Nu retractăm Open deja livrat |
-
-### Retry
-- Retry = pe **`notification_deliveries`** (`failed_retryable`), **nu** re-inserare event.
-- Re-procesarea aceluiași event nu trebuie să creeze al doilea idempotency key.
-- Worker trebuie să rămână idempotent pe `(event_id, recipient_id, channel)`.
+- **Cron** `SELECT advance_expired…` ca `postgres`/`supabase_admin` → `dispatch_caller_is_backend()` OK.
+- **Payment trigger** SECURITY DEFINER → apelează `start_premium…` ca owner → OK.
+- **Admin API** `admin.rpc(...)` cu service-role → OK.
+- Caller `authenticated` fără `is_org_member` → deny.
 
 ---
 
-## 5. Fără Premium eligibil — OPȚIUNI (aștept decizia ta)
+## 4. Fără Premium eligibil — **Opțiunea A (aprobată)**
 
-**Nu** am lăsat Open imediat ca regulă aprobată.  
-`start_premium_dispatch_run` returnează `success:false`, `error:no_eligible_premium`, `action_required:true`.
+`start_premium_dispatch_run`:
 
-| Opțiune | Comportament |
-|---------|----------------|
-| **A. `open_immediately`** | Creează wave Open + notify non-premium |
-| **B. `wait_manual_open`** | Nicio wave Open; admin apasă „Open to all” |
-| **C. `widen_vehicle_match`** | Reîncearcă Premium cu reguli mai late (ex. doar categorie) |
-| **D. `cancel_dispatch`** | Anulează run-urile; job rămâne nepublicat la șoferi |
+1. Dacă există Premium eligibil (vehicul) → wave `premium` + timer + notify Premium.
+2. Dacă **0** Premium eligibil → creează wave **`open` activ**, notify eligibili pe model/categorie, `reason=no_eligible_premium_open_immediately`.
+3. **Direct** activ rămâne blocant (nu se pornește Premium/Open peste Direct).
+4. Nu lăsăm leg PENDING **fără** run activ în acest flux.
 
-Alege A/B/C/D — abia apoi actualizez migrarea.
+Payment trigger: tratează `success:true` (premium sau open-imediat) la fel.
 
 ---
 
-## 6. Patch backend vs runtime (rezumat)
+## 5. Open — ne-notificați + Premium adăugat între timp + retry
 
-| Item | Status |
-|------|--------|
-| Targeting pe GitHub main | **Rezolvat** (`11a34779`, linii handler 168–193, 249–250) |
-| Review text pe `3291bed` | **Obsolete** |
-| Runtime Render worker | **Neconfirmat** (ultima livrare = fan-out vechi) |
-| DB Open per-driver + anti-duplicate | **Lipsește** (neaplicat) |
-| Accept atomic + anti-impersonare | **Lipsește** (neaplicat; propunere corectată în docs) |
+### Destinatari Open
+
+- Toți șoferii org eligibili pe vehicul **care nu au** deja event `driver_job_available` pe job.
+- **Include** Premium adăugat după enqueue Premium (au ratat push-ul).
+- **Exclude** pe cei deja notificați (Premium/Direct/Open anterior).
+- Nu mai filtrăm Open după lista Premium curentă.
+
+Detalii: `backend-patches/OPEN_WAVE_AND_RETRY_PATH.md`.
+
+### Retry (cale reală, mock pe staging)
+
+1. Event **creat** (`pending`)  
+2. Delivery **provider_accepted** (+ `provider_message_id`)  
+3. Eșec → **failed_retryable** + `next_retry_at`  
+4. Polling re-claim **același** `event.id` — fără al doilea idempotency key  
+5. `RetryWorker` pe main e stub; retry operațional = `getPendingEvents` pe `failed_retryable`
+
+---
+
+## 6. View `driver_job_offers_v2`
+
+Neschimbat față de commit-ul anterior pe review: definiție live + `d.organization_id = bl.organization_id`.
 
 ---
 
@@ -145,30 +117,34 @@ Alege A/B/C/D — abia apoi actualizez migrarea.
 
 | Suită | Rezultat |
 |-------|----------|
-| `dispatch-stage1.isolated.test.mjs` | **12/12 PASS** (păstrat) |
-| `concurrent-accept-semantics.test.mjs` | **PASS** |
-| 2× tranzacții PG reale | **Ne-rulat pe VL NEW** (plan staging) |
-| OneSignal real | **Interzis / nerulat** |
+| `dispatch-stage1.isolated.test.mjs` | Actualizat (Option A, Premium mid-wave, vehicle selectat, booking, auth, retry) |
+| `concurrent-accept-semantics.test.mjs` | Actualizat (service-role fără auth ≠ concurență) |
+| `staging-concurrent-accept.auth.sql` | **Nou** — 2× `auth.uid()` distincte pe staging |
+| `STAGING_REAL_IMPL_PLAN.md` | A1–A12; retry B3 pe același event |
+| PG real pe VL NEW | **Ne-rulat** |
+| OneSignal real | **Interzis** |
 
-Plan implementare reală izolată: `tests/STAGING_REAL_IMPL_PLAN.md`.
+Următoarea etapă: **implementare reală pe DB izolată** (staging), nu apply pe VL NEW.
 
 ---
 
-## 8. Fișiere diff (review only)
+## 8. Fișiere pe review
 
 ```
 docs/dispatch-stage1/
-  RAPORT_STAGE1_UPDATE.md          ← acest raport
+  RAPORT_STAGE1_UPDATE.md
   migrations/
-    20261112060000_dispatch_stage1_atomic_accept_and_wave_rules.sql  ← corectat
-    20261112060100_dispatch_stage1_payment_trigger_premium_first.sql ← no auto-open pe fail premium
-    20261112060200_dispatch_stage1_offers_org_filter.sql             ← view COMPLET din live
+    20261112060000_dispatch_stage1_atomic_accept_and_wave_rules.sql
+    20261112060100_dispatch_stage1_payment_trigger_premium_first.sql
+    20261112060200_dispatch_stage1_offers_org_filter.sql
   backend-patches/
     process-driver-job-available.COMPARE_LIVE.md
+    OPEN_WAVE_AND_RETRY_PATH.md
   tests/
     dispatch-stage1.isolated.test.mjs
     concurrent-accept-semantics.test.mjs
+    staging-concurrent-accept.auth.sql
     STAGING_REAL_IMPL_PLAN.md
 ```
 
-**Nimic aplicat. Niciun deploy. Nicio notificare reală. `waves_enabled_automatic` rămâne false.**
+**Nimic aplicat pe VL NEW. Niciun deploy nou. Nicio notificare reală. Fără merge pe main.**
