@@ -6,6 +6,30 @@
 
 ---
 
+## Scope (clarificare — obligatoriu)
+
+**Neschimbat (regresie / flux existent de comandă):**
+```
+plată succeeded → booking CONFIRMED → leg PENDING → Accept → ASSIGNED
+→ statusurile ulterioare existente (nemodificate)
+```
+
+**Schimbarea Stage1 = doar distribuirea leg-ului PENDING:**
+- cine îl vede (view / wave Direct|Premium|Open);
+- cine primește notificarea și când;
+- Admin: Open / Direct / Premium → după ~10 min Open dacă încă neacceptat;
+- Website + Admin respectă configurația de distribuire;
+- condiția existentă de **plată reușită** rămâne obligatorie pentru ofertă/notify;
+- cardul Driver = aceeași ofertă (`driver_job_offers_v2`) + același Accept.
+
+**Testele de plată / Accept / statusuri** demonstrează că fluxul de mai sus
+continuă să funcționeze — nu sunt schimbări de business pe ciclul de viață.
+
+**Interzis în Stage1:** extinderi la alte reguli de business, noi statusuri,
+schimbări de billing/Stripe, redesign Accept post-ASSIGNED.
+
+---
+
 ## A. Implementare reală — executat
 
 ### A1. Migrări 600/601/602 încărcate din fișiere (Postgres local izolat :55432)
