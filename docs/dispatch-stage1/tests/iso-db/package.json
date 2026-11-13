@@ -3,10 +3,11 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "test": "node run-isolated-real.mjs"
+    "test": "node run-with-real-migrations.mjs",
+    "test:legacy-pglite": "node run-isolated-real.mjs"
   },
   "private": true,
-  "description": "Isolated PGlite Stage1 dispatch tests — no production",
+  "description": "Isolated Stage1 tests — exact migrations on local Postgres",
   "dependencies": {
     "@electric-sql/pglite": "^0.2.17",
     "pg": "^8.23.1"
