@@ -1,11 +1,16 @@
 /**
  * POST /api/admin/communications/notifications/send
- * Writes via admin_enqueue_driver_notification (ledger + driver inbox type).
+ *
+ * - audience=one  → admin_enqueue_driver_notification (individual, no campaign_id)
+ * - audience=all  → admin_enqueue_driver_notification_campaign (one RPC, shared campaign_id)
+ *
+ * Uses service-role admin client only (RPCs are not granted to authenticated).
  */
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getCurrentOrg } from "@/lib/auth/org";
+import { getUserRole } from "@/lib/auth/roles";
 import {
   DOCUMENT_INBOX_TYPES,
   UPDATES_INBOX_TYPES,
@@ -34,6 +39,11 @@ export async function POST(req: NextRequest) {
     } = await supabase.auth.getUser();
     if (!user || authError) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const { hasAccess } = await getUserRole();
+    if (!hasAccess) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     const orgId = await getCurrentOrg(supabase, user.id);
@@ -65,7 +75,25 @@ export async function POST(req: NextRequest) {
       if (!payload.driverId) {
         return NextResponse.json({ error: "driverId is required" }, { status: 400 });
       }
-      driverIds = [payload.driverId];
+
+      const { data: driver, error: driverError } = await admin
+        .from("admin_drivers_list_v4")
+        .select("id")
+        .eq("organization_id", orgId)
+        .eq("id", payload.driverId)
+        .eq("is_active", true)
+        .maybeSingle();
+
+      if (driverError) {
+        return NextResponse.json({ error: driverError.message }, { status: 500 });
+      }
+      if (!driver?.id) {
+        return NextResponse.json(
+          { error: "Driver not found in organization" },
+          { status: 400 }
+        );
+      }
+      driverIds = [driver.id as string];
     } else {
       const { data: drivers, error: driversError } = await admin
         .from("admin_drivers_list_v4")
@@ -83,31 +111,59 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "No drivers to notify" }, { status: 400 });
     }
 
-    const eventIds: string[] = [];
-    const errors: Array<{ driverId: string; error: string }> = [];
-
-    for (const driverId of driverIds) {
-      const { data, error } = await admin.rpc("admin_enqueue_driver_notification", {
-        p_organization_id: orgId,
-        p_driver_id: driverId,
-        p_type: type,
-        p_title: title,
-        p_body: body,
-        p_actor_id: user.id,
-      });
+    if (audience === "all") {
+      const { data: campaignId, error } = await admin.rpc(
+        "admin_enqueue_driver_notification_campaign",
+        {
+          p_organization_id: orgId,
+          p_driver_ids: driverIds,
+          p_type: type,
+          p_title: title,
+          p_body: body,
+          p_actor_id: user.id,
+        }
+      );
 
       if (error) {
-        errors.push({ driverId, error: error.message });
-      } else if (data) {
-        eventIds.push(data as string);
+        return NextResponse.json({ error: error.message }, { status: 500 });
       }
+
+      return NextResponse.json({
+        mode: "campaign",
+        sent: driverIds.length,
+        failed: 0,
+        campaignId: campaignId as string,
+        recipientCount: driverIds.length,
+        eventIds: [],
+        errors: [],
+      });
+    }
+
+    const { data: eventId, error } = await admin.rpc("admin_enqueue_driver_notification", {
+      p_organization_id: orgId,
+      p_driver_id: driverIds[0],
+      p_type: type,
+      p_title: title,
+      p_body: body,
+      p_actor_id: user.id,
+    });
+
+    if (error) {
+      return NextResponse.json({
+        mode: "individual",
+        sent: 0,
+        failed: 1,
+        eventIds: [],
+        errors: [{ driverId: driverIds[0], error: error.message }],
+      });
     }
 
     return NextResponse.json({
-      sent: eventIds.length,
-      failed: errors.length,
-      eventIds,
-      errors: errors.slice(0, 20),
+      mode: "individual",
+      sent: eventId ? 1 : 0,
+      failed: 0,
+      eventIds: eventId ? [eventId as string] : [],
+      errors: [],
     });
   } catch (err) {
     console.error("[communications/notifications/send POST]", err);
