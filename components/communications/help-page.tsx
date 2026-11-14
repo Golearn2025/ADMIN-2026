@@ -17,6 +17,7 @@ import { useToast } from "@/hooks/use-toast";
 import {
   useCommunicationsHelpRealtime,
   useHelpTyping,
+  type DriverOption,
   type HelpMessageRow,
   type HelpSessionRow,
 } from "@/lib/features/communications";
@@ -27,6 +28,7 @@ import {
   ChevronRight,
   ImagePlus,
   MessageSquare,
+  Plus,
   RefreshCw,
   Search,
   Send,
@@ -34,6 +36,7 @@ import {
   XCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { DriverSearchSelect } from "./driver-search-select";
 
 type ListPayload = {
   rows: HelpSessionRow[];
@@ -60,6 +63,11 @@ export function CommunicationsHelpPage() {
   const [pendingPreview, setPendingPreview] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const [closing, setClosing] = useState(false);
+  const [composeOpen, setComposeOpen] = useState(false);
+  const [drivers, setDrivers] = useState<DriverOption[]>([]);
+  const [composeDriverId, setComposeDriverId] = useState("");
+  const [composeMessage, setComposeMessage] = useState("");
+  const [composeSending, setComposeSending] = useState(false);
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const selectedIdRef = useRef<string | null>(null);
@@ -229,6 +237,76 @@ export function CommunicationsHelpPage() {
     return "Support";
   }
 
+  async function loadDrivers() {
+    try {
+      const res = await fetch("/api/admin/communications/drivers");
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Failed to load drivers");
+      const list = ((json.drivers || []) as DriverOption[]).filter(
+        (d) => d.is_active !== false
+      );
+      setDrivers(list);
+    } catch (err) {
+      toast({
+        title: "Drivers load failed",
+        description: err instanceof Error ? err.message : "Unknown error",
+        variant: "destructive",
+      });
+    }
+  }
+
+  async function openCompose() {
+    setComposeOpen(true);
+    setComposeMessage("");
+    if (drivers.length === 0) await loadDrivers();
+  }
+
+  async function sendCompose() {
+    if (!composeDriverId || !composeMessage.trim()) return;
+    setComposeSending(true);
+    try {
+      const res = await fetch("/api/admin/communications/help", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          driverId: composeDriverId,
+          message: composeMessage.trim(),
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Send failed");
+
+      setComposeOpen(false);
+      setComposeMessage("");
+      setComposeDriverId("");
+      toast({
+        title: "Message sent",
+        description: json.notified
+          ? "Driver notified"
+          : json.notifySkipped === "debounce"
+            ? "Sent — push skipped (recent notify on this thread)"
+            : "Sent to chat",
+      });
+
+      setStatus("all");
+      statusRef.current = "all";
+      setPage(1);
+      pageRef.current = 1;
+      await loadList({ status: "all", page: 1 });
+      if (json.sessionId) {
+        await openSession(json.sessionId as string, { markRead: true });
+      }
+    } catch (err) {
+      toast({
+        title: "Send failed",
+        description: err instanceof Error ? err.message : "Unknown error",
+        variant: "destructive",
+      });
+    } finally {
+      setComposeSending(false);
+    }
+  }
+
   async function setSessionStatus(next: "active" | "closed") {
     if (!selectedId) return;
     setClosing(true);
@@ -342,6 +420,14 @@ export function CommunicationsHelpPage() {
           subtitle="Close keeps history · new driver chat = new conversation"
           actions={
             <div className="flex items-center gap-2">
+              <Button
+                size="sm"
+                className="h-9"
+                onClick={() => void openCompose()}
+              >
+                <Plus className="mr-1.5 h-3.5 w-3.5" />
+                New message
+              </Button>
               <Select
                 value={status}
                 onValueChange={(v) => {
@@ -712,6 +798,86 @@ export function CommunicationsHelpPage() {
           )}
         </section>
       </div>
+
+      {composeOpen && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-4 sm:items-center">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="compose-title"
+            className="w-full max-w-md rounded-lg border border-border bg-card p-4 shadow-lg"
+          >
+            <div className="mb-3 flex items-center justify-between gap-2">
+              <h2 id="compose-title" className="text-sm font-semibold">
+                New message to driver
+              </h2>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8"
+                onClick={() => setComposeOpen(false)}
+                aria-label="Close"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+            <div className="space-y-3">
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-muted-foreground">
+                  Driver
+                </label>
+                <DriverSearchSelect
+                  drivers={drivers}
+                  value={composeDriverId}
+                  onChange={setComposeDriverId}
+                  placeholder="Search active driver…"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-muted-foreground">
+                  Message
+                </label>
+                <Textarea
+                  value={composeMessage}
+                  onChange={(e) => setComposeMessage(e.target.value)}
+                  placeholder="Write your message…"
+                  rows={4}
+                  className="text-sm"
+                />
+              </div>
+              <p className="text-[11px] text-muted-foreground">
+                Opens or reuses their support chat. Driver gets a push (debounced
+                if you already notified this thread in the last 3 minutes).
+              </p>
+              <div className="flex justify-end gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setComposeOpen(false)}
+                  disabled={composeSending}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  disabled={
+                    composeSending ||
+                    !composeDriverId ||
+                    !composeMessage.trim()
+                  }
+                  onClick={() => void sendCompose()}
+                >
+                  <Send className="mr-1.5 h-3.5 w-3.5" />
+                  {composeSending ? "Sending…" : "Send"}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

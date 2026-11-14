@@ -8,6 +8,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getCurrentOrg } from "@/lib/auth/org";
 import type { HelpMessageRow, HelpSessionRow } from "@/lib/features/communications";
+import { notifyAfterOperatorMessage } from "@/lib/features/communications/server/notify-driver-chat";
 
 type Ctx = { params: Promise<{ sessionId: string }> };
 
@@ -245,7 +246,22 @@ export async function POST(req: NextRequest, ctx: Ctx) {
       .update({ updated_at: new Date().toISOString() })
       .eq("id", sessionId);
 
-    return NextResponse.json({ message: inserted as HelpMessageRow });
+    const row = inserted as HelpMessageRow;
+    const notify = await notifyAfterOperatorMessage({
+      admin,
+      organizationId: orgId,
+      driverId: session.driver_id,
+      sessionId,
+      actorId: user.id,
+      messageId: row.id,
+      preview: row.message || (imageUrl ? "📷 Photo" : ""),
+    });
+
+    return NextResponse.json({
+      message: row,
+      notified: notify.notified,
+      notifySkipped: notify.skipped ?? null,
+    });
   } catch (err) {
     console.error("[communications/help/:id POST]", err);
     return NextResponse.json(
