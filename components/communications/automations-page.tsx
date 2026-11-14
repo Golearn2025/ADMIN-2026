@@ -9,7 +9,13 @@ import type {
   AutomationRule,
   DocExpiryCandidate,
 } from "@/lib/features/communications";
-import { FileWarning, RefreshCw, Zap } from "lucide-react";
+import {
+  DOC_EXPIRY_DAYS,
+  JOB_REMINDER_MINUTES,
+  sampleDocExpiryMessage,
+  sampleJobReminderMessage,
+} from "@/lib/features/communications";
+import { FileWarning, MessageSquareText, RefreshCw, Zap } from "lucide-react";
 import {
   getAutomationRuleColumns,
   getDocExpiryColumns,
@@ -140,7 +146,7 @@ export function CommunicationsAutomationsPage() {
     <div className="space-y-6">
       <PageHeader
         title="Automations"
-        subtitle="Driver push rules (SSOT). Toggle only — cron worker comes next. All OFF until enabled."
+        subtitle="Message formats ready · rules stay OFF until cron ships · toggle alone does not spam drivers"
         actions={
           <Button
             variant="outline"
@@ -157,6 +163,72 @@ export function CommunicationsAutomationsPage() {
       />
 
       <div className="space-y-8 px-4 pb-8 sm:px-6">
+        <section className="space-y-3">
+          <div className="flex items-center gap-2">
+            <MessageSquareText className="h-4 w-4 text-muted-foreground" />
+            <h2 className="text-sm font-semibold">Message formats</h2>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Doc reminders land in{" "}
+            <span className="font-medium text-foreground">
+              Notifications → Documents
+            </span>
+            . Job reminders land in{" "}
+            <span className="font-medium text-foreground">
+              Notifications → Updates
+            </span>{" "}
+            and should open{" "}
+            <span className="font-medium text-foreground">Accepted</span>.
+          </p>
+          <div className="grid gap-3 lg:grid-cols-2">
+            <div className="space-y-2 rounded-md border border-border p-3">
+              <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Documents · {DOC_EXPIRY_DAYS.join(" / ")} days
+              </div>
+              {DOC_EXPIRY_DAYS.map((days) => {
+                const sample = sampleDocExpiryMessage(days);
+                return (
+                  <div
+                    key={days}
+                    className="rounded border border-border/60 bg-muted/30 px-2.5 py-2"
+                  >
+                    <div className="text-sm font-medium">{sample.title}</div>
+                    <div className="mt-0.5 text-xs text-muted-foreground">
+                      {sample.body}
+                    </div>
+                    <div className="mt-1 text-[10px] text-muted-foreground">
+                      {sample.inbox}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            <div className="space-y-2 rounded-md border border-border p-3">
+              <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Jobs · {JOB_REMINDER_MINUTES.map((m) => `${m / 60}h`).join(" + ")}{" "}
+                before pickup
+              </div>
+              {JOB_REMINDER_MINUTES.map((minutes) => {
+                const sample = sampleJobReminderMessage(minutes);
+                return (
+                  <div
+                    key={minutes}
+                    className="rounded border border-border/60 bg-muted/30 px-2.5 py-2"
+                  >
+                    <div className="text-sm font-medium">{sample.title}</div>
+                    <div className="mt-0.5 text-xs text-muted-foreground">
+                      {sample.body}
+                    </div>
+                    <div className="mt-1 text-[10px] text-muted-foreground">
+                      {sample.inbox} · opens {sample.opens}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </section>
+
         <section className="space-y-3">
           <div className="flex items-center gap-2">
             <Zap className="h-4 w-4 text-muted-foreground" />
