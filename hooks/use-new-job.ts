@@ -44,10 +44,13 @@ export interface VehicleForm {
 
 export interface PriceForm {
   quoteId: string | null;
-  quotedPrice: number | null;      // from engine (GBP) — client price
+  quotedPrice: number | null;      // from engine (GBP) — client price incl. VAT when configured
   priceOverride: number | null;    // manual client price override (GBP)
   driverPayout: number | null;     // manual driver payout (GBP) — what driver sees
   currency: string;
+  priceBeforeVAT: number | null;
+  vatAmount: number | null;
+  vatRate: number | null;
   breakdown: Record<string, number> | null;
   legDetails: Array<{ legNumber: number; distance: number | null; duration: number | null }> | null;
 }
@@ -95,6 +98,9 @@ export function useNewJob() {
     priceOverride: null,
     driverPayout: null,
     currency: "GBP",
+    priceBeforeVAT: null,
+    vatAmount: null,
+    vatRate: null,
     breakdown: null,
     legDetails: null,
   });
@@ -142,25 +148,58 @@ export function useNewJob() {
       }
 
       const q = data.data || data;
-      const rawLegs = q.pricing?.legs ?? q.legs ?? [];
+      const pricing = q.pricing ?? {};
+      const rawLegs = pricing.legs ?? q.legs ?? [];
+      const toNum = (value: unknown): number | null => {
+        if (value == null || value === "") return null;
+        const n = typeof value === "number" ? value : Number(value);
+        return Number.isFinite(n) ? n : null;
+      };
       const legDetails = Array.isArray(rawLegs)
         ? rawLegs.map((leg: Record<string, unknown>, index: number) => {
-            const miles = leg.distance ?? leg.distance_miles;
-            const mins = leg.duration ?? leg.duration_min;
+            const nested = (leg.pricing as Record<string, unknown> | undefined) ?? {};
+            const miles =
+              leg.distance_miles ??
+              leg.distanceMiles ??
+              leg.distance ??
+              nested.distance_miles ??
+              nested.distance;
+            const mins =
+              leg.duration_min ??
+              leg.durationMin ??
+              leg.duration_minutes ??
+              leg.duration ??
+              nested.duration_min ??
+              nested.duration;
             return {
               legNumber: Number(leg.legNumber ?? leg.leg_number ?? index + 1),
-              distance: miles == null || miles === "" ? null : Number(miles),
-              duration: mins == null || mins === "" ? null : Number(mins),
+              distance: toNum(miles),
+              duration: toNum(mins),
             };
           })
         : null;
+      const engineBreakdown =
+        pricing.breakdown && typeof pricing.breakdown === "object"
+          ? (pricing.breakdown as Record<string, unknown>)
+          : null;
+      // Flatten numeric fee fields only (ignore nested objects like multipliers/details).
+      const flatBreakdown: Record<string, number> = {};
+      if (engineBreakdown) {
+        for (const [key, value] of Object.entries(engineBreakdown)) {
+          const n = toNum(value);
+          if (n != null) flatBreakdown[key] = n;
+        }
+      }
       setPrice({
         quoteId: q.quoteId,
-        quotedPrice: q.pricing?.finalPrice ?? null,
+        quotedPrice: toNum(pricing.finalPrice),
         priceOverride: null,
         driverPayout: null,
-        currency: q.pricing?.currency || "GBP",
-        breakdown: q.pricing?.breakdown || null,
+        currency: pricing.currency || "GBP",
+        priceBeforeVAT: toNum(pricing.priceBeforeVAT),
+        vatAmount: toNum(pricing.vatAmount),
+        vatRate: toNum(pricing.vatRate),
+        breakdown: Object.keys(flatBreakdown).length > 0 ? flatBreakdown : null,
         legDetails,
       });
     } catch (err) {

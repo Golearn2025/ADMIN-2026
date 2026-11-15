@@ -26,14 +26,71 @@ function fmt(n: unknown) {
   return `£${num.toFixed(2)}`;
 }
 
-function breakdownRows(breakdown: Record<string, unknown>): Array<{ key: string; value: string }> {
-  return Object.entries(breakdown)
-    .filter(([, v]) => {
-      if (v == null || typeof v === "object") return false;
-      const num = typeof v === "number" ? v : Number(v);
-      return Number.isFinite(num);
-    })
-    .map(([k, v]) => ({ key: k, value: fmt(v) }));
+const BREAKDOWN_ORDER = [
+  "baseFare",
+  "distanceFee",
+  "timeFee",
+  "airportFees",
+  "zoneFees",
+  "tollFees",
+  "multiStopFees",
+  "waitingFees",
+  "serviceItemFees",
+  "subtotal",
+  "finalPrice",
+] as const;
+
+function breakdownRows(
+  breakdown: Record<string, unknown>,
+  extras?: { priceBeforeVAT?: number | null; vatAmount?: number | null; vatRate?: number | null }
+): Array<{ key: string; value: string }> {
+  const rows: Array<{ key: string; value: string }> = [];
+  const seen = new Set<string>();
+
+  for (const key of BREAKDOWN_ORDER) {
+    const raw = breakdown[key];
+    if (raw == null || typeof raw === "object") continue;
+    const num = typeof raw === "number" ? raw : Number(raw);
+    if (!Number.isFinite(num)) continue;
+    rows.push({ key, value: fmt(num) });
+    seen.add(key);
+  }
+
+  for (const [key, raw] of Object.entries(breakdown)) {
+    if (seen.has(key) || raw == null || typeof raw === "object") continue;
+    const num = typeof raw === "number" ? raw : Number(raw);
+    if (!Number.isFinite(num)) continue;
+    rows.push({ key, value: fmt(num) });
+  }
+
+  if (extras?.priceBeforeVAT != null) {
+    rows.push({ key: "priceBeforeVAT (net)", value: fmt(extras.priceBeforeVAT) });
+  }
+  if (extras?.vatAmount != null) {
+    const rate =
+      extras.vatRate != null && Number.isFinite(extras.vatRate)
+        ? ` VAT ${Math.round(extras.vatRate * 100)}%`
+        : " VAT";
+    rows.push({ key: `vatAmount (${rate.trim()})`, value: fmt(extras.vatAmount) });
+  }
+
+  return rows;
+}
+
+function formatLegLine(leg: {
+  legNumber: number;
+  distance: number | null;
+  duration: number | null;
+}) {
+  const miles =
+    leg.distance == null || !Number.isFinite(leg.distance)
+      ? "—"
+      : `${leg.distance.toFixed(1)} mi`;
+  const mins =
+    leg.duration == null || !Number.isFinite(leg.duration)
+      ? "—"
+      : `${Math.round(leg.duration)} min`;
+  return `Leg ${leg.legNumber}: ${miles} · ${mins}`;
 }
 
 export function StepPrice({
@@ -94,8 +151,20 @@ export function StepPrice({
                 <span className="text-2xl font-bold text-primary">{fmt(value.quotedPrice)}</span>
                 <span className="text-xs text-muted-foreground">{value.currency}</span>
               </div>
+              {(value.priceBeforeVAT != null || value.vatAmount != null) && (
+                <p className="text-[11px] text-muted-foreground">
+                  {value.priceBeforeVAT != null ? `Net ${fmt(value.priceBeforeVAT)}` : null}
+                  {value.priceBeforeVAT != null && value.vatAmount != null ? " + " : null}
+                  {value.vatAmount != null
+                    ? `VAT ${fmt(value.vatAmount)}${
+                        value.vatRate != null ? ` (${Math.round(value.vatRate * 100)}%)` : ""
+                      }`
+                    : null}
+                  {" → "}client total {fmt(value.quotedPrice)}
+                </p>
+              )}
 
-              {value.breakdown && (
+              {(value.breakdown || value.vatAmount != null) && (
                 <button
                   type="button"
                   onClick={() => setShowBreakdown(!showBreakdown)}
@@ -106,9 +175,13 @@ export function StepPrice({
                 </button>
               )}
 
-              {showBreakdown && value.breakdown && (
+              {showBreakdown && (value.breakdown || value.vatAmount != null) && (
                 <div className="rounded-lg bg-muted p-3 space-y-1 text-xs">
-                  {breakdownRows(value.breakdown as Record<string, unknown>).map(({ key, value: amount }) => (
+                  {breakdownRows((value.breakdown ?? {}) as Record<string, unknown>, {
+                    priceBeforeVAT: value.priceBeforeVAT,
+                    vatAmount: value.vatAmount,
+                    vatRate: value.vatRate,
+                  }).map(({ key, value: amount }) => (
                     <div key={key} className="flex justify-between gap-3">
                       <span className="text-muted-foreground capitalize">{key.replace(/_/g, " ")}</span>
                       <span className="font-medium shrink-0">{amount}</span>
@@ -121,7 +194,7 @@ export function StepPrice({
                 <div className="space-y-1 pt-1">
                   {value.legDetails.map((leg) => (
                     <div key={leg.legNumber} className="text-xs text-muted-foreground">
-                      Leg {leg.legNumber}: {Number(leg.distance).toFixed(1)} mi · {leg.duration} min
+                      {formatLegLine(leg)}
                     </div>
                   ))}
                 </div>
