@@ -54,9 +54,36 @@ type FeedPayload = {
   summary: { total: number; updates: number; documents: number };
 };
 
+/** OneSignal often echoes invalid_aliases even when a subscribed device got the push. */
+function isNoisyInvalidAliasReason(reason: string | null | undefined) {
+  if (!reason) return false;
+  const lower = reason.toLowerCase();
+  return lower.includes("invalid alias") || lower.includes("invalid_aliases");
+}
+
+function displayStatus(row: Pick<CommunicationsSendHistoryRow, "status">) {
+  if (row.status === "partially_delivered") return "delivered";
+  return row.status;
+}
+
+function displayFailureReason(
+  row: Pick<CommunicationsSendHistoryRow, "status" | "failure_reason">
+) {
+  const status = displayStatus(row);
+  if (status === "delivered" || status === "provider_accepted") return null;
+  if (isNoisyInvalidAliasReason(row.failure_reason) && status !== "failed_retryable") {
+    return null;
+  }
+  // Hide stale invalid-alias noise once the event itself is no longer failing.
+  if (isNoisyInvalidAliasReason(row.failure_reason) && !status.includes("fail") && status !== "dead_letter") {
+    return null;
+  }
+  return row.failure_reason;
+}
+
 function statusBadge(status: string) {
   const variant =
-    status === "delivered"
+    status === "delivered" || status === "provider_accepted"
       ? "default"
       : status === "pending" || status === "ready" || status === "processing"
         ? "secondary"
@@ -466,7 +493,7 @@ export function CommunicationsNotificationsPage() {
                             <span className="truncate text-sm font-medium leading-tight">
                               {row.title}
                             </span>
-                            {statusBadge(row.status)}
+                            {statusBadge(displayStatus(row))}
                             <Badge
                               variant="outline"
                               className="px-1.5 py-0 text-[10px] font-normal"
@@ -477,9 +504,9 @@ export function CommunicationsNotificationsPage() {
                           <div className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">
                             {row.body || "—"}
                           </div>
-                          {row.failure_reason ? (
+                          {displayFailureReason(row) ? (
                             <div className="mt-0.5 line-clamp-1 text-[11px] text-destructive">
-                              {row.failure_reason}
+                              {displayFailureReason(row)}
                             </div>
                           ) : null}
                         </div>
@@ -569,7 +596,7 @@ export function CommunicationsNotificationsPage() {
           {selected && (
             <div className="space-y-3 text-sm">
               <div className="flex flex-wrap gap-1.5">
-                {statusBadge(selected.status)}
+                {statusBadge(displayStatus(selected))}
                 <Badge variant="outline" className="text-[10px]">
                   {selected.section}
                 </Badge>
@@ -600,9 +627,9 @@ export function CommunicationsNotificationsPage() {
                   {selected.body || "—"}
                 </p>
               </div>
-              {selected.failure_reason ? (
+              {displayFailureReason(selected) ? (
                 <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-xs text-destructive">
-                  {selected.failure_reason}
+                  {displayFailureReason(selected)}
                 </div>
               ) : null}
             </div>
