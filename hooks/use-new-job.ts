@@ -150,27 +150,32 @@ export function useNewJob() {
       const q = data.data || data;
       const pricing = q.pricing ?? {};
       const rawLegs = pricing.legs ?? q.legs ?? [];
+      const routeMetrics =
+        (pricing.routeMetrics as Record<string, unknown> | null | undefined) ??
+        (q.routeMetrics as Record<string, unknown> | null | undefined) ??
+        null;
       const toNum = (value: unknown): number | null => {
         if (value == null || value === "") return null;
         const n = typeof value === "number" ? value : Number(value);
         return Number.isFinite(n) ? n : null;
       };
-      const legDetails = Array.isArray(rawLegs)
+      const fallbackMiles = toNum(
+        routeMetrics?.fullDistance ?? routeMetrics?.full_distance_miles
+      );
+      const fallbackMins = toNum(
+        routeMetrics?.fullDuration ?? routeMetrics?.full_duration_minutes
+      );
+      let legDetails = Array.isArray(rawLegs)
         ? rawLegs.map((leg: Record<string, unknown>, index: number) => {
-            const nested = (leg.pricing as Record<string, unknown> | undefined) ?? {};
             const miles =
               leg.distance_miles ??
               leg.distanceMiles ??
-              leg.distance ??
-              nested.distance_miles ??
-              nested.distance;
+              leg.distance;
             const mins =
               leg.duration_min ??
               leg.durationMin ??
               leg.duration_minutes ??
-              leg.duration ??
-              nested.duration_min ??
-              nested.duration;
+              leg.duration;
             return {
               legNumber: Number(leg.legNumber ?? leg.leg_number ?? index + 1),
               distance: toNum(miles),
@@ -178,6 +183,31 @@ export function useNewJob() {
             };
           })
         : null;
+      // One-way legacy path used to omit miles/mins on legs — fill from routeMetrics
+      if (
+        legDetails &&
+        legDetails.length > 0 &&
+        legDetails.every((l) => l.distance == null && l.duration == null) &&
+        (fallbackMiles != null || fallbackMins != null)
+      ) {
+        legDetails = [
+          {
+            legNumber: legDetails[0]?.legNumber ?? 1,
+            distance: fallbackMiles,
+            duration: fallbackMins,
+          },
+        ];
+      } else if (
+        (!legDetails || legDetails.length === 0) &&
+        (fallbackMiles != null || fallbackMins != null)
+      ) {
+        legDetails = [{ legNumber: 1, distance: fallbackMiles, duration: fallbackMins }];
+      }
+      // Drop empty placeholder rows so UI does not show "Leg 1: — · —"
+      if (legDetails) {
+        legDetails = legDetails.filter((l) => l.distance != null || l.duration != null);
+        if (legDetails.length === 0) legDetails = null;
+      }
       const engineBreakdown =
         pricing.breakdown && typeof pricing.breakdown === "object"
           ? (pricing.breakdown as Record<string, unknown>)

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -19,11 +19,26 @@ interface StepPriceProps {
   onPrev: () => void;
 }
 
+type CommissionSettings = {
+  platformPct: number; // 0–100 display, e.g. 30
+  operatorPct: number;
+};
+
+/** VL default commissions — used until org settings load (or if GET is forbidden). */
+const DEFAULT_COMMISSION: CommissionSettings = {
+  platformPct: 30,
+  operatorPct: 10,
+};
+
 function fmt(n: unknown) {
   if (n == null || n === "") return "—";
   const num = typeof n === "number" ? n : typeof n === "string" ? Number(n) : NaN;
   if (!Number.isFinite(num)) return "—";
   return `£${num.toFixed(2)}`;
+}
+
+function round2(n: number) {
+  return Math.round(n * 100) / 100;
 }
 
 const BREAKDOWN_ORDER = [
@@ -93,6 +108,30 @@ function formatLegLine(leg: {
   return `Leg ${leg.legNumber}: ${miles} · ${mins}`;
 }
 
+/** Split net client price using org commission settings (same model as pricing commissions). */
+function estimateSplit(
+  net: number,
+  settings: CommissionSettings
+): {
+  platformFee: number;
+  operatorFee: number;
+  driverEstimate: number;
+  companyKeep: number;
+} {
+  const platformRate = settings.platformPct / 100;
+  const operatorRate = settings.operatorPct / 100;
+  const platformFee = round2(net * platformRate);
+  const afterPlatform = round2(net - platformFee);
+  const operatorFee = round2(afterPlatform * operatorRate);
+  const driverEstimate = round2(afterPlatform - operatorFee);
+  return {
+    platformFee,
+    operatorFee,
+    driverEstimate,
+    companyKeep: round2(platformFee + operatorFee),
+  };
+}
+
 export function StepPrice({
   value,
   onChange,
@@ -105,9 +144,67 @@ export function StepPrice({
   const [showBreakdown, setShowBreakdown] = useState(false);
   const [manualMode, setManualMode] = useState(value.priceOverride != null);
   const [driverMode, setDriverMode] = useState(value.driverPayout != null);
+  const [commission, setCommission] = useState<CommissionSettings>(DEFAULT_COMMISSION);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/admin/organization-settings");
+        const data = await res.json();
+        if (!res.ok || cancelled) return;
+        const platformPct = Number(data.platform_commission_percent);
+        const operatorPct = Number(data.operator_commission_percent);
+        if (!Number.isFinite(platformPct) || !Number.isFinite(operatorPct)) return;
+        setCommission({ platformPct, operatorPct });
+      } catch {
+        // Keep DEFAULT_COMMISSION so Driver + Profit always show after quote
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const displayPrice = value.priceOverride ?? value.quotedPrice;
   const canProceed = displayPrice != null && displayPrice > 0;
+
+  const netForSplit = useMemo(() => {
+    if (value.priceBeforeVAT != null && Number.isFinite(value.priceBeforeVAT)) {
+      return value.priceBeforeVAT;
+    }
+    // If admin overrode gross client price, back out VAT when rate known
+    if (value.priceOverride != null && value.vatRate != null && value.vatRate > 0) {
+      return round2(value.priceOverride / (1 + value.vatRate));
+    }
+    if (value.quotedPrice != null && value.vatAmount != null) {
+      return round2(value.quotedPrice - value.vatAmount);
+    }
+    // Last resort: treat quoted/display as already net (no VAT fields)
+    if (displayPrice != null && Number.isFinite(displayPrice) && displayPrice > 0) {
+      return displayPrice;
+    }
+    return null;
+  }, [
+    value.priceBeforeVAT,
+    value.priceOverride,
+    value.vatRate,
+    value.quotedPrice,
+    value.vatAmount,
+    displayPrice,
+  ]);
+
+  const split = useMemo(() => {
+    if (netForSplit == null || netForSplit <= 0) return null;
+    return estimateSplit(netForSplit, commission);
+  }, [netForSplit, commission]);
+
+  const usingOverride = value.driverPayout != null;
+  const driverWillSee = value.driverPayout ?? split?.driverEstimate ?? null;
+  const profit =
+    netForSplit != null && driverWillSee != null
+      ? round2(netForSplit - driverWillSee)
+      : split?.companyKeep ?? null;
 
   function handleOverride(v: string) {
     const n = parseFloat(v);
@@ -190,19 +287,81 @@ export function StepPrice({
                 </div>
               )}
 
-              {value.legDetails && value.legDetails.length > 0 && (
+              {value.legDetails &&
+                value.legDetails.some((l) => l.distance != null || l.duration != null) && (
                 <div className="space-y-1 pt-1">
-                  {value.legDetails.map((leg) => (
-                    <div key={leg.legNumber} className="text-xs text-muted-foreground">
-                      {formatLegLine(leg)}
-                    </div>
-                  ))}
+                  {value.legDetails
+                    .filter((l) => l.distance != null || l.duration != null)
+                    .map((leg) => (
+                      <div key={leg.legNumber} className="text-xs text-muted-foreground">
+                        {formatLegLine(leg)}
+                      </div>
+                    ))}
                 </div>
               )}
             </div>
           )}
         </CardContent>
       </Card>
+
+      {/* Driver + Profit — visible right after Calculate, before Telegram/send */}
+      {split && netForSplit != null && displayPrice != null && (
+        <Card className="overflow-hidden border-2 border-primary/30 bg-gradient-to-b from-primary/5 to-background shadow-sm">
+          <CardContent className="p-0">
+            <div className="border-b border-primary/15 px-4 py-3">
+              <p className="text-sm font-semibold tracking-tight">Driver &amp; profit</p>
+              <p className="mt-0.5 text-[11px] text-muted-foreground">
+                Before you send · net {fmt(netForSplit)} · commissions{" "}
+                {commission.platformPct}% / {commission.operatorPct}%
+              </p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-px bg-border/60">
+              <div className="bg-background px-4 py-4">
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  Driver price
+                </p>
+                <p className="mt-1 text-3xl font-bold tabular-nums tracking-tight text-emerald-700 dark:text-emerald-400">
+                  {fmt(driverWillSee)}
+                </p>
+                <p className="mt-1 text-[11px] text-muted-foreground">
+                  {usingOverride ? "Locked override" : "Estimated payout"}
+                </p>
+              </div>
+              <div className="bg-background px-4 py-4">
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  Profit
+                </p>
+                <p className="mt-1 text-3xl font-bold tabular-nums tracking-tight text-primary">
+                  {fmt(profit)}
+                </p>
+                <p className="mt-1 text-[11px] text-muted-foreground">
+                  Net − driver (ex VAT)
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-3 gap-px border-t border-border/60 bg-border/40 text-center">
+              <div className="bg-muted/40 px-2 py-2.5">
+                <p className="text-[10px] uppercase text-muted-foreground">Client</p>
+                <p className="text-sm font-semibold tabular-nums">{fmt(displayPrice)}</p>
+              </div>
+              <div className="bg-muted/40 px-2 py-2.5">
+                <p className="text-[10px] uppercase text-muted-foreground">
+                  Platform {commission.platformPct}%
+                </p>
+                <p className="text-sm font-semibold tabular-nums">{fmt(split.platformFee)}</p>
+              </div>
+              <div className="bg-muted/40 px-2 py-2.5">
+                <p className="text-[10px] uppercase text-muted-foreground">
+                  Operator {commission.operatorPct}%
+                </p>
+                <p className="text-sm font-semibold tabular-nums">{fmt(split.operatorFee)}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Manual price override */}
       <div>
@@ -262,7 +421,9 @@ export function StepPrice({
           </Label>
         </div>
         <p className="text-[11px] text-muted-foreground">
-          What the driver sees in the app. If left empty, payout is calculated from rate cards.
+          Locks what the driver sees in the app. Leave off to let rate cards apply later — the estimate
+          above is from org commissions only.
+          {split ? ` Suggested: ${fmt(split.driverEstimate)}.` : null}
         </p>
 
         {driverMode && (
@@ -272,7 +433,7 @@ export function StepPrice({
               type="number"
               min={0}
               step={0.01}
-              placeholder="0.00"
+              placeholder={split ? String(split.driverEstimate) : "0.00"}
               value={value.driverPayout ?? ""}
               onChange={(e) => handleDriverPayout(e.target.value)}
               className="pl-7"
@@ -283,28 +444,56 @@ export function StepPrice({
         {driverMode && value.driverPayout != null && (
           <p className="text-xs text-blue-600">
             Driver will see: {fmt(value.driverPayout)}
+            {split ? ` · estimate was ${fmt(split.driverEstimate)}` : null}
           </p>
+        )}
+
+        {!driverMode && split && (
+          <Button
+            type="button"
+            size="sm"
+            variant="secondary"
+            className="h-8 text-xs"
+            onClick={() => {
+              setDriverMode(true);
+              onChange({ ...value, driverPayout: split.driverEstimate });
+            }}
+          >
+            Use estimate {fmt(split.driverEstimate)} as override
+          </Button>
         )}
       </div>
 
       {/* Summary */}
       {displayPrice != null && (
         <Card className="bg-primary/5 border-primary/20">
-          <CardContent className="p-4">
+          <CardContent className="p-4 space-y-2">
             <div className="flex items-center justify-between">
               <span className="text-sm font-medium">Amount to charge</span>
               <span className="text-xl font-bold text-primary">{fmt(displayPrice)}</span>
             </div>
+            {driverWillSee != null && (
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground">
+                  Driver {usingOverride ? "(locked)" : "(estimate)"}
+                </span>
+                <span className="font-medium tabular-nums">{fmt(driverWillSee)}</span>
+              </div>
+            )}
             {manualMode && value.priceOverride != null && (
-              <p className="text-xs text-muted-foreground mt-1">Manual override active</p>
+              <p className="text-xs text-muted-foreground">Manual client price override active</p>
             )}
           </CardContent>
         </Card>
       )}
 
       <div className="flex gap-3">
-        <Button variant="outline" className="flex-1" onClick={onPrev}>← Back</Button>
-        <Button className="flex-1" disabled={!canProceed} onClick={onNext}>Continue →</Button>
+        <Button variant="outline" className="flex-1" onClick={onPrev}>
+          ← Back
+        </Button>
+        <Button className="flex-1" disabled={!canProceed} onClick={onNext}>
+          Continue →
+        </Button>
       </div>
     </div>
   );

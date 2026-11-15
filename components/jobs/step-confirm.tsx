@@ -48,6 +48,23 @@ function fmt(n: number | null | undefined) {
   return `£${n.toFixed(2)}`;
 }
 
+function round2(n: number) {
+  return Math.round(n * 100) / 100;
+}
+
+function estimateFromNet(net: number, platformPct: number, operatorPct: number) {
+  const platformFee = round2(net * (platformPct / 100));
+  const afterPlatform = round2(net - platformFee);
+  const operatorFee = round2(afterPlatform * (operatorPct / 100));
+  const driverEstimate = round2(afterPlatform - operatorFee);
+  return {
+    platformFee,
+    operatorFee,
+    driverEstimate,
+    companyKeep: round2(platformFee + operatorFee),
+  };
+}
+
 export function StepConfirm({
   customer,
   trip,
@@ -69,8 +86,29 @@ export function StepConfirm({
   const [driverQ, setDriverQ] = useState("");
   const [drivers, setDrivers] = useState<DriverOption[]>([]);
   const [loadingDrivers, setLoadingDrivers] = useState(false);
+  const [commission, setCommission] = useState<{ platformPct: number; operatorPct: number }>({
+    platformPct: 30,
+    operatorPct: 10,
+  });
   const displayPrice = price.priceOverride ?? price.quotedPrice;
   const dispatchLocked = Boolean(createdBooking);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/admin/organization-settings")
+      .then((r) => r.json())
+      .then((data) => {
+        if (cancelled || !data) return;
+        const platformPct = Number(data.platform_commission_percent);
+        const operatorPct = Number(data.operator_commission_percent);
+        if (!Number.isFinite(platformPct) || !Number.isFinite(operatorPct)) return;
+        setCommission({ platformPct, operatorPct });
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     if (dispatch.mode !== "direct" || dispatchLocked) return;
@@ -81,6 +119,26 @@ export function StepConfirm({
       .catch(() => setDrivers([]))
       .finally(() => setLoadingDrivers(false));
   }, [dispatch.mode, driverQ, dispatchLocked]);
+
+  const net =
+    price.priceBeforeVAT != null && Number.isFinite(price.priceBeforeVAT)
+      ? price.priceBeforeVAT
+      : price.priceOverride != null && price.vatRate != null && price.vatRate > 0
+        ? round2(price.priceOverride / (1 + price.vatRate))
+        : price.quotedPrice != null && price.vatAmount != null
+          ? round2(price.quotedPrice - price.vatAmount)
+          : null;
+
+  const split =
+    net != null && net > 0
+      ? estimateFromNet(net, commission.platformPct, commission.operatorPct)
+      : null;
+
+  const driverShown = price.driverPayout ?? split?.driverEstimate ?? null;
+  const companyKeep =
+    net != null && price.driverPayout != null
+      ? round2(net - price.driverPayout)
+      : split?.companyKeep ?? null;
 
   function copyLink(url: string) {
     navigator.clipboard.writeText(url);
@@ -147,8 +205,24 @@ export function StepConfirm({
           {price.priceOverride != null && (
             <SummaryRow label="Manual override" value="Yes" />
           )}
-          {price.driverPayout != null && (
-            <SummaryRow label="Driver payout" value={fmt(price.driverPayout)} />
+          {net != null && <SummaryRow label="Net (ex VAT)" value={fmt(net)} />}
+          {driverShown != null && (
+            <SummaryRow
+              label={price.driverPayout != null ? "Driver price (locked)" : "Driver price"}
+              value={fmt(driverShown)}
+            />
+          )}
+          {companyKeep != null && (
+            <SummaryRow label="Profit" value={fmt(companyKeep)} highlight />
+          )}
+          {split && price.driverPayout == null && (
+            <p className="text-[11px] text-muted-foreground">
+              Estimated from commissions
+              {commission
+                ? ` (${commission.platformPct}% / ${commission.operatorPct}%)`
+                : " (30% / 10%)"}
+              . Lock driver price on Price step to fix the amount in the app.
+            </p>
           )}
           <hr className="border-border" />
           <SummaryRow
